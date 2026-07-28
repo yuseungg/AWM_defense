@@ -1,0 +1,82 @@
+/**
+ * UITheme.js — 모든 연출 상수의 단일 소유처
+ *
+ * ⚠️ B 부재(D4~D7) 중 A가 UI를 튜닝할 때 **이 파일의 숫자만** 바꾼다.
+ *    로직 파일(SeoulTowerLight / DamageNumber / DraftOverlay)은 건드리지 않는다.
+ *
+ * 증상 → 고칠 상수 매핑은 HANDOFF.md 참조.
+ */
+
+export const COLOR = {
+  bg:        0x11141a,   // 맵 배경
+  path:      0x2a3040,   // 경로
+  slot:      0x1c2230,   // 경로 밖 슬롯 격자
+  accent:    0x3fa7d6,   // 단일 액센트 컬러 (아트 방향: 단색 실루엣 + 액센트 1개)
+  ok:        0x4caf50,   // 배치 가능
+  ng:        0xe53935,   // 배치 불가
+  text:      0xf2f4f8,
+  textDim:   0x8a919e,
+};
+
+/** N서울타워 조명 = 체력바. 단계 4→1 */
+export const LIGHT = {
+  colors:        [0xe53935, 0xfdd835, 0x4caf50, 0x2196f3], // index 0 = 단계1(빨강) … 3 = 단계4(파랑)
+  transitionMs:  600,   // 색 보간 시간. ↓ 낮추면 전환이 더 눈에 띈다
+  flashAlpha:    0.55,  // 하강 시 화면 플래시 세기. ↑ 올리면 더 위협적
+  flashMs:       220,
+  pulseMsAtRed:  700,   // 단계1에서 맥동 주기. ↓ 낮추면 더 다급해 보인다
+  healFlashHue:  0x8ce99a, // 회복 시 플래시 색 (관통 0 웨이브 보상)
+};
+
+/** 데미지 숫자 — 상성/크리를 플레이어에게 보이게 하는 유일한 장치 */
+export const DMG = {
+  poolSize:        200,   // 오브젝트 풀 크기 (웨이브 40+ 대비)
+  fontSize:        18,
+  effectiveScale:  1.6,   // 특효(isEffective) 배율. ↑ 올리면 상성이 더 잘 보인다
+  critScale:       2.0,   // 크리(isCrit) 배율
+  effectiveColor:  '#ffd54f',  // 특효 = 노란 숫자
+  critColor:       '#ff7043',
+  normalColor:     '#ffffff',
+  lifeMs:          800,   // 표시 시간. ↑ 올리면 놓치기 어렵다
+  riseDistance:    36,
+  effectiveLabel:  '효과가 굉장했다!',
+  labelCooldownMs: 1200,  // 라벨 도배 방지: 이 간격 안에는 1회만 표시
+};
+
+export const PARTICLE = {
+  hitCount:    4,    // 피격 반짝임 개수. ↓ 낮추면 화면이 덜 정신없다
+  killCount:   10,
+  goldPopMs:   500,
+  maxOnScreen: 120,  // 성능 안전판
+};
+
+/** 드래프트 오버레이 — 레벨업 5장 / 보스 정책 3장 공용 */
+export const CARD = {
+  width:      220,
+  height:     300,
+  gap:        20,
+  padding:    16,
+  fontSize:   16,   // ↑ 올리면 카드가 1초 안에 읽힌다
+  reasonSize: 12,   // "실제 근거 한 줄" (교육 2층)
+  slideInMs:  260,
+  hoverLift:  10,
+};
+
+export const SHAKE = {
+  bossSpawn:  0.004,
+  bossLeaked: 0.012,  // 보스 코어 도달. ↑ 올리면 임팩트가 커진다
+  durationMs: 320,
+};
+
+export const EASE = {
+  ui:     'Cubic.easeOut',
+  pop:    'Back.easeOut',
+  fade:   'Sine.easeInOut',
+};
+
+export const HUD = {
+  fontSize:   16,
+  margin:     16,
+  xpBarWidth: 240,
+  xpBarHeight: 10,
+};
