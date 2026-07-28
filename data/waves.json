@@ -1,0 +1,65 @@
+{
+  "hpScale": 1.08,
+  "countScalePerWaves": 3,
+  "draftCardCount": 3,
+  "policyCardCount": 3,
+  "seasons": [
+    {
+      "from": 1,
+      "to": 10,
+      "name": "봄",
+      "mix": {
+        "dust": 0.8,
+        "car": 0.2,
+        "trash": 0.0
+      }
+    },
+    {
+      "from": 11,
+      "to": 20,
+      "name": "여름",
+      "mix": {
+        "dust": 0.4,
+        "car": 0.4,
+        "trash": 0.2
+      }
+    },
+    {
+      "from": 21,
+      "to": 30,
+      "name": "가을",
+      "mix": {
+        "dust": 0.3,
+        "car": 0.3,
+        "trash": 0.4
+      }
+    },
+    {
+      "from": 31,
+      "to": 40,
+      "name": "겨울",
+      "mix": {
+        "dust": 0.5,
+        "car": 0.2,
+        "trash": 0.3
+      }
+    }
+  ],
+  "seasonLoopFrom": 41,
+  "boss": {
+    "everyWaves": 5,
+    "baseHp": 400,
+    "hpMulPerBoss": 1.15
+  },
+  "xp": {
+    "levelBase": 20,
+    "levelGrowth": 1.3
+  },
+  "buildXp": {
+    "tower": 3,
+    "support": 2,
+    "obstacle": 2
+  },
+  "startGold": 200,
+  "instantWaveBonusGold": 25
+}

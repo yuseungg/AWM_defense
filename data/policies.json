@@ -1,0 +1,57 @@
+{
+  "car_rotation": {
+    "id": "car_rotation",
+    "name": "차량 2부제",
+    "effect": {
+      "type": "enemySpawnMul",
+      "target": "car",
+      "value": 0.6,
+      "duration": 3
+    },
+    "desc": "과속차량 스폰 40% 감소 (3웨이브). 고농도 미세먼지 비상저감조치의 실제 수단이다."
+  },
+  "waste_sorting": {
+    "id": "waste_sorting",
+    "name": "폐기물 분리배출 강화",
+    "effect": {
+      "type": "enemyHpMul",
+      "target": "trash",
+      "value": 0.75,
+      "duration": -1
+    },
+    "desc": "쓰레기더미 체력 25% 감소 (영구). 자원순환 정책."
+  },
+  "urban_green": {
+    "id": "urban_green",
+    "name": "도심 녹지 확충",
+    "effect": {
+      "type": "towerRangeMul",
+      "target": "all",
+      "value": 1.15,
+      "duration": -1
+    },
+    "desc": "모든 타워 사거리 +15% (영구). 도시숲과 바람길숲 조성."
+  },
+  "water_truck": {
+    "id": "water_truck",
+    "name": "살수차 증차",
+    "effect": {
+      "type": "slowEffectMul",
+      "target": "cheonggyecheon",
+      "value": 1.5,
+      "duration": -1
+    },
+    "desc": "청계천 계열 감속 효과 +50% (영구). 도로 물청소 확대."
+  },
+  "transit_expand": {
+    "id": "transit_expand",
+    "name": "대중교통 확대",
+    "effect": {
+      "type": "goldPerWave",
+      "target": "all",
+      "value": 25,
+      "duration": -1
+    },
+    "desc": "웨이브당 골드 +25 (영구). 교통수요 관리 정책."
+  }
+}

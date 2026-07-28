@@ -1,0 +1,244 @@
+{
+  "nseoulTower": {
+    "id": "nseoulTower",
+    "name": "N서울타워",
+    "role": "sniper",
+    "damage": 25,
+    "attackSpeed": 1.2,
+    "range": 300,
+    "projectileType": "single",
+    "aoeRadius": 0,
+    "effects": [],
+    "strongAgainst": {},
+    "upgradeBaseCost": 60,
+    "unlockLevel": 0,
+    "levels": [
+      {
+        "label": "남산 송신탑",
+        "tint": "#7c8494",
+        "scale": 1.0,
+        "costMul": 1.0,
+        "statMul": 1.0
+      },
+      {
+        "label": "서울타워",
+        "tint": "#b8a06a",
+        "scale": 1.1,
+        "costMul": 1.5,
+        "statMul": 1.6
+      },
+      {
+        "label": "N서울타워",
+        "tint": "#e8d9a0",
+        "scale": 1.2,
+        "costMul": 2.5,
+        "statMul": 2.5
+      }
+    ],
+    "codex": "1969년 남산에 세워진 송신탑. 1980년 일반 개방, 2005년 리모델링으로 N서울타워가 됐다. 조명은 대기질에 따라 색이 바뀐다."
+  },
+  "cheonggyecheon": {
+    "id": "cheonggyecheon",
+    "name": "청계천",
+    "role": "cc",
+    "damage": 5,
+    "attackSpeed": 0.8,
+    "range": 140,
+    "projectileType": "aoe_water",
+    "aoeRadius": 60,
+    "effects": [
+      {
+        "type": "slow",
+        "amount": 0.4,
+        "duration": 2.0
+      }
+    ],
+    "strongAgainst": {
+      "dust": 2.0
+    },
+    "upgradeBaseCost": 80,
+    "unlockLevel": 1,
+    "levels": [
+      {
+        "label": "복개도로",
+        "tint": "#8a8f99",
+        "scale": 1.0,
+        "costMul": 1.0,
+        "statMul": 1.0
+      },
+      {
+        "label": "청계고가도로",
+        "tint": "#6f9bd1",
+        "scale": 1.1,
+        "costMul": 1.5,
+        "statMul": 1.6
+      },
+      {
+        "label": "복원 하천",
+        "tint": "#3fa7d6",
+        "scale": 1.2,
+        "costMul": 2.5,
+        "statMul": 2.5
+      }
+    ],
+    "codex": "1958년 복개되고 1976년 고가도로가 올라섰다가 2005년 복원됐다. 물 분사는 실제로 대기 중 분진을 억제한다."
+  },
+  "gwanghwamun": {
+    "id": "gwanghwamun",
+    "name": "광화문",
+    "role": "melee",
+    "damage": 20,
+    "attackSpeed": 0.6,
+    "range": 90,
+    "projectileType": "single",
+    "aoeRadius": 0,
+    "effects": [],
+    "strongAgainst": {},
+    "upgradeBaseCost": 70,
+    "unlockLevel": 2,
+    "levels": [
+      {
+        "label": "소실된 문루",
+        "tint": "#6b6259",
+        "scale": 1.0,
+        "costMul": 1.0,
+        "statMul": 1.0
+      },
+      {
+        "label": "콘크리트 복원",
+        "tint": "#9c8f7a",
+        "scale": 1.1,
+        "costMul": 1.5,
+        "statMul": 1.6
+      },
+      {
+        "label": "목조 복원",
+        "tint": "#c9a86a",
+        "scale": 1.2,
+        "costMul": 2.5,
+        "statMul": 2.5
+      }
+    ],
+    "codex": "임진왜란과 한국전쟁으로 소실됐다. 1968년 콘크리트로, 2010년 목조로 복원됐다. 해태는 화재를 막는 수호수다."
+  },
+  "ddp": {
+    "id": "ddp",
+    "name": "DDP",
+    "role": "aoe",
+    "damage": 12,
+    "attackSpeed": 1.5,
+    "range": 160,
+    "projectileType": "aoe_wave",
+    "aoeRadius": 90,
+    "effects": [],
+    "strongAgainst": {
+      "dust": 1.5
+    },
+    "upgradeBaseCost": 100,
+    "unlockLevel": 3,
+    "levels": [
+      {
+        "label": "경성운동장",
+        "tint": "#7a7d85",
+        "scale": 1.0,
+        "costMul": 1.0,
+        "statMul": 1.0
+      },
+      {
+        "label": "동대문운동장",
+        "tint": "#9aa3b0",
+        "scale": 1.1,
+        "costMul": 1.5,
+        "statMul": 1.6
+      },
+      {
+        "label": "DDP",
+        "tint": "#c8d4e4",
+        "scale": 1.2,
+        "costMul": 2.5,
+        "statMul": 2.5
+      }
+    ],
+    "codex": "1925년 경성운동장으로 시작해 동대문운동장을 거쳐 2014년 DDP가 됐다. 곡선형 외피가 동대문 상권을 잇는다."
+  },
+  "lotteWorldTower": {
+    "id": "lotteWorldTower",
+    "name": "롯데월드타워",
+    "role": "tank_killer",
+    "damage": 60,
+    "attackSpeed": 2.0,
+    "range": 280,
+    "projectileType": "single",
+    "aoeRadius": 0,
+    "effects": [],
+    "strongAgainst": {
+      "trash": 1.5
+    },
+    "upgradeBaseCost": 150,
+    "unlockLevel": 4,
+    "levels": [
+      {
+        "label": "잠실 매립지",
+        "tint": "#6e737d",
+        "scale": 1.0,
+        "costMul": 1.0,
+        "statMul": 1.0
+      },
+      {
+        "label": "롯데월드",
+        "tint": "#93a2b8",
+        "scale": 1.1,
+        "costMul": 1.5,
+        "statMul": 1.6
+      },
+      {
+        "label": "롯데월드타워",
+        "tint": "#d3dceb",
+        "scale": 1.2,
+        "costMul": 2.5,
+        "statMul": 2.5
+      }
+    ],
+    "codex": "잠실은 한강 매립으로 만들어진 땅이다. 555m로 국내 최고층. 무거운 것을 한 방에 처리한다."
+  },
+  "seoulForest": {
+    "id": "seoulForest",
+    "name": "서울숲",
+    "role": "dot",
+    "damage": 3,
+    "attackSpeed": 0.5,
+    "range": 130,
+    "projectileType": "aura_dot",
+    "aoeRadius": 130,
+    "effects": [],
+    "strongAgainst": {
+      "dust": 1.3
+    },
+    "upgradeBaseCost": 90,
+    "unlockLevel": 5,
+    "levels": [
+      {
+        "label": "뚝섬 경마장",
+        "tint": "#7d7a6a",
+        "scale": 1.0,
+        "costMul": 1.0,
+        "statMul": 1.0
+      },
+      {
+        "label": "뚝도정수장",
+        "tint": "#8fa06a",
+        "scale": 1.1,
+        "costMul": 1.5,
+        "statMul": 1.6
+      },
+      {
+        "label": "서울숲",
+        "tint": "#5fa04a",
+        "scale": 1.2,
+        "costMul": 2.5,
+        "statMul": 2.5
+      }
+    ],
+    "codex": "경마장과 정수장을 거쳐 2005년 공원이 됐다. 도시숲은 실제로 미세먼지를 흡착해 저감한다."
+  }
+}

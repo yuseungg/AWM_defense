@@ -250,7 +250,24 @@ recalculateBuffs() {
 ```
 - 처치 XP: 미세먼지 1 / 과속차량 2 / 쓰레기더미 5 / 보스 20
 - 건설 XP: 랜드마크 타워 +3 / 서포터·장애물 +2
-- 레벨업 시 **①`unlockLevel`이 맞는 타워 자동 해금 ②드래프트 5장 제시** 를 동시에 발행
+- 레벨업 시 **①`unlockLevel`이 맞는 타워 자동 해금 ②드래프트 3장 제시** 를 동시에 발행
+
+**⚠️ 드래프트는 3장이다 (5장 아님). [✅ A 승인 2026-07-28]**
+풀 = 서포터 2(유니크, 획득 시 제거) + 장애물 2(반복) + 퍼크 3(누적) = **7종**.
+7종에서 5장을 뽑으면 서포터를 다 획득한 뒤 남은 풀이 5종이 되어 **매번 같은 5장이 나온다 = 선택이 사라진다.**
+3장이면 조합 35가지가 유지되고, 카드 폭을 키워 "실제 근거 한 줄"(교육 2층)을 읽히게 넣을 수 있다.
+카드 수는 `waves.json`의 `draftCardCount` / `policyCardCount`로 관리한다.
+
+### 5-6. `unlockLevel` 매핑 [✅ A 승인 2026-07-28]
+
+| 레벨 | 자동 해금 | 근거 |
+|---|---|---|
+| 0 | N서울타워 | 시작 시 존재 |
+| 1 | 청계천 | 미세먼지 특효 ×2.0 → 초반 상성 학습 |
+| 2 | 광화문 | 범용 딜. 안전판 |
+| 3 | DDP | 광역. 스웜 대응 |
+| 4 | 롯데월드타워 | 쓰레기더미 특효. 탱커 등장 시점과 맞춤 |
+| 5 | 서울숲 | 오라형. 배치 이해도가 필요해서 마지막 |
 
 ---
 
@@ -269,12 +286,12 @@ export const EventBus = new Phaser.Events.EventEmitter();
 | `enemySpawned` | `{ id, type, x, y }` |
 | `enemyDamaged` | `{ id, amount, x, y, isEffective, isCrit }` |
 | `enemyKilled` | `{ id, type, reward, xp, x, y }` |
-| `enemyStunned` | `{ id, duration }` |
+| ~~`enemyStunned`~~ → `statusApplied` | `{ enemyId, type: 'stun'\|'dot'\|'slow', duration }` ⭐ |
 | `cityDamaged` | `{ level }` — 4→3→2→1 |
 | `cityHealed` | `{ level }` |
 | `goldChanged` | `{ gold, delta }` |
 | `xpChanged` | `{ xp, level, xpToNext }` |
-| `levelUp` | `{ level, unlockedTower, draftCards[] }` — 5장 |
+| `levelUp` | `{ level, unlockedTower, draftCards[] }` — **3장** |
 | `cardPicked` | `{ cardId }` |
 | `waveStarted` | `{ wave, season }` |
 | `waveCleared` | `{ wave, perfect }` |
@@ -284,10 +301,27 @@ export const EventBus = new Phaser.Events.EventEmitter();
 | `seasonChanged` | `{ season }` |
 | `buffsRecalculated` | `{ towerStats[] }` |
 | `gameOver` | `{ wave, kills, level, isNewRecord }` |
+| `bossHpChanged` | `{ hp, maxHp }` ⭐ — 보스 체력 표시 (금지 규칙은 **도시** 체력바에만 적용) |
+| `objectBuilt` | `{ kind, id, instanceId, cellX, cellY, x, y }` ⭐ — 배치 "쿵" 스쿼시 연출 |
+| `objectChanged` | `{ instanceId, action: 'upgraded'\|'relocated', level }` ⭐ — 역사 변천 색조·재배치 |
+| `actionRejected` | `{ action, reason, message }` ⭐ — **없으면 실패가 "클릭이 씹힌 것"처럼 보인다** |
+| `obstacleTriggered` | `{ instanceId, type, x, y, cooldown }` ⭐ — 통나무 발동 + 쿨다운 게이지 |
+
+⭐ = **[✅ A 승인 2026-07-28]** `SYNC.md` §3 C3. 이벤트 이름은 `EventBus.js`의 `EV` 상수를 쓴다 (리터럴 문자열 금지).
 
 ### 6-2. GameCore 인터페이스 (B → A) — 시그니처 변경 금지
 
 **D1에 A가 먼저 만들고 커밋한다.**
+
+**규약 3개 [✅ A 승인 2026-07-28]**
+
+1. **좌표 단위 = 셀 인덱스.** `cellX = Math.floor(px / 40)`. 픽셀→셀 변환 책임은 **B**에게 있다.
+2. **반환값 = `{ ok, reason?, instanceId? }`.** `canBuild`도 boolean이 아니다 —
+   boolean만 오면 UI가 **"왜 안 되는지"를 표시할 수 없다.**
+   `reason` 목록: `'occupied'` `'unique'` `'locked'` `'noGold'` `'notOnPath'` `'onPath'` `'noPick'`
+3. **`getState()`는 매 프레임 호출 금지.** 씬 진입 · 오버레이 열 때 · `?debug=1` 에서만.
+   실시간 갱신은 전부 이벤트로 한다 (§2 성능 조항).
+   `instanceId` 형식은 `"cheonggyecheon#1"` (id + `#` + 순번).
 
 ```js
 export const GameCore = {
@@ -300,7 +334,7 @@ export const GameCore = {
   pickPolicy(policyId) {},                     // 보스 정책 결과
   startNextWave() {},                          // 즉시 웨이브 (보너스 골드)
   setSpeed(n) {}, setPaused(bool) {},
-  canBuild(id, cellX, cellY) {},               // → boolean (셀 비었나 + 유니크 + 해금)
+  canBuild(id, cellX, cellY) {},               // → { ok, reason } (boolean 아님)
   getState() {}   // { gold, xp, level, xpToNext, wave, season, cityLight,
                   //   towers[], supports[], obstacles[], perks{}, policies[],
                   //   unlockedTowers[], kills, bestWave, isPrepPhase }
@@ -353,7 +387,7 @@ export const GameCore = {
 
 ## 9. 스코프
 
-**포함:** 서울 1맵·S자 경로 1개 / N서울타워(고정) + 랜드마크 5(자동 해금) / 서포터 2 / 장애물 2 / 부가효과 3 / 정책 5 / 적 3 + 보스 / 레벨업 드래프트 5장·골드 강화·보스 정책 3채널 / 유니크 룰·상성 특효·조명 체력·하늘 틴트 / 계절 4 / 날짜 시드·시각/계절 반영 / 배속·즉시웨이브·사거리표시·디버그 / 역사 변천(색조+자막)
+**포함:** 서울 1맵·S자 경로 1개 / N서울타워(고정) + 랜드마크 5(자동 해금) / 서포터 2 / 장애물 2 / 부가효과 3 / 정책 5 / 적 3 + 보스 / 레벨업 드래프트 3장·골드 강화·보스 정책 3채널 / 유니크 룰·상성 특효·조명 체력·하늘 틴트 / 계절 4 / 날짜 시드·시각/계절 반영 / 배속·즉시웨이브·사거리표시·디버그 / 역사 변천(색조+자막)
 
 **제외(v2):** 도시 순환·다중 경로·분기 / 캐릭터·액티브 스킬 / 영구 성장·갸챠·상점 / 글로벌 리더보드·업적·사운드 풀세트 / 랜덤 기상 / 서포터·장애물 추가 종류
 

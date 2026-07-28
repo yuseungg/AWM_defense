@@ -146,7 +146,7 @@ npm run dev
 npm run build                        # ★ 빌드 되는지 먼저 확인
 
 git add -A
-git commit -m "feat: 드래프트 오버레이 5장 표시"
+git commit -m "feat: 드래프트 오버레이 3장 표시"
 
 git checkout main && git pull
 git merge feat/ui                    # main에 합치기

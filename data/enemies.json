@@ -1,0 +1,70 @@
+{
+  "dust": {
+    "id": "dust",
+    "name": "미세먼지",
+    "archetype": "swarm",
+    "baseHp": 20,
+    "speed": 195,
+    "armor": 0,
+    "reward": 5,
+    "pierceDamage": 1,
+    "xp": 1,
+    "spawnCount": [
+      8,
+      15
+    ],
+    "sprite": "dust",
+    "codex": "경유차 배출, 난방, 국외 유입이 주 원인이다. 뭉쳐서 몰려온다."
+  },
+  "car": {
+    "id": "car",
+    "name": "과속차량",
+    "archetype": "fast",
+    "baseHp": 35,
+    "speed": 580,
+    "armor": 0,
+    "reward": 8,
+    "pierceDamage": 1,
+    "xp": 2,
+    "spawnCount": [
+      3,
+      6
+    ],
+    "sprite": "car",
+    "codex": "교통 혼잡과 매연. 너무 빨라서 감속시키지 않으면 사거리를 그냥 통과한다."
+  },
+  "trash": {
+    "id": "trash",
+    "name": "쓰레기더미",
+    "archetype": "tank",
+    "baseHp": 150,
+    "speed": 120,
+    "armor": 5,
+    "reward": 20,
+    "pierceDamage": 2,
+    "xp": 5,
+    "spawnCount": [
+      1,
+      3
+    ],
+    "sprite": "trash",
+    "codex": "폐기물 처리와 분리배출, 자원순환의 문제. 느리지만 방어력이 있다."
+  },
+  "boss": {
+    "id": "boss",
+    "name": "거대 스모그 덩어리",
+    "archetype": "boss",
+    "baseHp": 400,
+    "speed": 145,
+    "armor": 10,
+    "reward": 50,
+    "pierceDamage": 2,
+    "xp": 20,
+    "spawnCount": [
+      1,
+      1
+    ],
+    "sprite": "boss",
+    "codex": "대기 정체와 황사가 겹치면 고농도 미세먼지가 며칠씩 머문다."
+  }
+}

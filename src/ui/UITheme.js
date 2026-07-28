@@ -50,14 +50,16 @@ export const PARTICLE = {
   maxOnScreen: 120,  // 성능 안전판
 };
 
-/** 드래프트 오버레이 — 레벨업 5장 / 보스 정책 3장 공용 */
+/** 드래프트 오버레이 — 레벨업 3장 / 보스 정책 3장. 장수가 같아 레이아웃 한 벌로 끝난다 */
 export const CARD = {
-  width:      220,
-  height:     300,
-  gap:        20,
-  padding:    16,
-  fontSize:   16,   // ↑ 올리면 카드가 1초 안에 읽힌다
-  reasonSize: 12,   // "실제 근거 한 줄" (교육 2층)
+  // 드래프트 = 3장 고정 (레벨업·보스 정책 동일). 300*3 + 32*2 = 964px < 1280 → 여백 충분
+  count:      3,
+  width:      300,
+  height:     340,
+  gap:        32,
+  padding:    20,
+  fontSize:   18,   // ↑ 올리면 카드가 1초 안에 읽힌다. 3장이라 5장 때보다 키울 수 있다
+  reasonSize: 13,   // "실제 근거 한 줄" (교육 2층)
   slideInMs:  260,
   hoverLift:  10,
 };

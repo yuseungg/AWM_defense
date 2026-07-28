@@ -1,0 +1,33 @@
+{
+  "crit_up": {
+    "id": "crit_up",
+    "name": "크리티컬 확률 강화",
+    "effect": {
+      "type": "globalCrit",
+      "value": 0.05,
+      "cap": 1.0
+    },
+    "stackable": true,
+    "desc": "전 타워 크리티컬 확률 +5% (최대 100%). 크리티컬은 피해 2배."
+  },
+  "power_up": {
+    "id": "power_up",
+    "name": "공격력 강화",
+    "effect": {
+      "type": "globalDamage",
+      "value": 0.1
+    },
+    "stackable": true,
+    "desc": "전 타워 공격력 +10%. 누적된다."
+  },
+  "pierce_up": {
+    "id": "pierce_up",
+    "name": "관통 강화",
+    "effect": {
+      "type": "globalPierce",
+      "value": 5
+    },
+    "stackable": true,
+    "desc": "전 타워 방어력 무시 +5. 쓰레기더미와 보스에게 특히 유효하다."
+  }
+}
