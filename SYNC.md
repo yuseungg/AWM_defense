@@ -215,6 +215,39 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 ---
 
+## [2026-07-28] B · 세션 1 (D1)
+
+**한 일**
+- P0 계약 전체 확정 (A와 통화) → 결정 로그 D9~D18
+- 문서 충돌 4건 해소: 보스 관통 2단계 / 크리 +5% 100%상한 / 타워 자동해금 / 드래프트 3장
+- map.json 좌표 교체 + 격자 40k+20 정렬 + enemies.json speed 전면 재조정(×4.82)
+- /data/*.json 8종 전부 생성
+- EventBus.js — 이벤트 23종 + REJECT 문구 상수
+- MockGameCore.js — 가짜 이벤트 발행 (?mock=1)
+- GitHub Pages 자동 배포 뚫음
+
+**지금 되는 것 / 안 되는 것**
+- 됨: 배포 https://yuseungg.github.io/AWM_defense/
+      ?mock=1 이벤트 모니터 — 23종 중 17종 실제 발행 확인
+      경로 검증 화면 — 3300px, 격자 정렬 ✅
+- 안 됨: UI 전부 (조명·데미지숫자·드래프트·HUD·BuildUI). D2~D3에 만든다
+- 안 됨: 실제 게임 코어 (A 담당, feat/game-core는 아직 8707c47)
+
+**상대에게 필요한 것**
+- A가 feat/game-core를 main에 merge해서 최신 계약을 받아갈 것
+- MockGameCore.js를 스펙으로 실제 코어 구현 (SYNC §6-4)
+- 미발행 이벤트 6종은 배치 UI가 있어야 나옴 → B가 D3에 확인
+
+**내가 한 가정**
+- 없음. §3 C1·C2·C3 전부 A 승인 완료
+
+**다음 세션에 할 것 (D2)**
+- SeoulTowerLight.js → DamageNumber.js → HUD.js
+
+**main 빌드:** ✅
+
+---
+
 *(첫 세션 후 여기부터 쌓기)*
 
 ---
