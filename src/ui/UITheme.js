@@ -21,6 +21,7 @@ export const COLOR = {
 /** N서울타워 조명 = 체력바. 단계 4→1 */
 export const LIGHT = {
   colors:        [0xe53935, 0xfdd835, 0x4caf50, 0x2196f3], // index 0 = 단계1(빨강) … 3 = 단계4(파랑)
+  offColor:      0x33383f,  // 조명 0 (소등)
   transitionMs:  600,   // 색 보간 시간. ↓ 낮추면 전환이 더 눈에 띈다
   flashAlpha:    0.55,  // 하강 시 화면 플래시 세기. ↑ 올리면 더 위협적
   flashMs:       220,
