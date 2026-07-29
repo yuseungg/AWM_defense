@@ -34,13 +34,37 @@ export class SeoulTowerLight {
   }
 
   setLevel(newLevel, isDamage) {
+    const prevLevel = this.level;
     this._stopTweens();
 
     const fromInt = this.circle.fillColor;
     const toInt = newLevel <= 0 ? LIGHT.offColor : LIGHT.colors[newLevel - 1];
     this._tweenColor(fromInt, toInt);
 
+    if (isDamage) {
+      this._flashDamage(prevLevel - newLevel);
+      this.onLevelDown();
+    }
+
     this.level = newLevel;
+  }
+
+  /** 조명 하강 시 경고음 훅. 사운드는 지금 만들지 않는다 (TASKS_B.md 비상 절단 순서 2번) */
+  onLevelDown() {
+    // TODO: 경고음 재생. 사운드는 P3 이후로 보류.
+  }
+
+  _flashDamage(delta) {
+    const tier = delta >= 2 ? 2 : 1;
+    const alpha = LIGHT.flashAlphaPerLevel[tier];
+    const ms = LIGHT.flashMsPerLevel[tier];
+    const c = Phaser.Display.Color.IntegerToColor(LIGHT.colors[0]); // 위험 = 빨강
+
+    // Camera.flash()는 alpha 파라미터가 없다 — 내부 effect 인스턴스의 alpha를
+    // 직접 세팅한 뒤 flash()를 호출해 하강 폭별 강도를 구분한다.
+    const cam = this.scene.cameras.main;
+    cam.flashEffect.alpha = alpha;
+    cam.flash(ms, c.r, c.g, c.b);
   }
 
   _tweenColor(fromInt, toInt) {

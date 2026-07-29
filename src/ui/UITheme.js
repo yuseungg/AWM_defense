@@ -23,8 +23,12 @@ export const LIGHT = {
   colors:        [0xe53935, 0xfdd835, 0x4caf50, 0x2196f3], // index 0 = 단계1(빨강) … 3 = 단계4(파랑)
   offColor:      0x33383f,  // 조명 0 (소등)
   transitionMs:  600,   // 색 보간 시간. ↓ 낮추면 전환이 더 눈에 띈다
-  flashAlpha:    0.55,  // 하강 시 화면 플래시 세기. ↑ 올리면 더 위협적
-  flashMs:       220,
+
+  // 하강 폭(delta = prevLevel - newLevel)별 화면 플래시 강도. CLAUDE.md §5-4
+  // delta===1: 일반 관통 / delta>=2: 보스 코어 도달 — 가장 위협적인 순간이라 눈에 띄게 키운다
+  flashAlphaPerLevel: { 1: 0.55, 2: 0.9 },
+  flashMsPerLevel:    { 1: 220,  2: 420 },
+
   pulseMsAtRed:  700,   // 단계1에서 맥동 주기. ↓ 낮추면 더 다급해 보인다
   healFlashHue:  0x8ce99a, // 회복 시 플래시 색 (관통 0 웨이브 보상)
 };
