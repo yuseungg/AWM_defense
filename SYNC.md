@@ -14,11 +14,11 @@
 
 | 항목 | 상태 |
 |---|---|
-| **`main` 빌드** | ✅ 정상 (Actions 초록 · 배포 확인) |
-| **마지막 갱신** | 2026-07-28 / B |
-| **현재 페이즈** | **P0 완료 (2026-07-28 A 승인)** → P1 착수 |
+| **`main` 빌드** | ✅ 정상 (배포 확인) |
+| **마지막 갱신** | 2026-07-29 / B |
+| **현재 페이즈** | **P2 진행 중** (D2) — SeoulTowerLight.js 완료 |
 | **A 진행률** | P0 대기 |
-| **B 진행률** | 셋업·배포·데이터 8종·Mock 완료 · **P1 착수 가능** |
+| **B 진행률** | `SeoulTowerLight.js` 완료(색 보간·플래시·맥동·회복 연출) · 다음: `DamageNumber.js` |
 | **Mock 상태** | ✅ **B가 선작성** (`src/MockGameCore.js`) → §6-4 "Mock이 스펙이다" |
 | **배포 링크** | ✅ https://yuseungg.github.io/AWM_defense/ |
 
@@ -219,6 +219,36 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 **main 빌드:** ✅ / ❌
 ```
+
+---
+
+## [2026-07-29] B · 세션 2 (D2)
+
+**한 일**
+- `SeoulTowerLight.js` 완성 — 색 보간(`tweens.addCounter`) / 하강 시 화면 플래시(delta 티어별 강도) / 빨강(1단계) 맥동 / `cityHealed` 회복 연출 / `EventBus.off()`로 씬 재시작 시 리스너 누수 방지
+- `main.js`의 `MockScene` 임시 조명 로직을 `SeoulTowerLight`로 교체
+- `MockScene`에 조명 검증용 디버그 키 추가 (`?mock=1` 전용, `main.js` 내부):
+  `1`~`4` 레벨 강제 · `0` 소등 · `B` 2단계 하강(보스 시뮬) · `R` 1단계 회복 · `S` 씬 재시작(리스너 누수 검증용) · `P` MockGameCore 일시정지/재개
+- `MockScene` 자체의 이벤트 로그 리스너 누수도 발견해 `SeoulTowerLight`와 동일 패턴(핸들러 참조 보관 → `shutdown` 훅에서 `off()`)으로 수정
+
+**발견**
+- `camera.flash()`는 `force` 기본값이 `false`라 이전 플래시가 재생 중이면 새 호출이 조용히 무시된다. 약한 플래시(delta=1) 재생 중 보스 관통(delta≥2) 플래시가 겹치면 더 강해야 할 신호가 사라지는 실제 결함이었음 → `force:true`로 수정
+- 브라우저가 탭을 hidden 처리하면 Phaser의 rAF 게임 루프가 멈춘다(`game.onHidden` → `loop.pause()`). `MockGameCore`는 `setInterval` 기반이라 이때도 계속 돌아서 화면(트윈·조명)과 상태 패널이 어긋나 보일 수 있다 — 코드 버그 아님, 검증 시 유의
+
+**지금 되는 것 / 안 되는 것**
+- 됨: 조명 4단계 색 보간·플래시·맥동·회복 연출 전부 `?mock=1`에서 실동작 검증 완료(브라우저로 직접 확인, delta 티어·`EventBus` 리스너 카운트까지 확인). `main` 머지·배포 확인 완료
+- 안 됨: `DamageNumber.js` / `Particles.js` / `StatusFx.js` / `SkyTint.js` 등 나머지 P2 항목 전부 미착수
+
+**상대에게 필요한 것**
+- 없음
+
+**내가 한 가정**
+- 없음
+
+**다음 세션에 할 것**
+- `DamageNumber.js` (풀링, 특효/크리 표시)
+
+**main 빌드:** ✅
 
 ---
 
