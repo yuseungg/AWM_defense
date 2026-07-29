@@ -12,8 +12,9 @@
 
 import Phaser from 'phaser';
 import mapData from '../data/map.json';
-import { COLOR, LIGHT, HUD as HUDT } from './ui/UITheme.js';
+import { COLOR, HUD as HUDT } from './ui/UITheme.js';
 import { EventBus, EV } from './EventBus.js';
+import { SeoulTowerLight } from './fx/SeoulTowerLight.js';
 
 const W = 1280;
 const H = 720;
@@ -130,9 +131,9 @@ class MockScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(COLOR.bg);
     drawMap(this);
 
-    // 조명 = 체력바 (임시. 정식 구현은 /src/fx/SeoulTowerLight.js)
+    // 조명 = 체력바. SeoulTowerLight가 cityDamaged/cityHealed를 알아서 구독한다
     const t = mapData.nseoulTower;
-    this.light = this.add.circle(t.x, t.y, 13, LIGHT.colors[3]);
+    this.light = new SeoulTowerLight(this, t.x, t.y, 13);
     this.add.text(t.x, t.y - 30, 'N서울타워', { fontSize: '13px', color: '#f2f4f8' }).setOrigin(0.5);
 
     this.statusText = this.add.text(20, 20, '', {
@@ -152,23 +153,13 @@ class MockScene extends Phaser.Scene {
     const { GameCore } = await import('./MockGameCore.js');
     this.core = GameCore;
 
-    // 모든 이벤트를 구독해서 로그로 흘린다
+    // 모든 이벤트를 구독해서 로그로 흘린다 (조명 자체는 SeoulTowerLight가 알아서 반영)
     Object.values(EV).forEach(name => {
       EventBus.on(name, payload => this.onEvent(name, payload));
     });
 
-    // 조명 단계 반영
-    EventBus.on(EV.cityDamaged, ({ level }) => this.setLight(level));
-    EventBus.on(EV.cityHealed, ({ level }) => this.setLight(level));
-
     GameCore.__startMock();
     this.time.addEvent({ delay: 250, loop: true, callback: () => this.refresh() });
-  }
-
-  setLight(level) {
-    if (level <= 0) { this.light.setFillStyle(0x333333); return; }
-    this.light.setFillStyle(LIGHT.colors[level - 1]);
-    this.tweens.add({ targets: this.light, scale: { from: 1.8, to: 1 }, duration: LIGHT.flashMs });
   }
 
   onEvent(name, payload) {
