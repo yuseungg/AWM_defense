@@ -45,6 +45,8 @@ export class SeoulTowerLight {
     if (isDamage) {
       this._flashDamage(prevLevel - newLevel);
       this.onLevelDown();
+    } else {
+      this._flashHeal();
     }
 
     this.level = newLevel;
@@ -84,6 +86,14 @@ export class SeoulTowerLight {
     const cam = this.scene.cameras.main;
     cam.flashEffect.alpha = alpha;
     cam.flash(ms, c.r, c.g, c.b);
+  }
+
+  /** 관통 0 웨이브 회복 보상 (CLAUDE.md §5-4). 피격 플래시(빨강)와 색으로 구분한다 */
+  _flashHeal() {
+    const c = Phaser.Display.Color.IntegerToColor(LIGHT.healFlashHue);
+    const cam = this.scene.cameras.main;
+    cam.flashEffect.alpha = LIGHT.healFlashAlpha;
+    cam.flash(LIGHT.healFlashMs, c.r, c.g, c.b);
   }
 
   _tweenColor(fromInt, toInt) {

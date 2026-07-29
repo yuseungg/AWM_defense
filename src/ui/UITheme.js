@@ -32,6 +32,8 @@ export const LIGHT = {
   pulseMsAtRed:    700,  // 단계1에서 맥동 주기. ↓ 낮추면 더 다급해 보인다
   pulseScaleAtRed: 1.25, // 맥동 확대 배율
   healFlashHue:  0x8ce99a, // 회복 시 플래시 색 (관통 0 웨이브 보상)
+  healFlashAlpha: 0.45,
+  healFlashMs:    260,
 };
 
 /** 데미지 숫자 — 상성/크리를 플레이어에게 보이게 하는 유일한 장치 */
