@@ -83,9 +83,12 @@ export class SeoulTowerLight {
 
     // Camera.flash()는 alpha 파라미터가 없다 — 내부 effect 인스턴스의 alpha를
     // 직접 세팅한 뒤 flash()를 호출해 하강 폭별 강도를 구분한다.
+    // force:true 필수 — 기본값 false면 이전 플래시가 재생 중일 때 새 호출이 조용히
+    // 무시된다. 약한 플래시 재생 중 보스(delta>=2) 하강이 겹치면 더 강해야 할 플래시가
+    // 묻혀버리는 실제 버그였다 (검증 중 발견).
     const cam = this.scene.cameras.main;
     cam.flashEffect.alpha = alpha;
-    cam.flash(ms, c.r, c.g, c.b);
+    cam.flash(ms, c.r, c.g, c.b, true);
   }
 
   /** 관통 0 웨이브 회복 보상 (CLAUDE.md §5-4). 피격 플래시(빨강)와 색으로 구분한다 */
@@ -93,7 +96,7 @@ export class SeoulTowerLight {
     const c = Phaser.Display.Color.IntegerToColor(LIGHT.healFlashHue);
     const cam = this.scene.cameras.main;
     cam.flashEffect.alpha = LIGHT.healFlashAlpha;
-    cam.flash(LIGHT.healFlashMs, c.r, c.g, c.b);
+    cam.flash(LIGHT.healFlashMs, c.r, c.g, c.b, true);
   }
 
   _tweenColor(fromInt, toInt) {
