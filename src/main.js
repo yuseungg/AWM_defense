@@ -160,6 +160,50 @@ class MockScene extends Phaser.Scene {
 
     GameCore.__startMock();
     this.time.addEvent({ delay: 250, loop: true, callback: () => this.refresh() });
+
+    this.setupLightDebugKeys();
+  }
+
+  /**
+   * 조명 검증용 디버그 키. ?mock=1(=이 씬 자체가 mock 전용)에서만 존재한다.
+   * cityDamaged/cityHealed를 GameCore를 거치지 않고 EventBus에 직접 emit해서
+   * SeoulTowerLight의 반응만 독립적으로 테스트한다.
+   *
+   *   1~4  해당 레벨로 강제   0  소등   B  2단계 하강(보스 시뮬)   R  1단계 회복
+   *   S  씬 재시작(재시작 시 리스너 누수 여부 확인용)
+   *   P  MockGameCore 시뮬레이션 일시정지/재개 — 배경 이벤트가 섞이면 위 키 테스트가
+   *      헷갈리니 검증 중엔 꺼두는 걸 권장 (요청엔 없던 보조 키. 필요 없으면 지워도 됨)
+   */
+  setupLightDebugKeys() {
+    this.debugLevel = 4;
+
+    const jumpTo = (target) => {
+      if (target === this.debugLevel) return;
+      const isDamage = target < this.debugLevel;
+      this.debugLevel = target;
+      EventBus.emit(isDamage ? EV.cityDamaged : EV.cityHealed, { level: target });
+    };
+
+    const kb = this.input.keyboard;
+    kb.on('keydown-ZERO', () => jumpTo(0));
+    kb.on('keydown-ONE', () => jumpTo(1));
+    kb.on('keydown-TWO', () => jumpTo(2));
+    kb.on('keydown-THREE', () => jumpTo(3));
+    kb.on('keydown-FOUR', () => jumpTo(4));
+    kb.on('keydown-B', () => jumpTo(Math.max(0, this.debugLevel - 2)));
+    kb.on('keydown-R', () => jumpTo(Math.min(4, this.debugLevel + 1)));
+    kb.on('keydown-S', () => this.scene.restart());
+
+    let paused = false;
+    kb.on('keydown-P', () => {
+      paused = !paused;
+      this.core.setPaused(paused);
+    });
+
+    this.add.text(20, H - 100, '조명 디버그: 1~4 레벨 · 0 소등 · B 보스하강 · R 회복 · S 씬재시작 · P Mock일시정지', {
+      fontSize: '12px', color: '#8a919e',
+      backgroundColor: 'rgba(0,0,0,0.4)', padding: { x: 8, y: 6 },
+    }).setOrigin(0, 1);
   }
 
   onEvent(name, payload) {
