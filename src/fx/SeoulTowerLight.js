@@ -21,6 +21,7 @@ export class SeoulTowerLight {
     this.circle = scene.add.circle(x, y, radius, LIGHT.colors[3]);
 
     this.colorTween = null;
+    this.pulseTween = null;
 
     // off()로 정확히 떼어내려면 최초 등록한 함수 참조를 그대로 들고 있어야 한다
     this.onDamaged = ({ level }) => this.setLevel(level, true);
@@ -47,6 +48,24 @@ export class SeoulTowerLight {
     }
 
     this.level = newLevel;
+
+    if (newLevel === 1) this._startPulse();
+  }
+
+  _startPulse() {
+    this.pulseTween = this.scene.tweens.add({
+      targets: this.circle,
+      scale: { from: 1, to: LIGHT.pulseScaleAtRed },
+      duration: LIGHT.pulseMsAtRed,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
+  }
+
+  _stopPulse() {
+    if (this.pulseTween) { this.pulseTween.stop(); this.pulseTween = null; }
+    this.circle.setScale(1);
   }
 
   /** 조명 하강 시 경고음 훅. 사운드는 지금 만들지 않는다 (TASKS_B.md 비상 절단 순서 2번) */
@@ -84,6 +103,7 @@ export class SeoulTowerLight {
 
   _stopTweens() {
     if (this.colorTween) { this.colorTween.stop(); this.colorTween = null; }
+    this._stopPulse();
   }
 
   destroy() {

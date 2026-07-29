@@ -29,7 +29,8 @@ export const LIGHT = {
   flashAlphaPerLevel: { 1: 0.55, 2: 0.9 },
   flashMsPerLevel:    { 1: 220,  2: 420 },
 
-  pulseMsAtRed:  700,   // 단계1에서 맥동 주기. ↓ 낮추면 더 다급해 보인다
+  pulseMsAtRed:    700,  // 단계1에서 맥동 주기. ↓ 낮추면 더 다급해 보인다
+  pulseScaleAtRed: 1.25, // 맥동 확대 배율
   healFlashHue:  0x8ce99a, // 회복 시 플래시 색 (관통 0 웨이브 보상)
 };
 
