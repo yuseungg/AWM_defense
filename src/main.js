@@ -154,8 +154,15 @@ class MockScene extends Phaser.Scene {
     this.core = GameCore;
 
     // 모든 이벤트를 구독해서 로그로 흘린다 (조명 자체는 SeoulTowerLight가 알아서 반영)
-    Object.values(EV).forEach(name => {
-      EventBus.on(name, payload => this.onEvent(name, payload));
+    // 핸들러 참조를 보관했다가 shutdown 훅에서 off() — SeoulTowerLight와 동일한 패턴.
+    // 안 하면 씬 재시작(디버그 S 키)마다 리스너가 쌓여 로그가 중복 표시된다.
+    this.eventLogHandlers = Object.values(EV).map(name => {
+      const handler = payload => this.onEvent(name, payload);
+      EventBus.on(name, handler);
+      return { name, handler };
+    });
+    this.events.once('shutdown', () => {
+      this.eventLogHandlers.forEach(({ name, handler }) => EventBus.off(name, handler));
     });
 
     GameCore.__startMock();
