@@ -14,11 +14,11 @@
 
 | 항목 | 상태 |
 |---|---|
-| **`main` 빌드** | ✅ 정상 (feat/game-core 병합 후 `npm run build` 확인) |
-| **마지막 갱신** | 2026-07-30 / A+B (feat/game-core → main 병합) |
-| **현재 페이즈** | **P1 코어 로직 완료 (A) + P2 D2 마감 (B)** |
-| **A 진행률** | **P1 완료** — PathSystem·GridSystem·Enemy·EnemyPool·Tower·Projectile·Combat·Economy·WaveManager 9종. **`GameCore.js` 인터페이스는 아직 없음** — `GameScene.js`는 여전히 `MockGameCore.js`를 씀 |
-| **B 진행률** | D2 완료(조명·데미지숫자·씬 분리·HUD) · 다음(D3): `Particles.js` / `StatusFx.js` / `SkyTint.js` / `HANDOFF.md` 작성 |
+| **`main` 빌드** | ✅ 정상 (`npm run build` 확인) |
+| **마지막 갱신** | 2026-07-30 / B |
+| **현재 페이즈** | **P1 코어 로직 완료 (A) + P2 진행 중 (B, DraftOverlay까지)** |
+| **A 진행률** | **P1 완료** — PathSystem·GridSystem·Enemy·EnemyPool·Tower·Projectile·Combat·Economy·WaveManager 9종. **`GameCore.js` 1단계 요청함(B→A)** — 완성 전까지 `GameScene.js`는 `MockGameCore.js`를 씀 |
+| **B 진행률** | `DraftOverlay.js` 완료(레벨업/정책 큐 처리, D14) · 다음: `Particles.js` / `StatusFx.js` / `SkyTint.js` / `HANDOFF.md` 작성 |
 | **Mock 상태** | ✅ **B가 선작성** (`src/MockGameCore.js`) → §6-4 "Mock이 스펙이다" |
 | **배포 링크** | ✅ https://yuseungg.github.io/AWM_defense/ |
 
@@ -241,6 +241,39 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 **main 빌드:** ✅ / ❌
 ```
+
+---
+
+## [2026-07-30] B · 세션 5 (feat/game-core 통합 + DraftOverlay)
+
+**한 일**
+- `feat/game-core` → `main` 통합 (B가 직접 진행). 코드 충돌 0건(자동 병합), `SYNC.md`만 충돌 2군데 — §1 상태표는 A/B 진행률 각각 최신으로, §4 세션 로그는 시간순으로 합쳐서 양쪽 다 살렸다. `/src/game/`은 한 글자도 안 건드림
+- **통합 직후 확인**: 4개 체크리스트(적 이동/조명 실전투 반응/데미지 특효색/HUD 실값) **전부 안 됨** — `GameCore.js`가 없어서 `/src/game/*.js` 9종이 모듈 그래프에 아예 안 실림(네트워크 요청으로 직접 확인). `GameScene.js`는 여전히 `MockGameCore.js`로 동작. **고치지 않고 그대로 보고함** → A에게 `GameCore.js` 1단계 요청함
+- 대기하는 동안 차별점 #3 `src/ui/DraftOverlay.js` 착수·완료 — 레벨업 3장/보스 정책 3장 한 컴포넌트(D14), `draftQueue`/`policyQueue`로 순차 처리(레벨업 먼저), 일시정지는 `GameCore.setPaused(bool)` 하나로만(Phaser 씬은 안 멈춤 — 오버레이 자기 자신도 멈춰버리기 때문)
+- **UI는 코어의 실패로 멈추지 않는다**: `pick()`은 `GameCore` 반환값과 무관하게 항상 `closeCurrent()` 실행. `destroy()`에서도 무조건 `setPaused(false)` 호출하는 안전판. `?fxtest=1`에 `ESC` = 강제 닫기+강제 unpause 추가
+- 효과 포맷터 대신 `desc` 필드를 그대로 읽는 방식으로 단순화 — `obstacles.json`/`supports.json`에 `desc`(효과+근거 한 줄) 추가, `MockGameCore.drawDraft()`도 `codex` 대신 `desc`를 읽도록 수정
+- `?fxtest=1`에 `D`(레벨업 강제)·`F`(정책 강제)·`Z`(레벨업 2개+정책 1개 동시 큐잉) 추가
+
+**검증**: headless Chromium으로 D→카드 클릭→닫힘, F→카드 클릭→닫힘, Z→레벨업 2개를 먼저 다 소비한 뒤에야 정책이 뜨는 것 확인(순서 검증 완료), 큐가 완전히 빌 때까지 다음 카드가 계속 나오는 것 확인, ESC로 즉시 강제 닫힘 확인. 레벨1→"청계천 해금!", 레벨2→"광화문", 레벨3→"DDP", 레벨4→"롯데월드타워" 배너도 `towers.json` 매핑대로 정확히 뜸
+
+**지금 되는 것 / 안 되는 것**
+- 됨: `DraftOverlay` 전체 시나리오(단일/큐잉/강제닫기) `?fxtest=1`에서 실동작 확인
+- 안 됨: 실제 `GameCore.js` 없음(A 작업 대기 중). `Particles.js`/`StatusFx.js`/`SkyTint.js` 미착수. `HANDOFF.md` 아직 없음
+
+**상대에게 필요한 것**
+- `GameCore.js` 1단계 (이미 요청함)
+
+**내가 한 가정**
+- 없음
+
+**HANDOFF.md에 넣을 것 (D3에 작성 예정)**
+- "카드 효과 수치를 바꾸면 해당 json(perks/obstacles/supports/policies)의 `desc`도 같이 고쳐라" — `DraftOverlay`는 포맷터 없이 `desc`를 그대로 표시하므로 수치만 바꾸면 텍스트와 어긋난다
+
+**다음 세션에 할 것**
+- `GameCore.js` 1단계 도착 확인 → `GameScene.js` 39번째 줄 import 교체
+- `Particles.js` / `StatusFx.js` / `SkyTint.js` 중 우선순위 선정, `HANDOFF.md` 작성
+
+**main 빌드:** ✅
 
 ---
 
