@@ -15,6 +15,8 @@
 - `/src/ui/GameScene.js` — 기본 화면(지도+조명+데미지숫자+HUD+드래프트 연결)
 - `/src/ui/HUD.js` — 골드/웨이브·계절/레벨+XP바
 - `/src/ui/DraftOverlay.js` — 레벨업 3장/보스 정책 3장, 큐 처리, "코어 실패해도 안 멈춤" 안전판
+- `/src/ui/Controls.js` — 배속 1x/2x/3x·일시정지·즉시 다음 웨이브. pause 소유권 규칙은 §5 참고
+- `/src/ui/GameOverScene.js` — 결과 화면(웨이브 크게·신기록 연출). 실제 Phaser 씬 전환이 아니라 오버레이 컴포넌트(§5 참고)
 - `/src/ui/MockScene.js`(`?mock=1`), `/src/ui/VerifyScene.js`(`?verify=1`), `/src/ui/mapView.js`(공유 지도 렌더링)
 - `/src/main.js` — Phaser 부트 전용(URL 플래그로 씬 선택만 함)
 - A: `/src/game/` 9종 완성 — `PathSystem`·`GridSystem`·`Enemy`·`EnemyPool`·`Tower`·`Projectile`·`Combat`·`Economy`·`WaveManager`
@@ -76,6 +78,11 @@
 | `Z` | 레벨업 2개+정책 1개를 한꺼번에 큐잉 — 순서(레벨업 먼저)와 "큐가 완전히 빌 때만 unpause" 확인 |
 | `ESC` | 강제 닫기+강제 unpause — `GameCore`가 실패해도 게임이 영구 정지하지 않는 안전판 |
 
+### 게임오버 — `GameOverScene`
+| 키 | 확인하는 것 |
+|---|---|
+| `O` | `gameOver` 강제 발행(신기록 있음/없음 매번 토글) — 결과 화면 레이아웃·신기록 연출·Enter/Space 재시작을 코어 없이 검증 |
+
 ---
 
 ## 3. `UITheme.js` 증상 → 상수 매핑표
@@ -101,6 +108,13 @@
 | 보스 관통 임팩트가 약하다 | `LIGHT.flashAlphaPerLevel[2]` ↑ — **`SHAKE.bossLeaked`는 아직 아무 데도 안 쓰임(`BossAlert.js` 없음, §5)** |
 | HUD 글자가 작다/화면 끝에 붙어있다 | `HUD.fontSize` ↑, `HUD.margin` ↑ |
 | XP바가 안 보인다 | `HUD.xpBarWidth` ↑, `HUD.xpBarHeight` ↑ |
+| Controls 버튼이 HUD랑 겹친다 | `CONTROLS.margin` ↑ (우상단 여백을 더 준다) |
+| Controls 버튼 글자/폭이 안 맞는다 | `CONTROLS.buttonWidth`(배속·일시정지) / `CONTROLS.waveButtonWidth`(즉시 웨이브) / `CONTROLS.fontSize` |
+| 오버레이 열렸을 때 Controls가 너무 안 흐려 보인다(또는 너무 안 보인다) | `CONTROLS.disabledAlpha` |
+| 게임오버 화면에서 웨이브 숫자가 눈에 안 띈다 | `GAMEOVER.waveFontSize` ↑ |
+| 게임오버 전환이 뚝 끊기거나 너무 느리다 | `GAMEOVER.fadeInMs` (**300ms 넘기지 말 것** — §7 사수 조건) |
+| 신기록 연출이 안 보인다/너무 산만하다 | `GAMEOVER.newRecordColor`, `GAMEOVER.newRecordPulseMs` |
+| 재시작 버튼이 작다/안 눌린다 | `GAMEOVER.buttonWidth`, `GAMEOVER.buttonHeight`, `GAMEOVER.buttonFontSize` |
 
 ---
 
@@ -125,6 +139,20 @@
 
 **"이건 버그인가 미구현인가"로 시간 태우지 않게 전부 적는다.**
 
+- **pause 소유권 기준은 `Controls.isUserPaused`다.** `GameCore.setPaused(bool)`은 boolean 하나라
+  마지막 호출자가 이긴다. `DraftOverlay`도 이걸 쓰기 때문에(오버레이 여는 동안 강제 정지), 오버레이가
+  열려 있는 동안은 `Controls`의 버튼을 `setInputEnabled(false)`로 아예 잠가서 유저가 pause를
+  건드릴 수 없게 막고, 오버레이가 큐를 다 비우고 닫힐 때 `Controls.isUserPaused`를 다시 읽어
+  `setPaused()`를 복원한다. **새로 pause를 호출하는 컴포넌트를 추가한다면 반드시 이 패턴(호출 전
+  `Controls.setInputEnabled(false)`로 잠그고, 끝나면 `isUserPaused` 복원)을 따라야 한다** — 안 그러면
+  "카드/모달이 떠 있는데 게임이 돈다" 버그가 조용히 재발한다.
+- **재시작은 `location.reload()`다. `scene.restart()`/`scene.start('Game')`을 쓰면 안 된다.**
+  `WaveManager`/`Economy`/`GridSystem`이 모듈 싱글톤이라 씬만 새로 만들면 조명 0·웨이브 62 같은
+  이전 상태가 그대로 남는다 — 게임이 초기화 안 된다. `GameCore.reset()`을 요청해뒀다(`SYNC.md` §3 C5).
+  생기면 `GameOverScene.js`의 `location.reload()` 호출을 그걸로 교체한다.
+- **`bestWave` localStorage는 A(`WaveManager.js`)가 이미 읽고 쓴다** (`grep -rn "localStorage" src/game/ src/MockGameCore.js`로 확인함 — `WaveManager.js` 39번째 줄에서 읽고 226번째 줄에서 쓴다, `MockGameCore.js`도 동일 패턴).
+  **`GameOverScene.js`는 `bestWave`를 저장하지 않는다** — `gameOver` 이벤트의 `isNewRecord`를 그대로
+  표시만 한다. B가 중복 저장하면 안 됨(값이 어긋난다).
 - **`GameCore.js` 자체가 아직 없다.** B가 요청함(1단계). 도착하면 `buildTower`/`canBuild`/`getState`/`setPaused`는 구현되지만 `buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy` 4개는 스텁(`{ok:false, reason:'notImplemented'}`)으로 남을 예정 — `DraftOverlay`는 이미 이 실패를 흡수하도록 만들어져 있으니 손댈 필요 없다(§4)
 - **적 스프라이트 렌더러가 없다.** `enemySpawned`/`enemyKilled` 이벤트는 발행되지만(Mock이든 실제 `WaveManager`든) 화면에 적 그래픽 자체가 없다. Mock으로 테스트해도 안 보이는 게 정상이다
 - **건설 UI가 없다.** `BuildUI.js` 미착수 — 클릭으로 타워/서포터/장애물을 지을 방법 자체가 아직 없다

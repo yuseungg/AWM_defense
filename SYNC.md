@@ -16,9 +16,9 @@
 |---|---|
 | **`main` 빌드** | ✅ 정상 (`npm run build` 확인) |
 | **마지막 갱신** | 2026-07-30 / B |
-| **현재 페이즈** | **P1 코어 로직 완료 (A) + P2 진행 중 (B, DraftOverlay까지)** |
-| **A 진행률** | **P1 완료** — PathSystem·GridSystem·Enemy·EnemyPool·Tower·Projectile·Combat·Economy·WaveManager 9종. **`GameCore.js` 1단계 요청함(B→A)** — 완성 전까지 `GameScene.js`는 `MockGameCore.js`를 씀 |
-| **B 진행률** | `DraftOverlay.js` 완료(레벨업/정책 큐 처리, D14) · 다음: `Particles.js` / `StatusFx.js` / `SkyTint.js` / `HANDOFF.md` 작성 |
+| **현재 페이즈** | **P1 코어 로직 완료 (A) + P2 진행 중 (B, Controls·GameOverScene까지)** |
+| **A 진행률** | **P1 완료** — PathSystem·GridSystem·Enemy·EnemyPool·Tower·Projectile·Combat·Economy·WaveManager 9종. **`GameCore.js` 1단계 요청함(B→A)**, **`GameCore.reset()` 추가 요청(§3 C5)** — 완성 전까지 `GameScene.js`는 `MockGameCore.js`를 씀 |
+| **B 진행률** | `Controls.js`·`GameOverScene.js` 완료 · `HANDOFF.md` 골격 작성 완료(기능마다 채우는 방식으로 전환) · 다음: `BuildUI.js` |
 | **Mock 상태** | ✅ **B가 선작성** (`src/MockGameCore.js`) → §6-4 "Mock이 스펙이다" |
 | **배포 링크** | ✅ https://yuseungg.github.io/AWM_defense/ |
 
@@ -216,6 +216,18 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 ---
 
+### C5 · B → A · 2026-07-30 — `GameCore.reset()` 추가 요청
+
+**요청:** 게임오버 후 재시작용 `GameCore.reset()` 추가.
+**이유:** `GameOverScene.js`의 재시작을 `scene.restart()`/`scene.start('Game')`으로 만들면
+`WaveManager`/`Economy`/`GridSystem`이 전부 모듈 싱글톤이라 씬만 새로 만들어지고 조명 0·
+웨이브 62 같은 이전 상태가 그대로 남는다 — 게임이 초기화되지 않는다.
+**현재 임시 처리:** `location.reload()`로 우회 중(정적 사이트라 1초 미만, 확실하게 전체 상태 초기화됨 — 헤드리스 브라우저로 직접 검증함). `reset()`이 생기면 그걸로 교체한다.
+**하위 호환:** 새 메서드 추가만, 기존 시그니처 변경 없음.
+**상대 확인:** 대기 중
+
+---
+
 ## 📝 4. 세션 로그 — 최신이 위
 
 > **템플릿을 복사해서 세션 끝날 때마다 맨 위에 추가한다. 5분이면 쓴다.**
@@ -241,6 +253,38 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 **main 빌드:** ✅ / ❌
 ```
+
+---
+
+## [2026-07-30] B · 세션 6 (HANDOFF.md 골격 + Controls·GameOverScene)
+
+**한 일**
+- `HANDOFF.md` 골격 작성 — D3 저녁 일괄 작성 대신 지금부터 기능마다 채우는 방식으로 전환(시간이 끊겨도 이 시점까지 인계 내용이 항상 존재하게). §0 현재상태·§1 URL 플래그·§2 검증 키·§3 UITheme 증상→상수 매핑·§4 A 금지 로직 3개+이유·§5 알려진 미완성·§6 에셋 규약·§7 밸런싱 기준·§8 촬영 대본(빈 골격) 전부 채움
+- `UITheme.js`에 `CONTROLS`/`GAMEOVER` 블록 추가(↑/↓ 주석 포함)
+- `Controls.js` 구현 — 배속 1x/2x/3x·일시정지·즉시 다음 웨이브(보너스 골드 표시, `isPrepPhase` 아니면 비활성)
+- `DraftOverlay.js` 수정 — Controls와의 pause 소유권 충돌 해결. 오버레이가 열릴 때 `Controls.setInputEnabled(false)`로 버튼을 잠그고, 큐가 다 비면 `setPaused(false)` 대신 `Controls.isUserPaused`를 읽어 복원
+- `GameOverScene.js` 구현 — 웨이브(점수) 크게/처치·레벨 작게, 신기록 펄스 연출, 재시작은 `location.reload()`(사유는 §3 C5). 실제 Phaser 씬 전환이 아니라 GameScene 위 오버레이 컴포넌트로 구현
+- `?fxtest=1`에 `O`(gameOver 강제 발행, 신기록 토글) 추가
+- `grep -rn "localStorage" src/game/ src/MockGameCore.js` 확인 — `bestWave`는 A(`WaveManager.js` 39·226번째 줄)와 `MockGameCore.js`가 이미 저장 중. B는 저장하지 않음(중복 방지)
+- `SYNC.md` §3에 C5(`GameCore.reset()` 요청) 등록
+
+**검증**: headless Chromium으로 배속 1x→2x→3x→1x 순환, 일시정지 토글 라벨("일시정지"↔"재생"), 즉시 웨이브 클릭 시 골드+25·웨이브+1 확인, **D로 드래프트 열었을 때 Controls 버튼이 시각적으로 흐려지고 클릭이 씹히는 것 확인**, 카드 픽 후 오버레이 닫히면서 **pause 상태("재생")가 그대로 유지되는 것 확인**(레이스 재현 안 됨), O로 게임오버 화면 렌더링·신기록 배너 확인, **Enter 키로 실제 `location.reload()` 발생 → 골드/웨이브/버튼 라벨 전부 초기값으로 리셋되는 것까지 확인**
+
+**지금 되는 것 / 안 되는 것**
+- 됨: `Controls`·`GameOverScene` 전체 시나리오 `?fxtest=1`에서 실동작 확인. `HANDOFF.md` 골격 존재
+- 안 됨: 실제 `GameCore.js`/`GameCore.reset()` 없음(A 작업 대기). `Particles.js`/`StatusFx.js`/`SkyTint.js`/`BuildUI.js`/`UpgradeUI.js`/`CodexUI.js`/`TitleScene.js` 미착수
+
+**상대에게 필요한 것**
+- `GameCore.js` 1단계(요청함) + `GameCore.reset()`(§3 C5, 신규 요청)
+
+**내가 한 가정**
+- 없음
+
+**다음 세션에 할 것**
+- `BuildUI.js` 착수
+- 기능 끝날 때마다 `HANDOFF.md` 갱신 계속
+
+**main 빌드:** ✅
 
 ---
 
