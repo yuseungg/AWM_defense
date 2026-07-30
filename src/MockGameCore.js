@@ -241,9 +241,9 @@ class Mock {
     const owned = this.state.supports.map(s => s.id);
     const pool = [
       ...Object.values(supportsData).filter(s => !owned.includes(s.id))
-        .map(s => ({ cardId: s.id, kind: 'support', name: s.name, desc: s.codex })),
+        .map(s => ({ cardId: s.id, kind: 'support', name: s.name, desc: s.desc })),
       ...Object.values(obstaclesData)
-        .map(o => ({ cardId: o.id, kind: 'obstacle', name: o.name, desc: o.codex })),
+        .map(o => ({ cardId: o.id, kind: 'obstacle', name: o.name, desc: o.desc })),
       ...Object.values(perksData)
         .map(p => ({ cardId: p.id, kind: 'perk', name: p.name, desc: p.desc })),
     ];
