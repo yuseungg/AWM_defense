@@ -189,7 +189,7 @@
 // 1) 기본 피해 (강화 레벨 반영)
 let dmg = tower.damage * tower.levels[lv].statMul;
 // 2) 상성 특효
-const eff = tower.strongAgainst?.[enemy.id] ?? 1.0;
+const eff = def.strongAgainst?.[enemy.type] ?? 1.0;
 dmg *= eff;
 // 3) 전역 공격력 퍼크 (누적)
 dmg *= (1 + perks.globalDamage);          // 예: 0.10 × 3장 = 0.30

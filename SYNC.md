@@ -14,10 +14,10 @@
 
 | 항목 | 상태 |
 |---|---|
-| **`main` 빌드** | ✅ 정상 (배포 확인) |
-| **마지막 갱신** | 2026-07-30 / B |
-| **현재 페이즈** | **P2 D2 마감** — SeoulTowerLight·DamageNumber·GameScene·HUD·씬 구조 정리 완료 |
-| **A 진행률** | P0 대기 |
+| **`main` 빌드** | ✅ 정상 (feat/game-core 병합 후 `npm run build` 확인) |
+| **마지막 갱신** | 2026-07-30 / A+B (feat/game-core → main 병합) |
+| **현재 페이즈** | **P1 코어 로직 완료 (A) + P2 D2 마감 (B)** |
+| **A 진행률** | **P1 완료** — PathSystem·GridSystem·Enemy·EnemyPool·Tower·Projectile·Combat·Economy·WaveManager 9종. **`GameCore.js` 인터페이스는 아직 없음** — `GameScene.js`는 여전히 `MockGameCore.js`를 씀 |
 | **B 진행률** | D2 완료(조명·데미지숫자·씬 분리·HUD) · 다음(D3): `Particles.js` / `StatusFx.js` / `SkyTint.js` / `HANDOFF.md` 작성 |
 | **Mock 상태** | ✅ **B가 선작성** (`src/MockGameCore.js`) → §6-4 "Mock이 스펙이다" |
 | **배포 링크** | ✅ https://yuseungg.github.io/AWM_defense/ |
@@ -207,6 +207,15 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 ---
 
+### 📢 C4 · A → B · 2026-07-30 — `waves.json`에 `spawn` 필드 추가 (통지)
+
+**변경:** `spawn: { intervalByType: { dust, car, trash }, prepSeconds }` 추가 (WaveManager.js의 스폰 간격·prep 대기시간용)
+**이유:** P4에서 코드 수정 없이 박자감(스폰 간격·대기시간)을 조정할 수 있어야 함
+**하위 호환:** 기존 필드 그대로. 추가만. 전부 수치 필드라 A 소유(§6-5)
+**상대 확인:** (통지 — 별도 승인 대기 없이 바로 사용. 이상 있으면 다음 세션에 정정)
+
+---
+
 ## 📝 4. 세션 로그 — 최신이 위
 
 > **템플릿을 복사해서 세션 끝날 때마다 맨 위에 추가한다. 5분이면 쓴다.**
@@ -324,6 +333,33 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 ---
 
+## [2026-07-30] A · 세션 1 (P1)
+
+**한 일**
+- P1 코어 로직 전체 완성: `PathSystem.js`(경로 이동/진행도) · `GridSystem.js`(격자 판정·좌표변환·점유) · `Enemy.js`(이동·상태이상·피격) · `EnemyPool.js`(오브젝트 풀링) · `Tower.js`(배치·First 타겟팅·강화·오라) · `Projectile.js`(풀링·호밍·광역 명중판정) · `Combat.js`(데미지 공식·상성·상태이상 적용) · `Economy.js`(골드 경제) · `WaveManager.js`(웨이브 스폰·전투 루프·조명·생명주기, 288줄)
+- `CLAUDE.md` §5-1 오탈 정정: `tower.strongAgainst?.[enemy.id]` → `def.strongAgainst?.[enemy.type]` (결정 로그 D19)
+- `waves.json`에 `spawn.intervalByType`/`spawn.prepSeconds` 추가 (§3 C4로 통지) — 스폰 간격·prep 대기시간을 코드 상수 대신 데이터로 빼서 P4에서 코드 수정 없이 조정 가능하게 함
+
+**지금 되는 것 / 안 되는 것**
+- 됨: 적 스폰(계절 믹스+hp/수량 스케일링)·이동·타워 First 타겟팅·투사체 이동/명중·데미지 공식(상성·크리·방어력)·상태이상(스턴/슬로우/DoT)·골드 획득/지출·조명 체력 4단계(관통/회복)·웨이브 클리어(perfect 판정)·즉시웨이브·보스 스폰/처치/코어도달(정책 없음 분기)·게임오버. 전부 격리된 시나리오로 직접 검증(단일/광역 명중, 풀 재사용, 뒤→앞 순회 안전성, 즉사 후 재활용 안전, 5웨이브 보스전 등)
+- 안 됨: **`GameCore.js`(P2, 타워/서포터/장애물 배치의 실제 진입점) 없음** — 지금은 `WaveManager`가 타워 레지스트리를 자체 소유(`addTower`/`removeTower`). `LevelSystem`·`PerkSystem`·`DraftSystem`·`Supporter`·`Obstacle` 전부 P2/P3 미착수. **UI/FX 쪽에서 아직 실제 코어(Mock 아님)에 붙여본 적 없음**
+
+**상대에게 필요한 것**
+- 없음. 이번 세션은 `/src/game/` 안에서만 작업
+- (참고) `CLAUDE.md` D19, `waves.json` C4 통지는 다음 세션 시작할 때 확인만 해주면 됨
+
+**내가 한 가정**
+- `WaveManager`의 스폰 간격/prep 대기시간을 `waves.json`에 신규 필드로 추가함(§3 C4). 수치 필드라 A 소유, 통지만 하고 바로 사용
+- 보스 처치 시 정책 3장 추첨은 아직 "획득한 정책 제외" 로직 없이 매번 전체 풀에서 뽑음(PolicySystem은 P3) — 나중에 `pickPolicy()` 붙을 때 제외 로직 추가 예정
+
+**다음 세션에 할 것**
+- P2: 랜드마크 6종 상성 적용 확인 + 유니크 룰 + `LevelSystem.js`(XP·레벨업·자동해금) + `Debug.js`
+- `GameCore.js`에 `WaveManager.addTower`를 실제 배치 흐름과 연결
+
+**main 빌드:** ✅ (`npm run build` 로컬 확인)
+
+---
+
 ## [2026-07-29] B · 세션 2 (D2)
 
 **한 일**
@@ -415,6 +451,7 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 | D16 | 2026-07-28 | `enemies.json` `speed` **전부 ×4.82** (195/580/120/145) | 경로 685→3,300px. **완주 시간 보존** = 기존 밸런스 가정 무손상 |
 | D17 | 2026-07-28 | `GameCore` 좌표 = **셀 인덱스** · 반환 = **`{ ok, reason?, instanceId? }`** · `canBuild`도 객체 | boolean이면 실패 이유를 UI가 못 쓴다 |
 | D18 | 2026-07-28 | `instanceId` = `"cheonggyecheon#1"` 문자열 · `getState()` **매 프레임 호출 금지** | 로그 가독성 / 웨이브 40+ 성능 조항 |
+| D19 | 2026-07-30 | §5-1 데미지 공식 의사코드 오탈 정정: `tower.strongAgainst?.[enemy.id]` → `def.strongAgainst?.[enemy.type]` | `strongAgainst` 키는 종(species) id인데(`enemies.json`의 `id`), `enemy.id`는 스폰마다 고유한 인스턴스 id라 실제 데이터와 안 맞았다. `Enemy.js`/`Combat.js` 구현 기준으로 정정 |
 
 > **✅ D9~D18은 2026-07-28 P0 통화에서 A와 합의 완료.** §3의 C1·C2·C3 전부 승인됨.
 
