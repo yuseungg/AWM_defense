@@ -14,8 +14,14 @@ import { EventBus, EV } from '../EventBus.js';
 import { SeoulTowerLight } from '../fx/SeoulTowerLight.js';
 import { DamageNumber } from '../fx/DamageNumber.js';
 import { HUD } from './HUD.js';
+import { DraftOverlay } from './DraftOverlay.js';
 import { drawMap, H } from './mapView.js';
 import { COLOR, DMG } from './UITheme.js';
+import perksData from '../../data/perks.json';
+import obstaclesData from '../../data/obstacles.json';
+import supportsData from '../../data/supports.json';
+import policiesData from '../../data/policies.json';
+import towersData from '../../data/towers.json';
 
 const FXTEST = new URLSearchParams(location.search).get('fxtest') === '1';
 
@@ -42,6 +48,10 @@ export class GameScene extends Phaser.Scene {
     const { GameCore } = await import('../MockGameCore.js');
     this.core = GameCore;
 
+    // 레벨업 드래프트 3장 / 보스 정책 3장 — levelUp·bossKilled를 알아서 구독한다. GameCore.setPaused를
+    // 직접 호출하므로 core가 준비된 뒤에 만든다.
+    this.draft = new DraftOverlay(this, this.core);
+
     this.hud.init(GameCore.getState()); // 씬 진입 시 1회만 — CLAUDE.md D18
     GameCore.__startMock?.();
 
@@ -56,6 +66,9 @@ export class GameScene extends Phaser.Scene {
    *   조명: 1~4 레벨 강제 · 0 소등 · B 2단계 하강(보스 시뮬) · R 1단계 회복
    *         · S 씬 재시작(리스너 누수 검증용) · P MockGameCore 일시정지/재개
    *   데미지: Q 일반 · W 특효 · E 크리 · T 특효+크리 · Y 100개 동시발사(풀 부하 테스트)
+   *   드래프트: D 레벨업 3장 강제 · F 보스 정책 3장 강제
+   *             Z 레벨업 2개+정책 1개를 한꺼번에 큐에 밀어넣기(순차 처리·언페이즈 검증)
+   *   ESC 안전판: 열린 오버레이 강제 닫기 + 강제 unpause
    */
   setupFxTestKeys() {
     const kb = this.input.keyboard;
@@ -101,10 +114,50 @@ export class GameScene extends Phaser.Scene {
     kb.on('keydown-T', () => fire(true, true));
     kb.on('keydown-Y', () => this.runDamageStressTest());
 
-    this.add.text(20, H - 100, 'FX 디버그(?fxtest=1): 조명 1~4·0·B·R·S·P · 데미지 Q·W·E·T·Y', {
+    // ── 드래프트
+    kb.on('keydown-D', () => this.fireDebugLevelUp());
+    kb.on('keydown-F', () => this.fireDebugBossKilled());
+    kb.on('keydown-Z', () => {
+      this.fireDebugLevelUp();
+      this.fireDebugLevelUp();
+      this.fireDebugBossKilled();
+    });
+    kb.on('keydown-ESC', () => this.draft.forceCloseAll());
+
+    this.add.text(20, H - 100, 'FX 디버그(?fxtest=1): 조명 1~4·0·B·R·S·P · 데미지 Q·W·E·T·Y · 드래프트 D·F·Z · ESC 강제닫기', {
       fontSize: '12px', color: '#8a919e',
       backgroundColor: 'rgba(0,0,0,0.4)', padding: { x: 8, y: 6 },
     }).setOrigin(0, 1);
+  }
+
+  /** 카드 풀에서 n장 무작위 추출 (MockGameCore.sample과 동일 로직, 디버그 전용 복제) */
+  sampleCards(pool, n) {
+    const a = [...pool];
+    const out = [];
+    while (a.length && out.length < n) out.push(...a.splice(Math.floor(Math.random() * a.length), 1));
+    return out;
+  }
+
+  /** D 키 — 레벨업 드래프트 3장을 강제 발행한다. unlockLevel이 맞으면 해금 배너도 같이 뜬다 */
+  fireDebugLevelUp() {
+    this._debugLevel = (this._debugLevel || 0) + 1;
+    const unlocked = Object.values(towersData).find(t => t.unlockLevel === this._debugLevel);
+    const pool = [
+      ...Object.values(supportsData).map(s => ({ cardId: s.id, kind: 'support', name: s.name, desc: s.desc })),
+      ...Object.values(obstaclesData).map(o => ({ cardId: o.id, kind: 'obstacle', name: o.name, desc: o.desc })),
+      ...Object.values(perksData).map(p => ({ cardId: p.id, kind: 'perk', name: p.name, desc: p.desc })),
+    ];
+    EventBus.emit(EV.levelUp, {
+      level: this._debugLevel,
+      unlockedTower: unlocked ? unlocked.id : null,
+      draftCards: this.sampleCards(pool, 3),
+    });
+  }
+
+  /** F 키 — 보스 정책 카드 3장을 강제 발행한다 */
+  fireDebugBossKilled() {
+    const pool = Object.values(policiesData).map(p => ({ cardId: p.id, kind: 'policy', name: p.name, desc: p.desc }));
+    EventBus.emit(EV.bossKilled, { policyCards: this.sampleCards(pool, 3) });
   }
 
   /** Y 키 — 100개 동시 발사 후 활성 최대 개수·FPS를 샘플링해 콘솔에 보고한다 */
