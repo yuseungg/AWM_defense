@@ -92,3 +92,27 @@ export const HUD = {
   xpBarWidth: 240,
   xpBarHeight: 10,
 };
+
+/** 배속/일시정지/즉시웨이브 — 화면 우상단, HUD(좌상단)와 안 겹치게 고정 */
+export const CONTROLS = {
+  margin:         16,   // 화면 우상단 여백. ↑ 올리면 더 안쪽으로 들어온다(HUD와 겹치면 줄일 것)
+  buttonHeight:   32,
+  buttonWidth:    84,   // 배속·일시정지 버튼 폭
+  waveButtonWidth: 132, // 즉시 웨이브 버튼 폭 — 보너스 골드 텍스트 때문에 더 넓다
+  gap:            8,    // 버튼 사이 간격. ↑ 올리면 더 벌어진다
+  fontSize:       14,
+  disabledAlpha:  0.35, // 드래프트 오버레이가 열렸을 때 흐려지는 정도. ↓ 낮추면 더 흐릿해진다
+};
+
+/** 게임오버 — 도달 웨이브(=점수)가 가장 크게 보여야 한다. 재시작 유도가 최우선이라 연출은 짧게 */
+export const GAMEOVER = {
+  dimAlpha:        0.75, // 배경 어둡기. ↑ 올리면 더 어두워진다
+  fadeInMs:        250,  // 전환 연출 시간. **300ms 안쪽 유지할 것** — 여기서 멋 부리면 재플레이율이 떨어진다
+  waveFontSize:    96,   // 도달 웨이브(점수). ↑ 올리면 더 크게, 한눈에 안 놓치게
+  subFontSize:     20,   // 처치/레벨 등 보조 정보. 웨이브보다 항상 작아야 한다
+  newRecordColor:  '#ffd54f', // 신기록 강조색(특효 노랑과 동일 계열 — "좋은 신호"의 일관된 색 언어)
+  newRecordPulseMs: 500, // 신기록 맥동 주기. ↓ 낮추면 더 급해 보인다
+  buttonWidth:     240,
+  buttonHeight:    56,
+  buttonFontSize:  22,
+};
