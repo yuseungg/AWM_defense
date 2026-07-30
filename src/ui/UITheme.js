@@ -49,6 +49,8 @@ export const DMG = {
   riseDistance:    36,
   effectiveLabel:  '효과가 굉장했다!',
   labelCooldownMs: 1200,  // 라벨 도배 방지: 이 간격 안에는 1회만 표시
+  labelY:          70,    // 라벨 화면 상단 중앙 고정 Y좌표(데미지 위치를 따라가지 않는다 — 심사 영상 가독성).
+                           // ↑ 올리면 아래로(HUD와 가까워짐) · ↓ 내리면 화면 위쪽 끝에 붙는다
 };
 
 export const PARTICLE = {
