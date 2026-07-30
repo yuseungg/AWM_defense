@@ -16,9 +16,9 @@
 |---|---|
 | **`main` 빌드** | ✅ 정상 (배포 확인) |
 | **마지막 갱신** | 2026-07-30 / B |
-| **현재 페이즈** | **P2 진행 중** (D2) — SeoulTowerLight.js · DamageNumber.js 완료 |
+| **현재 페이즈** | **P2 D2 마감** — SeoulTowerLight·DamageNumber·GameScene·HUD·씬 구조 정리 완료 |
 | **A 진행률** | P0 대기 |
-| **B 진행률** | `DamageNumber.js` 완료(풀링·색/크기 직교 분리·eviction 스로틀) · 다음: `Particles.js` / `StatusFx.js` / `SkyTint.js` 등 나머지 P2 |
+| **B 진행률** | D2 완료(조명·데미지숫자·씬 분리·HUD) · 다음(D3): `Particles.js` / `StatusFx.js` / `SkyTint.js` / `HANDOFF.md` 작성 |
 | **Mock 상태** | ✅ **B가 선작성** (`src/MockGameCore.js`) → §6-4 "Mock이 스펙이다" |
 | **배포 링크** | ✅ https://yuseungg.github.io/AWM_defense/ |
 
@@ -232,6 +232,48 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 **main 빌드:** ✅ / ❌
 ```
+
+---
+
+## [2026-07-30] B · 세션 4 (D2 마감 — 씬 구조 · HUD)
+
+**한 일**
+- `src/ui/mapView.js` 신설 — `drawMap`/`collectPathCells`/`W`/`H`/`CELL`을 공유 모듈로 분리(`GameScene`·`MockScene`·`VerifyScene`이 같이 씀)
+- `src/ui/VerifyScene.js` — 기존 경로 검증 화면을 삭제하지 않고 `?verify=1`로 이동(격자 정렬·완주 시간 자동 검사, D16류 튜닝 시 A의 회귀 검증 화면으로 유지)
+- `src/ui/HUD.js` 신설 — 골드/웨이브·계절/레벨+XP바. `goldChanged`/`xpChanged`/`waveStarted`/`seasonChanged` 4개만 구독, 도시 체력 숫자바는 만들지 않음(조명이 체력바). 씬 진입 시 `getState()` 1회로 초기 페인트(D18)
+- `src/ui/GameScene.js` 신설 — **기본 모드.** 지도+`SeoulTowerLight`+`DamageNumber`+`HUD` 연결. `MockGameCore`를 스펙으로 사용 중이며 "코어 전환 지점" 주석(파일 39번째 줄, import 한 줄만 교체하면 됨) 남겨둠
+- `src/ui/MockScene.js` — `main.js`에서 분리해 유지(삭제 안 함). `SeoulTowerLight`/`DamageNumber`는 디버그 키 없이 organic하게만 반응하는 "기준 렌더러"로 남기고, 수동 FX 테스트 키는 `GameScene`으로 이관
+- `src/main.js` — Phaser 부트 전용으로 축소 (URL 플래그로 씬 선택만 함)
+- `CLAUDE.md` §7에 `?fxtest=1`(B 영역, FX 검증 키) 한 줄 추가 — `?debug=1`(A 영역, 웨이브 점프 등)과 숫자 키가 겹치는 걸 막음. SYNC.md §2 Q7·Q8에 기록
+
+**최종 URL 플래그 정리** (README.md·HANDOFF.md 양쪽에 넣을 것)
+
+| 플래그 | 씬 | 용도 |
+|---|---|---|
+| (기본, 없음) | `GameScene` | 실제 게임 화면 |
+| `?mock=1` | `MockScene` | Mock 이벤트 모니터(진단용) — 이벤트가 오는지/UI가 그리는지 구분 |
+| `?verify=1` | `VerifyScene` | 경로 검증 화면 — 격자 정렬(40k+20)·완주 시간 자동 검사 |
+| `?fxtest=1` | `GameScene` 내부 | FX 검증 키(B 영역) — 조명 1~4·0·B·R·S·P / 데미지 Q·W·E·T·Y |
+| `?debug=1` | `GameScene` 내부 | A 영역(CLAUDE.md §7) — 웨이브 점프 1~9·G·X·K·H·배속. `?fxtest=1`과 절대 안 겹침 |
+
+조합 가능: `?mock=1&debug=1`처럼 결합해도 무방(각 씬이 자기 관련 없는 플래그는 무시함).
+
+**검증**: headless Chromium(playwright, 세션 스크래치패드에만 존재, 리포에 의존성 추가 안 함)으로 4가지 모드 전부 콘솔 에러 없음 확인 + 스크린샷 확인. `?fxtest=1`에서 `1`(조명 빨강)·`W`(특효 데미지) 실제 키 입력까지 눌러서 동작 확인. `?debug=1` 단독으로는 FX 키 UI가 안 뜨는 것도 확인(격리 성공)
+
+**지금 되는 것 / 안 되는 것**
+- 됨: 기본/`?mock=1`/`?verify=1`/`?fxtest=1`/`?debug=1` 전부 정상 동작. HUD 초기 페인트(getState 1회) 확인
+- 안 됨: `Particles.js`/`StatusFx.js`/`SkyTint.js` 미착수. `HANDOFF.md` 아직 없음(D3에 작성 예정)
+
+**상대에게 필요한 것**
+- 없음. `GameCore.js` 완성되면 `GameScene.js` 39번째 줄 근처 "코어 전환 지점" 주석의 import 한 줄만 바꾸면 됨
+
+**내가 한 가정**
+- Q7(§7 `?fxtest=1` 추가), Q8(`collectPathCells`는 임시 시각화용, `GridSystem.js` 나오면 교체) — 둘 다 §2에 기록
+
+**다음 세션에 할 것 (D3)**
+- `Particles.js` / `StatusFx.js` / `SkyTint.js` 중 우선순위 선정, `HANDOFF.md` 작성(D4~D7 B 부재 대비)
+
+**main 빌드:** ✅
 
 ---
 
