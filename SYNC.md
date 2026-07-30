@@ -15,10 +15,10 @@
 | 항목 | 상태 |
 |---|---|
 | **`main` 빌드** | ✅ 정상 (배포 확인) |
-| **마지막 갱신** | 2026-07-29 / B |
-| **현재 페이즈** | **P2 진행 중** (D2) — SeoulTowerLight.js 완료 |
+| **마지막 갱신** | 2026-07-30 / B |
+| **현재 페이즈** | **P2 진행 중** (D2) — SeoulTowerLight.js · DamageNumber.js 완료 |
 | **A 진행률** | P0 대기 |
-| **B 진행률** | `SeoulTowerLight.js` 완료(색 보간·플래시·맥동·회복 연출) · 다음: `DamageNumber.js` |
+| **B 진행률** | `DamageNumber.js` 완료(풀링·색/크기 직교 분리·eviction 스로틀) · 다음: `Particles.js` / `StatusFx.js` / `SkyTint.js` 등 나머지 P2 |
 | **Mock 상태** | ✅ **B가 선작성** (`src/MockGameCore.js`) → §6-4 "Mock이 스펙이다" |
 | **배포 링크** | ✅ https://yuseungg.github.io/AWM_defense/ |
 
@@ -219,6 +219,53 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 **main 빌드:** ✅ / ❌
 ```
+
+---
+
+## [2026-07-30] B · 세션 3 (D2)
+
+**한 일**
+- `src/fx/DamageNumber.js` 구현 — 오브젝트 풀링(프리 리스트 스택 + 활성 리스트, 라운드로빈 아님) / `isEffective`=색·`isCrit`=크기 직교 분리(특효+크리 동시 발생에도 상성 색이 안 가려짐) / tween 대신 `scene` UPDATE 이벤트에서 위치·알파 직접 갱신(일시정지 자동 대응) / 풀 고갈 시 가장 오래된 활성 숫자 축출 + eviction 경고 3초 스로틀(누적 횟수 포함)
+- `UITheme.js`에 `DMG.labelY`(효과 라벨 화면 상단 고정 Y좌표) 추가, 다른 `DMG.*`와 동일하게 "↑/↓ 올리면·내리면" 튜닝 주석 형식 맞춤 (HANDOFF.md 매핑표 대비)
+- `main.js`의 `MockScene`에 `DamageNumber` 연결 + 검증용 디버그 키(Q/W/E/T/Y) 추가 — `SeoulTowerLight`와 동일하게 `EventBus`에 직접 emit해서 GameCore 없이도 독립 검증 가능
+
+**부하 테스트 (Y = 100개 동시 발사)**
+- 1회 발사: 활성 최대 100/200, 헤드리스 크로미움 기준 FPS 43.5(GPU stall 경고 있는 불리한 환경 — 참고치)
+- 3연타(≈300개를 `lifeMs`=800ms 창에 밀어넣음): 활성 최대가 **정확히 200/200에서 캡**, 초과분은 가장 오래된 것부터 축출. 스로틀 적용 후 경고가 100줄→**1줄**("...최근 3초간 101회")로 줄어드는 것 확인
+- 결론: `DMG.poolSize: 200`은 실사용(웨이브당 최대 100개 동시)에 여유가 있고 의도적 과부하에서도 안전하게 캡됨 — 지금 값 유지 근거 있음
+
+**검증 방법 (참고)**: Chrome 확장이 연결 안 돼 있어 `npx playwright`로 헤드리스 크로미움을 임시 설치해 콘솔 로그를 직접 캡처해 검증함. 프로젝트 의존성에는 추가하지 않음(스크립트는 세션 스크래치패드에만 존재).
+
+**지금 되는 것 / 안 되는 것**
+- 됨: 데미지 숫자 색/크기 조합 4종(일반·특효·크리·특효+크리) 전부 `?mock=1`에서 실동작 확인. 풀 고갈·eviction·스로틀 경고 전부 검증 완료. `main` 머지·푸시 완료
+- 안 됨: `Particles.js` / `StatusFx.js` / `SkyTint.js` / `HUD.js` 등 나머지 P2 항목 미착수
+
+**상대에게 필요한 것**
+- 없음
+
+**내가 한 가정**
+- 없음. 요구사항 4개(색/크기 직교, 프리 리스트+최오래 축출, 트윈 대신 update, 라벨 화면 고정) 전부 반영
+
+**다음 세션에 할 것**
+- `Particles.js` / `StatusFx.js` / `SkyTint.js` 중 우선순위 정해서 착수
+
+**디버그 키 전체 목록 (D3 HANDOFF.md로 이관 예정)**
+
+| 파일 | 키 | 동작 |
+|---|---|---|
+| `SeoulTowerLight` | `1`~`4` | 조명 레벨 강제 지정 |
+| `SeoulTowerLight` | `0` | 조명 소등 |
+| `SeoulTowerLight` | `B` | 2단계 하강(보스 관통 시뮬레이션) |
+| `SeoulTowerLight` | `R` | 1단계 회복 |
+| `SeoulTowerLight` | `S` | 씬 재시작(리스너 누수 검증용) |
+| `SeoulTowerLight` | `P` | MockGameCore 시뮬레이션 일시정지/재개 |
+| `DamageNumber` | `Q` | 일반 데미지 숫자 발사 |
+| `DamageNumber` | `W` | 특효(노랑) 발사 |
+| `DamageNumber` | `E` | 크리(확대) 발사 |
+| `DamageNumber` | `T` | 특효+크리 동시 발사(색·크기 직교 확인용) |
+| `DamageNumber` | `Y` | 100개 동시 발사 — 풀 부하 테스트, 콘솔에 활성 최대·FPS 출력 |
+
+**main 빌드:** ✅
 
 ---
 
