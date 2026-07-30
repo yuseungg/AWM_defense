@@ -16,7 +16,7 @@
 |---|---|
 | **`main` 빌드** | ✅ 정상 (`npm run build` 확인) |
 | **마지막 갱신** | 2026-07-30 / B |
-| **현재 페이즈** | **P1 코어 로직 완료 (A) + P2 진행 중 (B, Controls·GameOverScene까지)** |
+| **현재 페이즈** | **P1 코어 로직 완료 (A) + P3 진행 중 (B, D3 마감 — Controls·GameOverScene·HANDOFF 골격까지)** |
 | **A 진행률** | **P1 완료** — PathSystem·GridSystem·Enemy·EnemyPool·Tower·Projectile·Combat·Economy·WaveManager 9종. **`GameCore.js` 1단계 요청함(B→A)**, **`GameCore.reset()` 추가 요청(§3 C5)** — 완성 전까지 `GameScene.js`는 `MockGameCore.js`를 씀 |
 | **B 진행률** | `Controls.js`·`GameOverScene.js` 완료 · `HANDOFF.md` 골격 작성 완료(기능마다 채우는 방식으로 전환) · 다음: `BuildUI.js` |
 | **Mock 상태** | ✅ **B가 선작성** (`src/MockGameCore.js`) → §6-4 "Mock이 스펙이다" |
@@ -253,6 +253,37 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 **main 빌드:** ✅ / ❌
 ```
+
+---
+
+## [2026-07-30] B · 세션 7 (D3 마감)
+
+**한 일**
+- `DraftOverlay.js`(차별점 #3) — 레벨업 3장/보스 정책 3장 큐 처리, "코어 실패해도 안 멈춤" 안전판
+- `HANDOFF.md` 골격 작성 — D3 저녁 일괄 작성 대신 기능마다 채우는 방식으로 전환
+- `Controls.js` — 배속·일시정지·즉시 다음 웨이브
+- `GameOverScene.js` — 결과 화면, 2초 내 재시작 사수
+
+**발견**
+- `setPaused` 소유권 충돌: `DraftOverlay`와 `Controls`가 둘 다 `GameCore.setPaused(bool)`을 호출하는데 boolean 하나라 마지막 호출자가 이긴다 → `Controls.isUserPaused`를 기준값으로 두고, 오버레이가 열려 있는 동안은 `Controls.setInputEnabled(false)`로 버튼 자체를 잠가서 레이스를 원천 차단, 닫힐 때 `isUserPaused`를 다시 읽어 복원하는 방식으로 해결
+- 싱글톤 코어 때문에 `scene.restart()`/`scene.start('Game')`으로는 게임이 초기화되지 않음(`WaveManager`/`Economy`/`GridSystem`이 모듈 싱글톤이라 이전 상태가 그대로 남음) → 재시작은 `location.reload()`로 확정(헤드리스 브라우저로 실제 초기화 확인함). `GameCore.reset()` 요청함(§3 C5)
+
+**안 됨**
+- `GameCore.js` 여전히 부재(A 대기 중). `/src/game/` 9개 파일 여전히 로드 안 됨(네트워크 요청으로 확인)
+- `BuildUI` 미착수 — 절대 사수 6개 중 유일하게 남은 항목
+
+**상대에게 필요한 것**
+- `GameCore.js` 1단계 + `GameCore.reset()` (둘 다 요청 완료, §3 C5)
+
+**내가 한 가정**
+- 없음
+
+**다음 세션에 할 것**
+1. `BuildUI.js`
+2. `HANDOFF.md` §8 촬영 대본 작성
+3. PDF 초안
+
+**main 빌드:** ✅
 
 ---
 

@@ -33,6 +33,10 @@
 
 **미완성인 것** — §5에 전체 목록.
 
+**🔴 `BuildUI`(배치 미리보기·사거리 원·오라 원) 없음.** 절대 사수 6개 중 유일하게 남은 항목.
+**A가 만들면 안 되는 감각 영역이다** — 배치 가능/불가 미리보기, 사거리·오라 반경 원의 크기감·
+투명도는 숫자가 아니라 "손에 쥐었을 때 느낌"으로 맞추는 것이라 B가 직접 만들어야 한다.
+
 ---
 
 ## 1. URL 플래그 5종
@@ -157,7 +161,7 @@
 - **적 스프라이트 렌더러가 없다.** `enemySpawned`/`enemyKilled` 이벤트는 발행되지만(Mock이든 실제 `WaveManager`든) 화면에 적 그래픽 자체가 없다. Mock으로 테스트해도 안 보이는 게 정상이다
 - **건설 UI가 없다.** `BuildUI.js` 미착수 — 클릭으로 타워/서포터/장애물을 지을 방법 자체가 아직 없다
 - **`Particles.js`/`StatusFx.js`/`SkyTint.js`/`BossAlert.js` 파일 자체가 없다.** `UITheme.js`의 `PARTICLE`/`SHAKE` 상수는 존재하지만 아무 코드도 이걸 읽지 않는다(§3에 표시해둠)
-- **`TitleScene.js`/`GameOverScene.js`/`UpgradeUI.js`/`CodexUI.js`/`Controls.js` 미착수**
+- **`TitleScene.js`/`UpgradeUI.js`/`CodexUI.js` 미착수** (`Controls.js`/`GameOverScene.js`는 완료 — §0 참고)
 - A 쪽 `LevelSystem.js`/`PerkSystem.js`/`DraftSystem.js`/`Supporter.js`/`Obstacle.js`/`Debug.js` 미착수
 - **정책/드래프트 픽이 실제로 반영되는지 검증 불가.** `MockGameCore`에서는 반영되지만(퍼크 누적 등) 실제 `GameCore`는 아직 스텁이라 확인할 방법이 없다
 - `assets/` 폴더 자체가 없다 (§6)
@@ -186,7 +190,8 @@
 
 ## 8. 촬영 대본
 
-*(골격만. §7 밸런싱이 확정된 뒤 채운다.)*
+**🔴 미작성.** 골격만 있고 내용은 하나도 안 채워졌다. §7 밸런싱 합격 기준이 실측으로 확정된
+뒤에 채운다 — 그 전에 대본을 쓰면 실제 페이스와 안 맞는 컷 목록이 나온다.
 
 - [ ] 오프닝 컷
 - [ ] 코어 게임플레이 컷
