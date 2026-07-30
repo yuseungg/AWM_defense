@@ -61,5 +61,13 @@
     "obstacle": 2
   },
   "startGold": 200,
-  "instantWaveBonusGold": 25
+  "instantWaveBonusGold": 25,
+  "spawn": {
+    "intervalByType": {
+      "dust": 0.1,
+      "car": 0.4,
+      "trash": 0.6
+    },
+    "prepSeconds": 8
+  }
 }
