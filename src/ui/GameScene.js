@@ -1,0 +1,136 @@
+/**
+ * GameScene.js — 실제 게임 화면 (기본 모드)
+ *
+ * 지도 배경 + SeoulTowerLight(조명=체력바) + DamageNumber + HUD를 붙인다.
+ * 실제 GameCore가 나오기 전까지는 MockGameCore를 스펙으로 쓴다 (SYNC.md §6-4).
+ *
+ * ?fxtest=1 = FX 검증 키 (B 영역). ?debug=1(웨이브 점프 등, CLAUDE.md §7)과
+ * 숫자 키가 겹치면 서로 무력화되므로 완전히 분리된 플래그를 쓴다 — 여기서는 ?debug=1을 읽지 않는다.
+ */
+
+import Phaser from 'phaser';
+import mapData from '../../data/map.json';
+import { EventBus, EV } from '../EventBus.js';
+import { SeoulTowerLight } from '../fx/SeoulTowerLight.js';
+import { DamageNumber } from '../fx/DamageNumber.js';
+import { HUD } from './HUD.js';
+import { drawMap, H } from './mapView.js';
+import { COLOR, DMG } from './UITheme.js';
+
+const FXTEST = new URLSearchParams(location.search).get('fxtest') === '1';
+
+export class GameScene extends Phaser.Scene {
+  constructor() { super('Game'); }
+
+  async create() {
+    this.cameras.main.setBackgroundColor(COLOR.bg);
+    const { tower } = drawMap(this);
+
+    // 조명 = 체력바. SeoulTowerLight가 cityDamaged/cityHealed를 알아서 구독한다
+    this.light = new SeoulTowerLight(this, tower.x, tower.y, 13);
+    this.add.text(tower.x, tower.y - 30, 'N서울타워', { fontSize: '13px', color: '#f2f4f8' }).setOrigin(0.5);
+
+    // 데미지 숫자 — enemyDamaged를 알아서 구독한다
+    this.dmg = new DamageNumber(this);
+
+    // 골드/웨이브/계절/XP — goldChanged 등 4개 이벤트를 알아서 구독한다
+    this.hud = new HUD(this);
+
+    // ══ 코어 전환 지점 ══
+    // 실제 GameCore.js가 완성되면 아래 import 한 줄만 교체한다.
+    // 그 외 이 파일의 어떤 부분도 바꿀 필요가 없다. (SYNC.md §6-4 "Mock이 스펙이다")
+    const { GameCore } = await import('../MockGameCore.js');
+    this.core = GameCore;
+
+    this.hud.init(GameCore.getState()); // 씬 진입 시 1회만 — CLAUDE.md D18
+    GameCore.__startMock?.();
+
+    if (FXTEST) this.setupFxTestKeys();
+  }
+
+  /**
+   * FX 검증 키 (?fxtest=1 전용). GameCore를 거치지 않고 EventBus에 직접 emit해서
+   * SeoulTowerLight·DamageNumber의 반응만 독립적으로 테스트한다.
+   * D5에 A가 조명·데미지 상수(UITheme.js)를 튜닝할 때 쓰는 유일한 도구다.
+   *
+   *   조명: 1~4 레벨 강제 · 0 소등 · B 2단계 하강(보스 시뮬) · R 1단계 회복
+   *         · S 씬 재시작(리스너 누수 검증용) · P MockGameCore 일시정지/재개
+   *   데미지: Q 일반 · W 특효 · E 크리 · T 특효+크리 · Y 100개 동시발사(풀 부하 테스트)
+   */
+  setupFxTestKeys() {
+    const kb = this.input.keyboard;
+
+    // ── 조명
+    this.debugLevel = 4;
+    const jumpTo = (target) => {
+      if (target === this.debugLevel) return;
+      const isDamage = target < this.debugLevel;
+      this.debugLevel = target;
+      EventBus.emit(isDamage ? EV.cityDamaged : EV.cityHealed, { level: target });
+    };
+    kb.on('keydown-ZERO', () => jumpTo(0));
+    kb.on('keydown-ONE', () => jumpTo(1));
+    kb.on('keydown-TWO', () => jumpTo(2));
+    kb.on('keydown-THREE', () => jumpTo(3));
+    kb.on('keydown-FOUR', () => jumpTo(4));
+    kb.on('keydown-B', () => jumpTo(Math.max(0, this.debugLevel - 2)));
+    kb.on('keydown-R', () => jumpTo(Math.min(4, this.debugLevel + 1)));
+    kb.on('keydown-S', () => this.scene.restart());
+
+    let paused = false;
+    kb.on('keydown-P', () => {
+      paused = !paused;
+      this.core.setPaused(paused);
+    });
+
+    // ── 데미지 숫자
+    const path = mapData.paths[0];
+    const rndPos = () => ({
+      x: 100 + Math.random() * 1000,
+      y: path[Math.floor(Math.random() * path.length)].y,
+    });
+    const fire = (isEffective, isCrit) => {
+      const { x, y } = rndPos();
+      EventBus.emit(EV.enemyDamaged, {
+        id: 'debug', amount: Math.round(4 + Math.random() * 60), x, y, isEffective, isCrit,
+      });
+    };
+    kb.on('keydown-Q', () => fire(false, false));
+    kb.on('keydown-W', () => fire(true, false));
+    kb.on('keydown-E', () => fire(false, true));
+    kb.on('keydown-T', () => fire(true, true));
+    kb.on('keydown-Y', () => this.runDamageStressTest());
+
+    this.add.text(20, H - 100, 'FX 디버그(?fxtest=1): 조명 1~4·0·B·R·S·P · 데미지 Q·W·E·T·Y', {
+      fontSize: '12px', color: '#8a919e',
+      backgroundColor: 'rgba(0,0,0,0.4)', padding: { x: 8, y: 6 },
+    }).setOrigin(0, 1);
+  }
+
+  /** Y 키 — 100개 동시 발사 후 활성 최대 개수·FPS를 샘플링해 콘솔에 보고한다 */
+  runDamageStressTest() {
+    const path = mapData.paths[0];
+    for (let i = 0; i < 100; i++) {
+      const x = 100 + Math.random() * 1000;
+      const y = path[Math.floor(Math.random() * path.length)].y;
+      const isEffective = Math.random() < 0.5;
+      const isCrit = Math.random() < 0.5;
+      EventBus.emit(EV.enemyDamaged, {
+        id: `stress${i}`, amount: Math.round(4 + Math.random() * 60), x, y, isEffective, isCrit,
+      });
+    }
+
+    let peak = 0;
+    const start = this.time.now;
+    const timer = this.time.addEvent({
+      delay: 50, loop: true,
+      callback: () => {
+        peak = Math.max(peak, this.dmg.activeCount);
+        if (this.time.now - start > DMG.lifeMs + 200) {
+          timer.remove();
+          console.log(`[DamageNumber 부하테스트] 100개 동시발사 · 활성 최대 ${peak}/${DMG.poolSize} · FPS ${this.game.loop.actualFps.toFixed(1)}`);
+        }
+      },
+    });
+  }
+}
