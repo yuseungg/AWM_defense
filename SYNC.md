@@ -276,6 +276,7 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 | D16 | 2026-07-28 | `enemies.json` `speed` **전부 ×4.82** (195/580/120/145) | 경로 685→3,300px. **완주 시간 보존** = 기존 밸런스 가정 무손상 |
 | D17 | 2026-07-28 | `GameCore` 좌표 = **셀 인덱스** · 반환 = **`{ ok, reason?, instanceId? }`** · `canBuild`도 객체 | boolean이면 실패 이유를 UI가 못 쓴다 |
 | D18 | 2026-07-28 | `instanceId` = `"cheonggyecheon#1"` 문자열 · `getState()` **매 프레임 호출 금지** | 로그 가독성 / 웨이브 40+ 성능 조항 |
+| D19 | 2026-07-30 | §5-1 데미지 공식 의사코드 오탈 정정: `tower.strongAgainst?.[enemy.id]` → `def.strongAgainst?.[enemy.type]` | `strongAgainst` 키는 종(species) id인데(`enemies.json`의 `id`), `enemy.id`는 스폰마다 고유한 인스턴스 id라 실제 데이터와 안 맞았다. `Enemy.js`/`Combat.js` 구현 기준으로 정정 |
 
 > **✅ D9~D18은 2026-07-28 P0 통화에서 A와 합의 완료.** §3의 C1·C2·C3 전부 승인됨.
 
