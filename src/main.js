@@ -12,9 +12,10 @@
 
 import Phaser from 'phaser';
 import mapData from '../data/map.json';
-import { COLOR, HUD as HUDT } from './ui/UITheme.js';
+import { COLOR, HUD as HUDT, DMG } from './ui/UITheme.js';
 import { EventBus, EV } from './EventBus.js';
 import { SeoulTowerLight } from './fx/SeoulTowerLight.js';
+import { DamageNumber } from './fx/DamageNumber.js';
 
 const W = 1280;
 const H = 720;
@@ -136,6 +137,9 @@ class MockScene extends Phaser.Scene {
     this.light = new SeoulTowerLight(this, t.x, t.y, 13);
     this.add.text(t.x, t.y - 30, 'N서울타워', { fontSize: '13px', color: '#f2f4f8' }).setOrigin(0.5);
 
+    // 데미지 숫자 — enemyDamaged를 알아서 구독한다 (MockGameCore가 주기적으로 랜덤 발행)
+    this.dmg = new DamageNumber(this);
+
     this.statusText = this.add.text(20, 20, '', {
       fontSize: '15px', color: '#f2f4f8', lineSpacing: 6,
       backgroundColor: 'rgba(0,0,0,0.5)', padding: { x: 12, y: 10 },
@@ -169,6 +173,7 @@ class MockScene extends Phaser.Scene {
     this.time.addEvent({ delay: 250, loop: true, callback: () => this.refresh() });
 
     this.setupLightDebugKeys();
+    this.setupDamageNumberDebugKeys();
   }
 
   /**
@@ -211,6 +216,67 @@ class MockScene extends Phaser.Scene {
       fontSize: '12px', color: '#8a919e',
       backgroundColor: 'rgba(0,0,0,0.4)', padding: { x: 8, y: 6 },
     }).setOrigin(0, 1);
+  }
+
+  /**
+   * DamageNumber 검증용 디버그 키. GameCore를 거치지 않고 enemyDamaged를 직접
+   * emit해서 색(특효)·크기(크리) 조합과 풀 고갈 상황을 독립적으로 재현한다.
+   *
+   *   Q 일반   W 특효(노랑)   E 크리(확대)   T 특효+크리(노랑+확대, 동시발생 검증)
+   *   Y 100개 동시발사 — 풀 부하 테스트. 활성 최대 개수·FPS를 콘솔에 출력한다
+   */
+  setupDamageNumberDebugKeys() {
+    const path = mapData.paths[0];
+    const rndPos = () => ({
+      x: 100 + Math.random() * 1000,
+      y: path[Math.floor(Math.random() * path.length)].y,
+    });
+
+    const fire = (isEffective, isCrit) => {
+      const { x, y } = rndPos();
+      EventBus.emit(EV.enemyDamaged, {
+        id: 'debug', amount: Math.round(4 + Math.random() * 60), x, y, isEffective, isCrit,
+      });
+    };
+
+    const kb = this.input.keyboard;
+    kb.on('keydown-Q', () => fire(false, false));
+    kb.on('keydown-W', () => fire(true, false));
+    kb.on('keydown-E', () => fire(false, true));
+    kb.on('keydown-T', () => fire(true, true));
+    kb.on('keydown-Y', () => this.runDamageStressTest());
+
+    this.add.text(20, H - 76, '데미지 디버그: Q 일반 · W 특효 · E 크리 · T 특효+크리 · Y 100개 부하테스트(콘솔 확인)', {
+      fontSize: '12px', color: '#8a919e',
+      backgroundColor: 'rgba(0,0,0,0.4)', padding: { x: 8, y: 6 },
+    }).setOrigin(0, 1);
+  }
+
+  /** Y 키 — 100개 동시 발사 후 활성 최대 개수·FPS를 샘플링해 콘솔에 보고한다 */
+  runDamageStressTest() {
+    const path = mapData.paths[0];
+    for (let i = 0; i < 100; i++) {
+      const x = 100 + Math.random() * 1000;
+      const y = path[Math.floor(Math.random() * path.length)].y;
+      const isEffective = Math.random() < 0.5;
+      const isCrit = Math.random() < 0.5;
+      EventBus.emit(EV.enemyDamaged, {
+        id: `stress${i}`, amount: Math.round(4 + Math.random() * 60), x, y, isEffective, isCrit,
+      });
+    }
+
+    let peak = 0;
+    const start = this.time.now;
+    const timer = this.time.addEvent({
+      delay: 50, loop: true,
+      callback: () => {
+        peak = Math.max(peak, this.dmg.activeCount);
+        if (this.time.now - start > DMG.lifeMs + 200) {
+          timer.remove();
+          console.log(`[DamageNumber 부하테스트] 100개 동시발사 · 활성 최대 ${peak}/${DMG.poolSize} · FPS ${this.game.loop.actualFps.toFixed(1)}`);
+        }
+      },
+    });
   }
 
   onEvent(name, payload) {
