@@ -15,6 +15,8 @@ import { SeoulTowerLight } from '../fx/SeoulTowerLight.js';
 import { DamageNumber } from '../fx/DamageNumber.js';
 import { HUD } from './HUD.js';
 import { DraftOverlay } from './DraftOverlay.js';
+import { Controls } from './Controls.js';
+import { GameOverScene } from './GameOverScene.js';
 import { drawMap, H } from './mapView.js';
 import { COLOR, DMG } from './UITheme.js';
 import perksData from '../../data/perks.json';
@@ -48,9 +50,15 @@ export class GameScene extends Phaser.Scene {
     const { GameCore } = await import('../MockGameCore.js');
     this.core = GameCore;
 
+    // 배속/일시정지/즉시웨이브. DraftOverlay가 pause 소유권을 조회하므로 draft보다 먼저 만든다
+    this.controls = new Controls(this, this.core);
+
     // 레벨업 드래프트 3장 / 보스 정책 3장 — levelUp·bossKilled를 알아서 구독한다. GameCore.setPaused를
     // 직접 호출하므로 core가 준비된 뒤에 만든다.
     this.draft = new DraftOverlay(this, this.core);
+
+    // 결과 화면 — gameOver를 알아서 구독한다
+    this.gameOverScene = new GameOverScene(this, this.core);
 
     this.hud.init(GameCore.getState()); // 씬 진입 시 1회만 — CLAUDE.md D18
     GameCore.__startMock?.();
@@ -69,6 +77,7 @@ export class GameScene extends Phaser.Scene {
    *   드래프트: D 레벨업 3장 강제 · F 보스 정책 3장 강제
    *             Z 레벨업 2개+정책 1개를 한꺼번에 큐에 밀어넣기(순차 처리·언페이즈 검증)
    *   ESC 안전판: 열린 오버레이 강제 닫기 + 강제 unpause
+   *   O: gameOver 강제 발행(신기록 있음/없음 토글) — GameOverScene 검증
    */
   setupFxTestKeys() {
     const kb = this.input.keyboard;
@@ -124,7 +133,18 @@ export class GameScene extends Phaser.Scene {
     });
     kb.on('keydown-ESC', () => this.draft.forceCloseAll());
 
-    this.add.text(20, H - 100, 'FX 디버그(?fxtest=1): 조명 1~4·0·B·R·S·P · 데미지 Q·W·E·T·Y · 드래프트 D·F·Z · ESC 강제닫기', {
+    // ── 게임오버
+    kb.on('keydown-O', () => {
+      this._debugRecord = !this._debugRecord;
+      EventBus.emit(EV.gameOver, {
+        wave: Math.floor(Math.random() * 30) + 1,
+        kills: Math.floor(Math.random() * 200),
+        level: this._debugLevel || 1,
+        isNewRecord: this._debugRecord,
+      });
+    });
+
+    this.add.text(20, H - 100, 'FX 디버그(?fxtest=1): 조명 1~4·0·B·R·S·P · 데미지 Q·W·E·T·Y · 드래프트 D·F·Z · ESC 강제닫기 · O 게임오버', {
       fontSize: '12px', color: '#8a919e',
       backgroundColor: 'rgba(0,0,0,0.4)', padding: { x: 8, y: 6 },
     }).setOrigin(0, 1);
