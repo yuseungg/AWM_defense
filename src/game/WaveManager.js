@@ -8,8 +8,9 @@
  * 웨이브는 겹치지 않는다: "즉시 웨이브"는 현재 웨이브가 다 정리된 뒤의 대기시간(prep phase)을
  * 건너뛰는 것이지, 진행 중인 웨이브에 끼어드는 게 아니다(MockGameCore.js의 isPrepPhase와 동일 모델).
  *
- * PerkSystem(P3)·LevelSystem(P2)이 아직 없어서 perksProvider/getLevel을 선택적으로 주입받는다.
- * 기본값은 안전하게 0(퍼크 없음)/1(레벨 1)로 동작한다.
+ * PerkSystem(P3)이 아직 없어서 perksProvider를 선택적으로 주입받는다(기본값 0, 퍼크 없음).
+ * getLevel은 LevelSystem이 생겼으니 기본 싱글턴 생성 시 바로 연결한다 — 그래도 인자 자체는
+ * 계속 선택적으로 남겨둔다(단위 테스트 등에서 다른 값을 주입할 수 있게).
  */
 
 import wavesData from '../../data/waves.json';
@@ -20,6 +21,7 @@ import EnemyPool from './EnemyPool.js';
 import ProjectilePool from './Projectile.js';
 import applyHits from './Combat.js';
 import Economy from './Economy.js';
+import LevelSystem from './LevelSystem.js';
 
 const ENEMY_TYPES = ['dust', 'car', 'trash'];
 const SEASON_CYCLE_LENGTH = 40; // seasons 배열이 덮는 웨이브 범위(1~40)
@@ -179,6 +181,7 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
   // ── EnemyPool 콜백: 죽음/코어도달
   function onEnemyDeath(enemy) {
     Economy.addKillReward(enemy);
+    LevelSystem.addKillXp(enemy);
     state.kills++;
     EventBus.emit(EV.enemyKilled, {
       id: enemy.id, type: enemy.type, reward: enemy.reward, xp: enemy.xp, x: enemy.x, y: enemy.y,
@@ -283,6 +286,6 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
   };
 }
 
-export const WaveManager = createWaveManager();
+export const WaveManager = createWaveManager({ getLevel: () => LevelSystem.getLevel() });
 
 export default WaveManager;

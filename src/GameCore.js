@@ -12,10 +12,8 @@ import GridSystem from './game/GridSystem.js';
 import Tower from './game/Tower.js';
 import WaveManager from './game/WaveManager.js';
 import Economy from './game/Economy.js';
+import LevelSystem from './game/LevelSystem.js';
 import { EventBus, EV, REJECT } from './EventBus.js';
-
-// LevelSystem(P2) 붙기 전까지 고정값. unlockedTowers 계산도 이 값을 기준으로 한다.
-const CURRENT_LEVEL = 1;
 
 const seqByType = {};
 
@@ -35,7 +33,7 @@ function canBuild(id, cellX, cellY) {
   const gridResult = GridSystem.canPlace('tower', cellX, cellY);
   if (!gridResult.ok) return gridResult;
 
-  if (def.unlockLevel > CURRENT_LEVEL) return { ok: false, reason: 'locked' };
+  if (def.unlockLevel > LevelSystem.getLevel()) return { ok: false, reason: 'locked' };
 
   const alreadyBuilt = WaveManager.getTowers().some(t => t.id === id);
   if (alreadyBuilt) return { ok: false, reason: 'unique' };
@@ -53,6 +51,7 @@ function buildTower(towerId, cellX, cellY) {
   const tower = new Tower(towerId, instanceId, cellX, cellY);
   WaveManager.addTower(tower);
   GridSystem.occupy(cellX, cellY, { instanceId });
+  LevelSystem.addBuildXp('tower');
 
   EventBus.emit(EV.objectBuilt, {
     kind: 'tower', id: towerId, instanceId, cellX, cellY, x: tower.x, y: tower.y,
@@ -92,9 +91,9 @@ function getState() {
   const wm = WaveManager.getState();
   return {
     gold: Economy.getGold(),
-    xp: 0,
-    level: CURRENT_LEVEL,
-    xpToNext: 20,
+    xp: LevelSystem.getXp(),
+    level: LevelSystem.getLevel(),
+    xpToNext: LevelSystem.getXpToNext(),
     wave: wm.wave,
     season: wm.season,
     cityLight: wm.cityLight,
@@ -103,9 +102,7 @@ function getState() {
     obstacles: [],
     perks: { globalCrit: 0, globalDamage: 0, globalPierce: 0 },
     policies: [],
-    unlockedTowers: Object.values(towersData)
-      .filter(t => t.unlockLevel <= CURRENT_LEVEL)
-      .map(t => t.id),
+    unlockedTowers: LevelSystem.getUnlockedTowers(),
     kills: wm.kills,
     bestWave: wm.bestWave,
     isPrepPhase: wm.isPrepPhase,
