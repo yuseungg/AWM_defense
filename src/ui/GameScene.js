@@ -17,6 +17,7 @@ import { HUD } from './HUD.js';
 import { DraftOverlay } from './DraftOverlay.js';
 import { Controls } from './Controls.js';
 import { GameOverScene } from './GameOverScene.js';
+import { BuildUI } from './BuildUI.js';
 import { drawMap, H } from './mapView.js';
 import { COLOR, DMG } from './UITheme.js';
 import perksData from '../../data/perks.json';
@@ -52,6 +53,9 @@ export class GameScene extends Phaser.Scene {
 
     // 배속/일시정지/즉시웨이브. DraftOverlay가 pause 소유권을 조회하므로 draft보다 먼저 만든다
     this.controls = new Controls(this, this.core);
+
+    // 건물 선택 바 + 배치 미리보기 + 사거리/오라 원 — 절대 사수
+    this.buildUI = new BuildUI(this, this.core);
 
     // 레벨업 드래프트 3장 / 보스 정책 3장 — levelUp·bossKilled를 알아서 구독한다. GameCore.setPaused를
     // 직접 호출하므로 core가 준비된 뒤에 만든다.

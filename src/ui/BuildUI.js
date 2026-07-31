@@ -1,0 +1,303 @@
+/**
+ * BuildUI.js — 건물 선택 바 + 배치 미리보기 + 사거리/오라 원 (절대 사수 6개 중 마지막)
+ *
+ * 사거리 원이 없으면 타워의 유효 범위를, 오라 원이 없으면 세운상가의 버프 범위를
+ * 플레이어가 알 방법이 없다 — 둘 다 CLAUDE.md §1 절대 규칙과 직결된다.
+ *
+ * ★ canBuild()는 마우스가 이동한 "셀"이 바뀔 때만 호출한다. pointermove는 초당 60~120회
+ *   발생하는데 셀 하나가 40px이라 그 안에서 픽셀이 움직일 때마다 GridSystem 조회가 돌면 낭비다.
+ * ★ 사거리 원(테두리만) / 오라 원(채움+낮은 알파) — 색이 아니라 형태로 구분한다 (UITheme.js BUILD 참고).
+ *
+ * N서울타워는 목록에서 제외한다 — map.json에 고정 좌표로 존재하는 상시 지형물이지
+ * 플레이어가 격자에 배치하는 대상이 아니다(SeoulTowerLight가 이미 그 위치에 항상 그린다).
+ */
+
+import Phaser from 'phaser';
+import { EventBus, EV } from '../EventBus.js';
+import { COLOR, BUILD, CONTROLS } from './UITheme.js';
+import { CELL, W, H } from './mapView.js';
+import towersData from '../../data/towers.json';
+import supportsData from '../../data/supports.json';
+
+const FXTEST = new URLSearchParams(location.search).get('fxtest') === '1';
+const MAX_CX = W / CELL - 1;
+const MAX_CY = H / CELL - 1;
+
+export class BuildUI {
+  constructor(scene, core) {
+    this.scene = scene;
+    this.core = core;
+
+    this.selectedId = null;
+    this.builtIds = new Set();
+    this.lastCx = null;
+    this.lastCy = null;
+    this.auraSupports = new Map(); // instanceId → { x, y, radius }
+    this.locked = false; // DraftOverlay가 열려 있는 동안 true (Controls.setInputEnabled와 동일한 패턴)
+
+    this.previewGfx = scene.add.graphics().setDepth(50);
+    this.auraGfx = scene.add.graphics().setDepth(49);
+    this.toast = scene.add.text(0, 0, '', {
+      fontSize: '14px', color: '#f2f4f8',
+      backgroundColor: 'rgba(0,0,0,0.6)', padding: { x: 8, y: 4 },
+    }).setOrigin(0.5).setDepth(60).setAlpha(0);
+
+    const initial = core.getState(); // 씬 진입 시 1회만 — CLAUDE.md D18
+    this.unlockedTowers = initial.unlockedTowers.filter(id => id !== 'nseoulTower');
+    (initial.supports || []).forEach(s => this.trackAuraSupport(s));
+
+    this.barButtons = [];
+    this.buildBar();
+    this.refreshAuraLayer();
+
+    this.onLevelUp = ({ unlockedTower }) => {
+      if (unlockedTower && unlockedTower !== 'nseoulTower' && !this.unlockedTowers.includes(unlockedTower)) {
+        this.unlockedTowers.push(unlockedTower);
+        this.buildBar();
+      }
+    };
+    this.onObjectBuilt = payload => this.handleObjectBuilt(payload);
+    this.onObjectChanged = payload => this.handleObjectChanged(payload);
+    this.onRejected = ({ action, message }) => { if (action === 'build') this.showToast(message); };
+
+    EventBus.on(EV.levelUp, this.onLevelUp, this);
+    EventBus.on(EV.objectBuilt, this.onObjectBuilt, this);
+    EventBus.on(EV.objectChanged, this.onObjectChanged, this);
+    EventBus.on(EV.actionRejected, this.onRejected, this);
+
+    this.onPointerMove = pointer => this.handlePointerMove(pointer);
+    this.onPointerDown = pointer => this.handlePointerDown(pointer);
+    scene.input.on('pointermove', this.onPointerMove);
+    scene.input.on('pointerdown', this.onPointerDown);
+
+    if (FXTEST) this.setupFxTestKeys();
+
+    scene.events.once('shutdown', () => this.destroy());
+  }
+
+  // ────────────────────────────────────────── 선택 바
+  buildBar() {
+    this.barButtons.forEach(b => b.group.forEach(o => o.destroy()));
+    this.barButtons = [];
+
+    const ids = this.unlockedTowers;
+    const totalW = ids.length * BUILD.buttonWidth + (ids.length - 1) * BUILD.buttonGap;
+    let x = W / 2 - totalW / 2;
+    const y = BUILD.barY;
+
+    ids.forEach(id => {
+      const def = towersData[id];
+      const cx = x + BUILD.buttonWidth / 2;
+      const built = this.builtIds.has(id);
+      const selected = id === this.selectedId;
+      const disabled = built || this.locked;
+
+      const rect = this.scene.add.rectangle(cx, y, BUILD.buttonWidth, BUILD.barHeight, COLOR.slot)
+        .setStrokeStyle(2, selected ? BUILD.selectedBorderColor : COLOR.accent, 0.7);
+      const swatch = this.scene.add.rectangle(
+        cx, y - 12, 16, 16,
+        Phaser.Display.Color.HexStringToColor(def.levels[0].tint).color,
+      );
+      const label = this.scene.add.text(cx, y + 14, def.name, {
+        fontSize: `${BUILD.fontSize}px`, color: '#f2f4f8',
+      }).setOrigin(0.5);
+      const badge = this.scene.add.text(cx, y - 12, '✓', {
+        fontSize: '14px', color: '#4caf50',
+      }).setOrigin(0.5).setVisible(built);
+
+      const group = [rect, swatch, label, badge];
+      if (disabled) {
+        group.forEach(o => o.setAlpha(built ? BUILD.builtAlpha : CONTROLS.disabledAlpha));
+      } else {
+        rect.setInteractive({ useHandCursor: true });
+        rect.on('pointerdown', (_p, _lx, _ly, event) => {
+          event.stopPropagation();
+          this.select(id);
+        });
+      }
+
+      this.barButtons.push({ id, group });
+      x += BUILD.buttonWidth + BUILD.buttonGap;
+    });
+  }
+
+  select(id) {
+    this.selectedId = this.selectedId === id ? null : id;
+    this.lastCx = null;
+    this.lastCy = null;
+    this.previewGfx.clear();
+    this.buildBar();
+  }
+
+  /**
+   * DraftOverlay가 열리고 닫힐 때 호출한다 (Controls.setInputEnabled와 동일한 패턴 — HANDOFF.md §5).
+   * 잠그는 동안 선택은 유지하되(오버레이 닫히면 이어서 배치 가능) 미리보기만 지운다 — 잠긴 사이
+   * 마우스가 움직여도 좌표가 갱신되지 않으므로 낡은 미리보기가 남는 걸 막는다.
+   */
+  setInputEnabled(enabled) {
+    this.locked = !enabled;
+    if (this.locked) {
+      this.lastCx = null;
+      this.lastCy = null;
+      this.previewGfx.clear();
+    }
+    this.buildBar();
+  }
+
+  // ────────────────────────────────────────── 미리보기 (사거리 원 포함)
+  handlePointerMove(pointer) {
+    if (this.forceAuraFollow) this.drawFollowAura(pointer.x, pointer.y);
+    if (this.locked) return;
+
+    const overBar = pointer.y >= BUILD.barY - BUILD.barHeight / 2;
+    if (!this.selectedId || overBar) {
+      if (this.lastCx !== null) { this.lastCx = null; this.lastCy = null; this.previewGfx.clear(); }
+      return;
+    }
+
+    const cx = Phaser.Math.Clamp(Math.floor(pointer.x / CELL), 0, MAX_CX);
+    const cy = Phaser.Math.Clamp(Math.floor(pointer.y / CELL), 0, MAX_CY);
+    if (cx === this.lastCx && cy === this.lastCy) return; // ★ 셀이 안 바뀌면 재조회 안 함
+    this.lastCx = cx;
+    this.lastCy = cy;
+
+    const check = this.core.canBuild(this.selectedId, cx, cy);
+    this.drawPreview(cx, cy, check.ok);
+  }
+
+  drawPreview(cx, cy, ok) {
+    const px = cx * CELL + CELL / 2;
+    const py = cy * CELL + CELL / 2;
+    const def = towersData[this.selectedId];
+    const color = ok ? COLOR.ok : COLOR.ng;
+
+    this.previewGfx.clear();
+    this.previewGfx.fillStyle(color, BUILD.previewAlpha);
+    this.previewGfx.fillRect(cx * CELL, cy * CELL, CELL, CELL);
+
+    // 사거리 원 = 테두리만 (오라 원과 형태로 구분)
+    this.previewGfx.lineStyle(BUILD.rangeLineWidth, BUILD.rangeColor, BUILD.rangeAlpha);
+    this.previewGfx.strokeCircle(px, py, def.range);
+  }
+
+  handlePointerDown(pointer) {
+    if (this.locked || !this.selectedId || this.lastCx === null) return;
+    if (pointer.y >= BUILD.barY - BUILD.barHeight / 2) return;
+    // 성공/실패 후처리는 objectBuilt/actionRejected 이벤트가 전담한다(단일 소스 유지).
+    // GameCore가 스텁이어도({ok:false} 등) 이 호출 자체는 안전하다 — 미리보기는 이미 렌더링을 마쳤다.
+    this.core.buildTower(this.selectedId, this.lastCx, this.lastCy);
+  }
+
+  // ────────────────────────────────────────── 오라 원 (기존 세운상가)
+  trackAuraSupport(s) {
+    const def = supportsData[s.id];
+    if (def?.effect?.type === 'auraRange' && Number.isFinite(s.x)) {
+      this.auraSupports.set(s.instanceId, { x: s.x, y: s.y, radius: def.effect.radius });
+    }
+  }
+
+  handleObjectBuilt({ kind, id, x, y, instanceId }) {
+    if (kind === 'tower') {
+      this.builtIds.add(id);
+      if (this.selectedId === id) { this.selectedId = null; this.previewGfx.clear(); }
+      this.buildBar();
+    } else if (kind === 'support') {
+      this.trackAuraSupport({ id, x, y, instanceId });
+      this.refreshAuraLayer();
+    }
+  }
+
+  handleObjectChanged({ instanceId, action }) {
+    if (action !== 'relocated' || !this.auraSupports.has(instanceId)) return;
+    // objectChanged 페이로드엔 좌표가 없다(EventBus.js 계약) — 재배치는 드문 이벤트라
+    // 이때만 getState()로 1회 재동기화한다 (D18의 "매 프레임 금지" 취지에 어긋나지 않는다)
+    const state = this.core.getState();
+    this.auraSupports.clear();
+    (state.supports || []).forEach(s => this.trackAuraSupport(s));
+    this.refreshAuraLayer();
+  }
+
+  refreshAuraLayer() {
+    this.auraGfx.clear();
+    if (this.auraSupports.size === 0) return;
+    this.auraGfx.fillStyle(BUILD.auraColor, BUILD.auraFillAlpha);
+    this.auraGfx.lineStyle(BUILD.auraLineWidth, BUILD.auraColor, BUILD.auraLineAlpha);
+    this.auraSupports.forEach(({ x, y, radius }) => {
+      this.auraGfx.fillCircle(x, y, radius);
+      this.auraGfx.strokeCircle(x, y, radius);
+    });
+  }
+
+  // ────────────────────────────────────────── 실패 토스트
+  showToast(message) {
+    if (!message) return;
+    this.toast.setText(message)
+      .setPosition(W / 2, BUILD.barY - BUILD.barHeight / 2 - BUILD.rejectToastOffsetY)
+      .setAlpha(1);
+    this.scene.tweens.killTweensOf(this.toast);
+    this.scene.tweens.add({ targets: this.toast, alpha: 0, delay: BUILD.rejectToastMs, duration: 200 });
+  }
+
+  // ────────────────────────────────────────── ?fxtest=1 검증 키 (기존 키와 안 겹침: 1~4·0·B·R·S·P·Q·W·E·T·Y·D·F·Z·ESC·O)
+  /**
+   *   V: 현재 지어진 모든 타워의 사거리 원을 동시 표시 토글 (여러 랜드마크의 사거리 차이를 한눈에 비교)
+   *   C: 세운상가 오라 원을 마우스에 붙여 이동 — 중앙 고정이 아니라 따라다녀야 "어느 타워가
+   *      버프 범위 안에 들어오는가"를 실제로 검증할 수 있다(반지름 크기만 보는 것보다 검증 가치가 크다)
+   */
+  setupFxTestKeys() {
+    const kb = this.scene.input.keyboard;
+    this.forceAuraFollow = false;
+    this.fxAuraGfx = this.scene.add.graphics().setDepth(51);
+    this.rangeAllGfx = this.scene.add.graphics().setDepth(48);
+
+    kb.on('keydown-V', () => {
+      this.rangeAllOn = !this.rangeAllOn;
+      this.drawAllRanges();
+    });
+    kb.on('keydown-C', () => {
+      this.forceAuraFollow = !this.forceAuraFollow;
+      if (!this.forceAuraFollow) this.fxAuraGfx.clear();
+    });
+
+    this.scene.add.text(20, H - 160, 'BuildUI 검증(?fxtest=1): V=전체 사거리 원 · C=오라 원 마우스 추적', {
+      fontSize: '12px', color: '#8a919e',
+      backgroundColor: 'rgba(0,0,0,0.4)', padding: { x: 8, y: 6 },
+    }).setOrigin(0, 1);
+  }
+
+  drawAllRanges() {
+    this.rangeAllGfx.clear();
+    if (!this.rangeAllOn) return;
+    const state = this.core.getState(); // 토글 시 1회성 스냅샷(매 프레임 아님)
+    this.rangeAllGfx.lineStyle(BUILD.rangeLineWidth, BUILD.rangeColor, BUILD.rangeAlpha);
+    (state.towers || []).forEach(t => {
+      const def = towersData[t.id];
+      if (def) this.rangeAllGfx.strokeCircle(t.x, t.y, def.range);
+    });
+  }
+
+  drawFollowAura(x, y) {
+    const def = supportsData.sewoon;
+    this.fxAuraGfx.clear();
+    this.fxAuraGfx.fillStyle(BUILD.auraColor, BUILD.auraFillAlpha);
+    this.fxAuraGfx.lineStyle(BUILD.auraLineWidth, BUILD.auraColor, BUILD.auraLineAlpha);
+    this.fxAuraGfx.fillCircle(x, y, def.effect.radius);
+    this.fxAuraGfx.strokeCircle(x, y, def.effect.radius);
+  }
+
+  destroy() {
+    EventBus.off(EV.levelUp, this.onLevelUp, this);
+    EventBus.off(EV.objectBuilt, this.onObjectBuilt, this);
+    EventBus.off(EV.objectChanged, this.onObjectChanged, this);
+    EventBus.off(EV.actionRejected, this.onRejected, this);
+    this.scene.input.off('pointermove', this.onPointerMove);
+    this.scene.input.off('pointerdown', this.onPointerDown);
+
+    this.previewGfx.destroy();
+    this.auraGfx.destroy();
+    this.toast.destroy();
+    this.barButtons.forEach(b => b.group.forEach(o => o.destroy()));
+    this.fxAuraGfx?.destroy();
+    this.rangeAllGfx?.destroy();
+  }
+}

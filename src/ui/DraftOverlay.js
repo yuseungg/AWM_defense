@@ -53,6 +53,7 @@ export class DraftOverlay {
       // 호출자가 이긴다 — false를 그냥 부르면 유저가 원래 원했던 pause 상태(isUserPaused)를
       // 지워버린다. Controls의 값을 다시 읽어 복원하고, 잠갔던 버튼도 같이 풀어준다.
       this.scene.controls?.setInputEnabled(true);
+      this.scene.buildUI?.setInputEnabled(true);
       this.core.setPaused(this.scene.controls?.isUserPaused ?? false);
     }
   }
@@ -60,6 +61,7 @@ export class DraftOverlay {
   show(type, payload) {
     this.core.setPaused(true);
     this.scene.controls?.setInputEnabled(false); // 카드가 떠 있는 동안 Controls 버튼을 아예 못 누르게
+    this.scene.buildUI?.setInputEnabled(false);  // 카드가 떠 있는 동안 배치도 잠근다(같은 이유)
     this.current = { type };
     const cards = type === 'draft' ? payload.draftCards : payload.policyCards;
     this.render(type, payload, cards);
@@ -143,6 +145,8 @@ export class DraftOverlay {
     this.draftQueue = [];
     this.policyQueue = [];
     this.core.setPaused(false);
+    this.scene.controls?.setInputEnabled(true);
+    this.scene.buildUI?.setInputEnabled(true);
   }
 
   destroy() {
@@ -150,5 +154,6 @@ export class DraftOverlay {
     EventBus.off(EV.bossKilled, this.onBossKilled, this);
     this.closeCurrent();
     this.core.setPaused(false); // ★ 무조건 unpause 안전판 — 오버레이가 열린 채로 씬이 죽어도 게임이 안 멈춘다
+    this.scene.buildUI?.setInputEnabled(true);
   }
 }

@@ -104,6 +104,40 @@ export const CONTROLS = {
   disabledAlpha:  0.35, // 드래프트 오버레이가 열렸을 때 흐려지는 정도. ↓ 낮추면 더 흐릿해진다
 };
 
+/**
+ * 건물 배치 — 절대 사수. 사거리 원과 오라 원은 색뿐 아니라 형태로도 구분한다
+ * (TASKS_B.md P4 기준: "오라 반경 원과 사거리 원이 서로 헷갈리지 않음" — 색만 다르면
+ * 겹쳤을 때·저대비 모니터·색약에서 무너진다):
+ *   사거리 = 테두리만(strokeCircle) · 오라 = 채움 + 낮은 알파(fillCircle)
+ *
+ * barY 등은 1280×720 고정 해상도(CLAUDE.md §2) 기준 절대값이다. mapView.js의 H를 참조하지
+ * 않는 이유는 UITheme.js가 상수 전용 파일이라 mapView.js를 import하면 순환 참조가 생기기 때문.
+ */
+export const BUILD = {
+  barY:        660,  // 하단 선택 바 중심 Y (H=720 기준, 여백 60px). Controls(우상단)·HUD(좌상단)와 안 겹침
+  barHeight:   64,
+  buttonWidth: 96,
+  buttonGap:   10,
+  fontSize:    13,
+  builtAlpha:  0.35,  // 이미 지어진 유니크 타워 버튼(재클릭 불가). ↓ 낮추면 "다 지었다"는 느낌이 더 강해진다
+
+  previewAlpha: 0.35,  // 배치 미리보기 실루엣. ↑ 올리면 배치 가능/불가 색이 더 잘 보인다
+
+  rangeLineWidth: 2,
+  rangeAlpha:     0.8,
+  rangeColor:     0x3fa7d6,  // 사거리 원 = 파랑 계열 테두리
+
+  auraColor:      0xba68c8,  // 오라 원 = 보라 계열 채움. 사거리(파랑)와 색상환에서 확실히 멀다
+  auraFillAlpha:  0.15,      // ↑ 올리면 오라 범위가 더 눈에 띈다(과하면 밑에 있는 타워·경로가 안 보임)
+  auraLineWidth:  2,
+  auraLineAlpha:  0.6,
+
+  selectedBorderColor: 0xffd54f,  // 선택된 버튼 강조. 특효 노랑과 동일 계열("지금 이걸 들고 있다" 신호)
+
+  rejectToastMs:       1400,  // 실패 문구 유지 시간(페이드 시작까지). ↑ 올리면 더 오래 보인다
+  rejectToastOffsetY:  16,    // 선택 바 바로 위 얼마나 띄울지
+};
+
 /** 게임오버 — 도달 웨이브(=점수)가 가장 크게 보여야 한다. 재시작 유도가 최우선이라 연출은 짧게 */
 export const GAMEOVER = {
   dimAlpha:        0.75, // 배경 어둡기. ↑ 올리면 더 어두워진다
