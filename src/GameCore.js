@@ -8,14 +8,24 @@
  */
 
 import towersData from '../data/towers.json';
+import perksData from '../data/perks.json';
+import supportsData from '../data/supports.json';
+import obstaclesData from '../data/obstacles.json';
 import GridSystem from './game/GridSystem.js';
 import Tower from './game/Tower.js';
 import WaveManager from './game/WaveManager.js';
 import Economy from './game/Economy.js';
 import LevelSystem from './game/LevelSystem.js';
+import DraftSystem from './game/DraftSystem.js';
+import PerkSystem from './game/PerkSystem.js';
 import { EventBus, EV, REJECT } from './EventBus.js';
 
 const seqByType = {};
+
+// 드래프트로 획득한 서포터·장애물 설치권. 실제 배치(GridSystem 연동)는 다음 단계 — 지금은
+// "몇 개를 가지고 있는지"만 추적한다.
+let obstaclePicks = 0;
+const supportsOwned = new Set();
 
 function findTower(instanceId) {
   return WaveManager.getTowers().find(t => t.instanceId === instanceId);
@@ -87,6 +97,22 @@ function relocate(instanceId, cellX, cellY) {
   return { ok: true };
 }
 
+function pickDraftCard(cardId) {
+  if (perksData[cardId]) {
+    PerkSystem.addPerk(cardId);
+  } else if (supportsData[cardId]) {
+    supportsOwned.add(cardId);
+    DraftSystem.markSupportTaken(cardId);
+  } else if (obstaclesData[cardId]) {
+    obstaclePicks++;
+  } else {
+    return { ok: false, reason: 'locked' };
+  }
+
+  EventBus.emit(EV.cardPicked, { cardId });
+  return { ok: true };
+}
+
 function getState() {
   const wm = WaveManager.getState();
   return {
@@ -100,7 +126,7 @@ function getState() {
     towers: WaveManager.getTowers(),
     supports: [],
     obstacles: [],
-    perks: { globalCrit: 0, globalDamage: 0, globalPierce: 0 },
+    perks: PerkSystem.get(),
     policies: [],
     unlockedTowers: LevelSystem.getUnlockedTowers(),
     kills: wm.kills,
@@ -119,6 +145,7 @@ export const GameCore = {
   buildTower,
   upgrade,
   relocate,
+  pickDraftCard,
 
   startNextWave: () => WaveManager.startNextWave(),
   setSpeed: n => WaveManager.setSpeed(n),
@@ -129,7 +156,6 @@ export const GameCore = {
   // 스텁 — 각 시스템(P3) 붙으면 구현
   buildSupport: () => ({ ok: false, reason: 'notImplemented' }),
   buildObstacle: () => ({ ok: false, reason: 'notImplemented' }),
-  pickDraftCard: () => ({ ok: false, reason: 'notImplemented' }),
   pickPolicy: () => ({ ok: false, reason: 'notImplemented' }),
 };
 

@@ -5,12 +5,13 @@
  * towersData를 필터링하는 순수 계산이 항상 정답이다(getUnlockedTowers). levelUp 이벤트의
  * unlockedTower(그 레벨에서 새로 풀린 타워 하나)만 그 순간에 조회해서 실어 보낸다.
  *
- * draftCards는 항상 빈 배열이다 — DraftSystem(P3)이 다음 단계라 지금은 자리만 잡아둔다.
+ * draftCards는 DraftSystem.roll()로 채운다.
  */
 
 import wavesData from '../../data/waves.json';
 import towersData from '../../data/towers.json';
 import { EventBus, EV } from '../EventBus.js';
+import DraftSystem from './DraftSystem.js';
 
 function xpForLevel(n) {
   return Math.round(wavesData.xp.levelBase * Math.pow(wavesData.xp.levelGrowth, n - 1));
@@ -33,7 +34,7 @@ export function createLevelSystem() {
       EventBus.emit(EV.levelUp, {
         level,
         unlockedTower: unlocked ? unlocked.id : null,
-        draftCards: [],
+        draftCards: DraftSystem.roll(),
       });
     }
 
