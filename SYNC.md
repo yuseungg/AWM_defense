@@ -18,7 +18,7 @@
 | **마지막 갱신** | 2026-07-31 / B |
 | **현재 페이즈** | **P1 코어 로직 완료 (A) + P3(절대 사수) 완료 (B) + 오브젝트 렌더러 완료 (B, D4) — 일정 변경으로 D5까지 추가 작업 진행 중** |
 | **A 진행률** | **P1 완료** + `GameCore.js` 1단계 완료(`buildTower`/`canBuild`/`upgrade`/`relocate`/`getState`/`setSpeed`/`setPaused`/`startNextWave`). `buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy` 4개는 스텁. **`GameCore.reset()`은 아직 없음(§3 C5 미해결)**. `feat/game-core`에 새 커밋 없음(D4 세션 확인) |
-| **B 진행률** | **✅ 절대 사수 6개(D3) + 오브젝트 렌더러·에셋 파이프라인(D4) 전부 완료.** `EnemyView.js`/`TowerView.js` 신규, `vite.config.js` publicDir 설정. **D4에 `GameScene.js`에 Phaser `update()`가 없던 걸 발견·수정**(실제 코어 시뮬레이션이 전혀 안 돌고 있었음, §2 N3) |
+| **B 진행률** | **✅ 절대 사수 6개(D3) + 오브젝트 렌더러·에셋 파이프라인(D4) 전부 완료.** `EnemyView.js`/`TowerView.js` 신규, `vite.config.js` publicDir 설정. **D4에 `GameScene.js`에 Phaser `update()`가 없던 걸 발견·수정**(실제 코어 시뮬레이션이 전혀 안 돌고 있었음, §2 N3). **A의 코어 스왑 제안은 보류 — `?real=1` 플래그로 대체**(§2 N4) |
 | **Mock 상태** | ✅ **B가 선작성·유지보수** (`src/MockGameCore.js`) → §6-4 "Mock이 스펙이다". `unlockedTowers` 초기값 버그 수정(§2 N2) |
 | **⚠️ `GameCore.js` 병합 주의** | A의 `feat/game-core` 브랜치를 **그대로 병합하지 말 것**. 그 브랜치의 `main.js`는 B의 D2 리팩터링(씬 분리) 이전 기준이라 통째로 병합하면 그 작업이 지워진다. `GameCore.js`+`/src/game/*` 9종은 B가 이미 골라서 `feat/ui`/`main`에 반영해뒀다 — 자세한 내용은 §2 N1 |
 | **🔴 `GameScene.js` update() 필수** | `GameCore.update(deltaMs)`를 매 프레임 불러야 실제 코어의 웨이브·적 이동이 돈다. `GameScene.update(time,delta){ this.core?.update?.(delta); }`를 실수로 지우면 "적이 안 움직인다"가 재발한다(§2 N3) |
@@ -94,6 +94,43 @@ grep 검색 패턴으로 굳어 있다. 실제 부재 시작일(D6)과 별개로
 **틀렸을 때 영향:** 없음 — 순수 추가라 되돌릴 이유가 없다. **오히려 이 한 줄이 실수로 지워지면
 "실제 코어로 전환했는데 적이 안 움직인다"가 그대로 재발한다** — A가 D6~D7 이후 `GameScene.js`를
 건드릴 때 이 메서드를 지우지 않도록 HANDOFF.md §0/§5에도 굵게 표시해뒀다.
+
+### 📢 [A에게] N4 · B → A · 2026-07-31 (D4) — 코어 스왑은 아직 이르다. `?real=1`로 대신한다
+
+A가 "GameScene 코어 스왑을 자기가 하겠다"고 제안했는데, 지금 스왑하면 안 된다고 판단해서 보류했다.
+대신 `?real=1` URL 플래그를 만들어서 A가 자기 진도를 코드 수정 없이 그때그때 확인할 수 있게 했다.
+
+**왜 아직 이른가:** 스왑 즉시 영향받는 3가지를 실측 확인함(`?real=1`로 직접 켜봄) —
+1. **XP/레벨이 영구 고정된다.** `GameCore.getState()`가 `xp:0, level:1`을 하드코딩 반환한다
+   (`LevelSystem` 부재) — 실제로 몹을 잡아도 레벨이 하나도 안 오른다.
+2. **레벨업 드래프트가 아예 안 뜬다.** `levelUp` 이벤트 자체가 발행되지 않는다(1의 직접적 결과).
+3. **`unlockedTowers`가 `CURRENT_LEVEL=1` 고정이라 청계천 이후 타워가 영원히 안 풀린다** —
+   광화문·DDP·롯데월드타워·서울숲을 게임 내에서 절대 볼 수 없다.
+   (참고로 **보스 정책 카드는 예외적으로 잘 뜬다** — `WaveManager.js`가 `drawPolicies()`를 자체
+   구현하고 있어서 `GameCore`/`LevelSystem`과 무관하게 동작한다. 다만 카드를 골라도 `pickPolicy`가
+   스텁이라 효과는 안 붙는다.)
+
+**스왑 전제 조건(이 순서로 채워지면 스왑을 검토한다):**
+1. **`LevelSystem.js`** — XP 누적·레벨업 판정·`unlockedTowers` 동적 계산. 이게 없으면 2, 3번을
+   만들어도 애초에 발동할 방법이 없다(레벨이 안 오르니까).
+2. **`DraftSystem.js`** — `pickDraftCard`/`pickPolicy`가 실제로 퍼크/정책 효과를 적용하게.
+   `LevelSystem`이 레벨업을 발생시켜야 카드가 뜨니 순서상 이다음이다.
+3. **`Supporter.js`/`Obstacle.js`** — `buildSupport`/`buildObstacle` 구현. `BuildUI`는 이미 이
+   두 스텁을 그대로 호출하도록 만들어져 있어서(타워만 배치 UI가 있음, §0 참고) 서포터/장애물
+   배치 UI만 추가하면 바로 붙는다.
+
+**`?real=1` 사용법:**
+- URL에 `?real=1`만 붙이면 된다(`https://yuseungg.github.io/AWM_defense/?real=1` 또는 로컬
+  `npm run dev` 주소 뒤에). 화면 좌상단에 빨간 "REAL CORE" 배지가 뜨면 정상 적용된 것이다.
+- `?debug=1`과 동시에 켜도 안전하다(`?real=1&debug=1`, 숫자 키 충돌 없음).
+- 위 전제 조건이 하나씩 채워질 때마다 `?real=1`로 바로 확인 가능하다 — 코드를 하나도 안 건드리고
+  진도를 스스로 체크하는 게 이 플래그의 목적이다.
+- **기본값을 실제 코어로 승격하는 시점**(전제 조건 3개 다 채워졌을 때)엔 `GameScene.js`의
+  코어 전환 지점(§0 참고) 삼항에서 기본값 쪽 한 줄만 바꾸면 된다 — `?real=1` 분기 자체는 그대로
+  둬도 되고 지워도 무방(둘 다 같은 모듈을 가리키게 되므로).
+
+**틀렸을 때 영향:** 없음 — 순수 추가(플래그 분기)라 기존 동작에 영향 없음. A가 이 순서에 동의하지
+않으면 다음 세션에 다른 순서를 제안하면 된다.
 
 ### [기록] N0 · B · 2026-07-29 (D2) — main.js MockScene 교체
 
@@ -300,6 +337,53 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 **main 빌드:** ✅ / ❌
 ```
+
+---
+
+## [2026-07-31] B · 세션 10 (D4 이어서 — `?real=1` 플래그, 코어 스왑 보류)
+
+**한 일**
+- A의 "GameScene 코어 스왑을 자기가 하겠다" 제안을 검토 — 스텁 4개 + `LevelSystem` 부재로
+  아직 이르다고 판단해서 보류. 대신 `?real=1` URL 플래그로 대체(§2 N4에 A에게 상세 전달)
+- `GameScene.js`의 코어 전환 지점을 "import 한 줄 교체"에서 **삼항 분기**로 변경:
+  기본값 `MockGameCore.js` / `?real=1`이면 `GameCore.js`. `?mock=1`(기존 `MockScene`, 이벤트
+  모니터)은 완전히 별개 씬이라 무변경
+  - Vite/Rollup이 두 분기를 각각 별도 청크로 정적 분석하도록 삼항 리터럴 두 개로 작성
+    (`REAL ? await import('../GameCore.js') : await import('../MockGameCore.js')`) —
+    변수 경로를 넘기면 프로덕션 빌드에서 문제가 생길 수 있어 피함. 빌드 확인 시 `GameCore-*.js`
+    청크가 실제로 분리되는 것까지 확인
+  - `?real=1`일 때만 화면 좌상단(HUD 아래, 안 겹치는 위치)에 빨간 "REAL CORE" 배지 표시
+- `main.js` 상단 주석에 `?real=1` 설명 추가(플래그 목록 문서화, 공용 파일이라 주석만 최소 추가)
+- **`?real=1` 실측 검증** — 타워 배치·적 스폰/이동(웨이브 진행)·전투·골드·조명·배속/일시정지/즉시
+  웨이브·보스전(정책 카드 3장, `WaveManager.js` 자체 구현이라 실제로 뜬다)까지 정상 동작 확인.
+  XP/레벨 영구 고정·레벨업 드래프트 미발행·`unlockedTowers`가 청계천에서 고정되는 것도 실측으로
+  재확인(지난 세션 N3 발견의 연장선)
+- `HANDOFF.md` §0(전환 방법을 "분기"로 재서술 + 실측 결과 상세)·§1(플래그 6종, `?real=1` 행 추가)·
+  §8(촬영 대본의 "시나리오 판단"·컷 3·컷 5를 `?real=1` 기준으로 수정) 갱신
+- `SYNC.md` §2에 **N4(A에게 보내는 항목)** 추가 — `update()` 버그로 지난 "실제 코어 검증 완료"가
+  불완전했다는 것, 스왑 전제 조건(LevelSystem → DraftSystem → Supporter/Obstacle 순), `?real=1`
+  사용법을 한 번에 정리해서 전달
+
+**검증**: headless Chromium으로 (1) 기본 URL — Mock, 배지 없음 (2) `?real=1` — 배지 뜸, 타워·적
+렌더링·웨이브 진행 전부 정상, XP 0/20 고정 확인(예상대로) (3) `?mock=1` — 기존 `MockScene` 무변화
+확인(회귀 없음) (4) `npm run build` — `GameCore.js`가 별도 청크로 분리되는 것 확인, 콘솔 에러 0건
+
+**지금 되는 것 / 안 되는 것**
+- 됨: `?real=1`로 A가 코드 수정 없이 자기 진도를 언제든 확인 가능. 기본 데모(Mock)는 그대로 안전
+- 안 됨: (실제 코어 자체의 한계, 새 버그 아님) XP/레벨/드래프트/서포터·장애물 배치 — 전부 §2 N4에
+  기록된 전제 조건이 채워져야 됨
+
+**상대에게 필요한 것**
+- N4 참고해서 LevelSystem부터 순서대로 진행할지, 다른 순서를 원하는지 다음 세션에 회신
+- `GameCore.reset()`(§3 C5) — 여전히 미해결
+
+**내가 한 가정**
+- 없음
+
+**다음 세션에 할 것**
+- 에셋 PNG 실제 납품, 또는 A가 LevelSystem 진행 상황을 알려오면 `?real=1`로 같이 확인
+
+**main 빌드:** ✅
 
 ---
 
