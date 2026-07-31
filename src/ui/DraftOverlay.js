@@ -59,11 +59,21 @@ export class DraftOverlay {
   }
 
   show(type, payload) {
+    const cards = type === 'draft' ? payload.draftCards : payload.policyCards;
+
+    // ★ 카드가 0장이면(DraftSystem 미완성 등으로 core가 빈 배열을 보낼 때) 오버레이를 열지 않는다.
+    // cards.forEach가 아무것도 안 그려서 화면만 어두워지고, 누를 카드가 없어 pick()이 절대
+    // 안 불려서 closeCurrent()도 안 온다 — 그러면 setPaused(true) 상태로 게임이 영구 정지한다.
+    // (실제로 A의 LevelSystem.js가 이 상태를 보낸다 — DraftSystem 전 단계라 draftCards: []가 항상 옴)
+    if (!cards || cards.length === 0) {
+      this.tryShowNext();
+      return;
+    }
+
     this.core.setPaused(true);
     this.scene.controls?.setInputEnabled(false); // 카드가 떠 있는 동안 Controls 버튼을 아예 못 누르게
     this.scene.buildUI?.setInputEnabled(false);  // 카드가 떠 있는 동안 배치도 잠근다(같은 이유)
     this.current = { type };
-    const cards = type === 'draft' ? payload.draftCards : payload.policyCards;
     this.render(type, payload, cards);
   }
 
