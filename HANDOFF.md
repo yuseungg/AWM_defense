@@ -56,14 +56,19 @@ Mock(전체 루프가 보이는 데모 상태 유지)으로 두고 A가 `?real=1
 - **전환(승격) 판단 기준**: `GameCore.js`의 스텁 4개(`buildSupport`/`buildObstacle`/`pickDraftCard`/
   `pickPolicy`)가 전부 실제로 구현돼서 `{ok:true}`를 반환할 때. 구체적인 선행 순서는 §2
   "A에게 보내는 항목"에 있다 — LevelSystem → DraftSystem → Supporter/Obstacle.
-- **`?real=1` 검증 결과(D4)** — 되는 것: 타워 배치(`BuildUI`+`TowerView`)·적 스폰과 이동(`EnemyView`
-  폴링, `update()` 수정 덕분에 실제로 돎)·웨이브 진행·전투(데미지 숫자·상성)·골드 경제·조명 체력·
-  배속/일시정지/즉시웨이브·**보스전(정책 카드 3장은 `WaveManager.js`가 자체 구현해서 실제로 뜬다)**까지
-  콘솔 에러 없이 정상 동작. 안 되는 것: **XP/레벨이 영구 고정**(`GameCore.getState()`가
-  `xp:0, level:1`을 하드코딩 반환 — `LevelSystem` 부재), **레벨업 드래프트가 아예 안 뜬다**(`levelUp`
-  이벤트 자체가 발행 안 됨), **`unlockedTowers`가 `CURRENT_LEVEL=1` 고정이라 청계천 이후 타워(광화문·
-  DDP·롯데월드타워·서울숲)가 영원히 안 풀린다**, 서포터/장애물 배치·정책 픽 효과 적용 전부 스텁이라
-  안 됨(정책 카드는 뜨지만 골라도 효과 없음).
+- **`?real=1` 검증 결과(D4, 이 시점 `main`의 `GameCore.js` 기준 — 아래 LevelSystem 단락 참고)** —
+  되는 것: 타워 배치(`BuildUI`+`TowerView`)·적 스폰과 이동(`EnemyView` 폴링, `update()` 수정 덕분에
+  실제로 돎)·웨이브 진행·전투(데미지 숫자·상성)·골드 경제·조명 체력·배속/일시정지/즉시웨이브·
+  **보스전(정책 카드 3장은 `WaveManager.js`가 자체 구현해서 실제로 뜬다)**까지 콘솔 에러 없이 정상
+  동작. 안 되는 것: 서포터/장애물 배치·정책 픽 효과 적용(스텁이라 정책 카드는 뜨지만 골라도 효과 없음).
+- **🚨 `LevelSystem.js`(A가 D4에 `feat/game-core`에 올림, 아직 `main`엔 없음) + `DraftOverlay.js` 안전판
+  (D4, 이미 `main`에 있음)**: A가 XP/레벨/`unlockedTowers` 자동 해금을 구현했다(N4 권장 순서 1번).
+  그런데 `levelUp`의 `draftCards`가 항상 빈 배열이라(`DraftSystem` 다음 단계), 그 상태로
+  `DraftOverlay`가 열리면 **화면이 어두워진 채 영구 정지**하는 버그가 있었다 — B가 미리 발견해서
+  `DraftOverlay.show()`에 "카드 0장이면 안 연다" 가드를 추가해뒀다(이미 `main`에 반영됨, SYNC.md
+  §2 N5). **`LevelSystem.js` 자체는 아직 이 저장소에 없다** — A의 브랜치에만 있고, 우리 정책상
+  `feat/game-core`를 통째로 병합하지 않으므로(§0 상단 경고 참고), `GameCore.js` 때와 같은 방식으로
+  이 파일만 골라 가져와야 반영된다.
 
 **⚠️ `feat/game-core` 브랜치를 그대로 병합하지 말 것.** 그 브랜치의 `main.js`는 B가 D2에 리팩터링
 (GameScene/MockScene/VerifyScene/mapView.js 분리)하기 **이전** 시점 기준이다. A가 브랜치에 추가한
@@ -185,7 +190,7 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 |---|---|
 | `SeoulTowerLight.js` | 색 보간 tween과 델타(하강 폭) 티어 판정이 맞물려 있다. 과거 실제 버그(`camera.flash`의 `force` 기본값이 `false`라 보스급 플래시가 조용히 씹힘)가 이 파일에서 나왔다 — 상수 하나 잘못 옮겨도 "보스 관통인데 일반 관통처럼 보인다"는 발견하기 어려운 시그널 손실이 생긴다 |
 | `DamageNumber.js` | 프리 리스트/활성 리스트 풀링(스왑 삭제, "가장 오래된 것" 축출, eviction 스로틀)이 정교하게 맞물려 있다. 로직을 잘못 옮기면 웨이브 40+에서야 터지는 조용한 메모리 누수나 "숫자가 안 사라짐" 버그가 생긴다 — 심사 직전에 나오면 못 고친다 |
-| `DraftOverlay.js` | **이 프로젝트에서 유일하게 "게임이 통째로 멈추는" 실패 모드를 가진 파일이다.** `pick()`이 `closeCurrent()`를 호출하지 않는 경로가 생기면 `setPaused(true)` 상태로 게임이 영구 정지한다. 큐 순서(레벨업→정책)나 안전판(반환값 무관 항상 닫기, `destroy()`의 강제 unpause)을 건드리면 겉보기엔 멀쩡해 보이다가 특정 순서에서만 멈춘다 |
+| `DraftOverlay.js` | **이 프로젝트에서 유일하게 "게임이 통째로 멈추는" 실패 모드를 가진 파일이다.** `pick()`이 `closeCurrent()`를 호출하지 않는 경로가 생기면 `setPaused(true)` 상태로 게임이 영구 정지한다. 큐 순서(레벨업→정책)나 안전판(반환값 무관 항상 닫기, `destroy()`의 강제 unpause)을 건드리면 겉보기엔 멀쩡해 보이다가 특정 순서에서만 멈춘다. **D4에 안전판 하나 더 추가함**(`show()` 맨 앞의 빈 카드 가드) — `draftCards`/`policyCards`가 빈 배열이면 아예 안 열고 `tryShowNext()`로 넘긴다. **이것도 절대 지우면 안 된다** — `DraftSystem`이 붙기 전까지 A의 `LevelSystem.js`는 항상 빈 배열을 보내는데, 이 가드가 없으면 레벨업할 때마다 게임이 멈춘다(SYNC.md §2 N5) |
 
 ---
 

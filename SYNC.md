@@ -17,11 +17,12 @@
 | **`main` 빌드** | ✅ 정상 (`npm run build` 확인) |
 | **마지막 갱신** | 2026-07-31 / B |
 | **현재 페이즈** | **P1 코어 로직 완료 (A) + P3(절대 사수) 완료 (B) + 오브젝트 렌더러 완료 (B, D4) — 일정 변경으로 D5까지 추가 작업 진행 중** |
-| **A 진행률** | **P1 완료** + `GameCore.js` 1단계 완료(`buildTower`/`canBuild`/`upgrade`/`relocate`/`getState`/`setSpeed`/`setPaused`/`startNextWave`). `buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy` 4개는 스텁. **`GameCore.reset()`은 아직 없음(§3 C5 미해결)**. `feat/game-core`에 새 커밋 없음(D4 세션 확인) |
-| **B 진행률** | **✅ 절대 사수 6개(D3) + 오브젝트 렌더러·에셋 파이프라인(D4) 전부 완료.** `EnemyView.js`/`TowerView.js` 신규, `vite.config.js` publicDir 설정. **D4에 `GameScene.js`에 Phaser `update()`가 없던 걸 발견·수정**(실제 코어 시뮬레이션이 전혀 안 돌고 있었음, §2 N3). **A의 코어 스왑 제안은 보류 — `?real=1` 플래그로 대체**(§2 N4) |
+| **A 진행률** | **P1 완료** + `GameCore.js` 1단계 완료(`buildTower`/`canBuild`/`upgrade`/`relocate`/`getState`/`setSpeed`/`setPaused`/`startNextWave`). **`LevelSystem.js` 신규 완료(D4, `feat/game-core`에 force-push — 우리 `main` 위에 리베이스함)** — XP/레벨/`unlockedTowers` 자동 해금 동작. `buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy` 4개는 여전히 스텁. **`GameCore.reset()`은 아직 없음(§3 C5 미해결)** |
+| **B 진행률** | **✅ 절대 사수 6개(D3) + 오브젝트 렌더러·에셋 파이프라인(D4) 전부 완료.** `EnemyView.js`/`TowerView.js` 신규, `vite.config.js` publicDir 설정. **D4에 `GameScene.js`에 Phaser `update()`가 없던 걸 발견·수정**(실제 코어 시뮬레이션이 전혀 안 돌고 있었음, §2 N3). **A의 코어 스왑 제안은 보류 — `?real=1` 플래그로 대체**(§2 N4). **`DraftOverlay.js`에 빈 `draftCards` soft-lock 버그 발견·수정**(§2 N5 — A의 `LevelSystem.js`가 트리거함) |
 | **Mock 상태** | ✅ **B가 선작성·유지보수** (`src/MockGameCore.js`) → §6-4 "Mock이 스펙이다". `unlockedTowers` 초기값 버그 수정(§2 N2) |
 | **⚠️ `GameCore.js` 병합 주의** | A의 `feat/game-core` 브랜치를 **그대로 병합하지 말 것**. 그 브랜치의 `main.js`는 B의 D2 리팩터링(씬 분리) 이전 기준이라 통째로 병합하면 그 작업이 지워진다. `GameCore.js`+`/src/game/*` 9종은 B가 이미 골라서 `feat/ui`/`main`에 반영해뒀다 — 자세한 내용은 §2 N1 |
 | **🔴 `GameScene.js` update() 필수** | `GameCore.update(deltaMs)`를 매 프레임 불러야 실제 코어의 웨이브·적 이동이 돈다. `GameScene.update(time,delta){ this.core?.update?.(delta); }`를 실수로 지우면 "적이 안 움직인다"가 재발한다(§2 N3) |
+| **🔴 `DraftOverlay.js`의 빈 카드 가드 필수** | `draftCards`/`policyCards`가 빈 배열이면 오버레이를 안 여는 가드가 `show()` 맨 앞에 있다. 이걸 지우면 `DraftSystem` 붙기 전까지 레벨업할 때마다 게임이 영구 정지한다(§2 N5) |
 | **배포 링크** | ✅ https://yuseungg.github.io/AWM_defense/ |
 
 ### 🚨 최우선 공지 — B 부재 일정 (2026-07-31 갱신: D4~D7 → D6~D7로 축소)
@@ -131,6 +132,39 @@ A가 "GameScene 코어 스왑을 자기가 하겠다"고 제안했는데, 지금
 
 **틀렸을 때 영향:** 없음 — 순수 추가(플래그 분기)라 기존 동작에 영향 없음. A가 이 순서에 동의하지
 않으면 다음 세션에 다른 순서를 제안하면 된다.
+
+### 🚨 [중요] N5 · B · 2026-07-31 (D4 이어서) — `draftCards: []`가 `DraftOverlay`를 영구 정지시킨다
+
+**발견 경위:** N4를 쓰고 나서 `git fetch`해보니 A가 `feat/game-core`에 `LevelSystem.js`를 force-push로
+올려놨다(우리 `main` 최신 커밋 위에 리베이스까지 해서 — 브랜치 충돌 경고를 반영해준 것으로 보임,
+고맙다). N4에서 권장한 순서 1번을 정확히 따른 좋은 구현이었는데, 코드를 읽어보니 `levelUp` 이벤트의
+`draftCards`가 항상 `[]`(빈 배열)이었다 — `DraftSystem`이 다음 단계라 의도적으로 비워둔 것
+(`LevelSystem.js` 자체 주석에도 명시돼 있음). 이게 `DraftOverlay.js`와 만나면 실제로 게임이
+멈추는지 코드로 검증해봤다.
+
+**버그:** `DraftOverlay.show()`는 `cards.forEach(...)`로 카드를 그리는데, `cards`가 빈 배열이면
+아무것도 안 그려진다. 하지만 `core.setPaused(true)`·`Controls`/`BuildUI` 잠금·`this.current = {type}`
+설정은 **이미 실행된 뒤**라, 그려진 카드가 없어 `pick()`을 부를 방법이 없고, `pick()`이 없으니
+`closeCurrent()`도 `tryShowNext()`도 영원히 안 불린다. **화면이 어두워진 채 아무것도 못 누르는
+상태로 영구 정지한다.** `?fxtest=1`의 `ESC`(강제 닫기)가 있어야만 빠져나올 수 있는데, `?real=1`
+단독으로는(`?fxtest=1` 없이는) 그 키조차 없다 — **`LevelSystem.js`가 붙은 채로 `?real=1`을 켜고
+아무나 레벨업을 한 번이라도 찍으면 그 자리에서 게임이 완전히 멈춘다.**
+
+**처리:** `DraftOverlay.show()` 맨 앞에서 `cards.length === 0`이면 아무것도 열지 않고 바로
+`tryShowNext()`로 넘기도록 고쳤다(pause·잠금 자체를 안 건다). "UI는 코어의 실패로 멈추지 않는다"는
+이 파일의 기존 설계 원칙을 그대로 확장한 것뿐이다 — `pickDraftCard`가 `{ok:false}`를 반환해도
+안 멈추게 만들어둔 것처럼, 애초에 카드가 없어서 못 여는 경우도 같은 원칙으로 처리했다.
+`?fxtest=1`의 `D` 키를 임시로 빈 배열을 보내도록 바꿔서 실제로 안 멈추는 것·`Controls`/`BuildUI`가
+계속 반응하는 것까지 확인한 뒤 원복했다. 카드가 있는 정상 플로우(3장 뜨는 것)도 회귀 테스트로 재확인.
+
+**남는 트레이드오프:** 카드 없이 레벨업하면(지금 상태) 플레이어는 레벨이 올랐다는 걸 화면으로
+전혀 못 본다(해금 배너도 카드와 같이 렌더링되는 코드 경로라 같이 스킵됨) — 멈추는 것보다는 훨씬
+낫지만, `DraftSystem`이 생기기 전까지는 "조용한 레벨업"이 정상 동작이다. `unlockLevel`이 딱 맞는
+레벨(1~5)에 도달하면 `unlockedTowers`가 실제로 늘어나 `BuildUI` 선택 바에 새 타워가 뜨니, 배너가
+없어도 결과로는 확인 가능하다.
+
+**틀렸을 때 영향:** `DraftOverlay.js`의 빈 배열 가드 4줄 되돌리면 끝(5분). 되돌리면 안 되는 이유가
+명확한 버그라 A 승인 불필요(§4의 "UI는 안 멈춘다" 원칙을 그대로 따른 수정).
 
 ### [기록] N0 · B · 2026-07-29 (D2) — main.js MockScene 교체
 
@@ -363,25 +397,42 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 - `SYNC.md` §2에 **N4(A에게 보내는 항목)** 추가 — `update()` 버그로 지난 "실제 코어 검증 완료"가
   불완전했다는 것, 스왑 전제 조건(LevelSystem → DraftSystem → Supporter/Obstacle 순), `?real=1`
   사용법을 한 번에 정리해서 전달
+- **문서 정리 직후 `git fetch`해보니 A가 `feat/game-core`에 `LevelSystem.js`를 force-push로
+  올려놨다** — 우리 `main` 최신 커밋 위에 리베이스까지 해서(브랜치 충돌 경고를 반영해준 것으로
+  보임). N4에서 권장한 순서 1번을 정확히 따른 구현이었다
+- **코드 리뷰 중 심각한 버그 발견·수정(§2 N5): `levelUp`의 `draftCards`가 항상 빈 배열이면
+  `DraftOverlay`가 영구 정지한다.** `LevelSystem.js`가 의도적으로 빈 배열을 보내므로(DraftSystem
+  전 단계), **`?real=1`을 켜고 레벨업을 한 번이라도 찍으면 게임이 그 자리에서 멈추는** 상태였다.
+  `DraftOverlay.show()`에 빈 카드 가드를 추가해서 고쳤다 — "UI는 코어의 실패로 멈추지 않는다"는
+  기존 설계 원칙의 연장선. `?fxtest=1`의 `D` 키를 임시로 빈 배열 발행하게 바꿔서 직접 재현·수정
+  확인 후 원복, 카드 있는 정상 플로우도 회귀 테스트로 재확인
 
 **검증**: headless Chromium으로 (1) 기본 URL — Mock, 배지 없음 (2) `?real=1` — 배지 뜸, 타워·적
 렌더링·웨이브 진행 전부 정상, XP 0/20 고정 확인(예상대로) (3) `?mock=1` — 기존 `MockScene` 무변화
 확인(회귀 없음) (4) `npm run build` — `GameCore.js`가 별도 청크로 분리되는 것 확인, 콘솔 에러 0건
+(5) 빈 `draftCards` 강제 발행 → 오버레이 안 열리고 게임·`Controls`·`BuildUI` 전부 정상 반응 확인
+(6) 카드 3장 있는 정상 드래프트 플로우 회귀 확인 — 기존처럼 잘 열리고 닫힘
 
 **지금 되는 것 / 안 되는 것**
-- 됨: `?real=1`로 A가 코드 수정 없이 자기 진도를 언제든 확인 가능. 기본 데모(Mock)는 그대로 안전
-- 안 됨: (실제 코어 자체의 한계, 새 버그 아님) XP/레벨/드래프트/서포터·장애물 배치 — 전부 §2 N4에
-  기록된 전제 조건이 채워져야 됨
+- 됨: `?real=1`로 A가 코드 수정 없이 자기 진도를 언제든 확인 가능. 기본 데모(Mock)는 그대로 안전.
+  A의 `LevelSystem.js`가 실제로 XP/레벨/`unlockedTowers`를 동작시킨다(다음 세션에 `?real=1`로
+  재확인 예정 — 이번엔 `DraftOverlay` 버그부터 잡느라 실제 웨이브 플레이로 레벨업까지는 못 밀어붙임)
+- 안 됨: (실제 코어 자체의 한계, 새 버그 아님) 드래프트 카드 자체(`DraftSystem` 부재)·서포터·장애물
+  배치 — 전부 §2 N4에 기록된 전제 조건이 채워져야 됨. 지금은 레벨업해도 "조용히" 넘어간다(카드도
+  해금 배너도 안 보임 — §2 N5의 트레이드오프)
 
 **상대에게 필요한 것**
-- N4 참고해서 LevelSystem부터 순서대로 진행할지, 다른 순서를 원하는지 다음 세션에 회신
+- N4 참고해서 DraftSystem → Supporter/Obstacle 순서로 진행 (LevelSystem은 이미 완료)
+- **N5 필독: `DraftOverlay.js`의 빈 카드 가드를 실수로 지우지 말 것** — 지우면 레벨업할 때마다
+  게임이 멈추는 게 재발한다
 - `GameCore.reset()`(§3 C5) — 여전히 미해결
 
 **내가 한 가정**
 - 없음
 
 **다음 세션에 할 것**
-- 에셋 PNG 실제 납품, 또는 A가 LevelSystem 진행 상황을 알려오면 `?real=1`로 같이 확인
+- `?real=1`로 실제 웨이브 플레이를 통해 레벨업이 조용히(카드 없이) 잘 넘어가는지, `unlockedTowers`가
+  실제로 늘어나는지 재확인. 에셋 PNG 실제 납품
 
 **main 빌드:** ✅
 
