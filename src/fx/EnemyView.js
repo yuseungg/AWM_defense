@@ -89,22 +89,45 @@ export class EnemyView {
 
     switch (def?.archetype) {
       case 'fast': {
+        // 앞으로 기운 쐐기 + 뒤쪽 잔상 삼각형 하나(속도감)
         const s = VIEW.fastSize;
-        token.gfx.fillTriangle(0, -s * 0.6, -s * 0.5, s * 0.5, s * 0.5, s * 0.5);
+        token.gfx.fillStyle(color, 0.45);
+        token.gfx.fillTriangle(-s * 0.2, -s * 0.4, -s * 0.2, s * 0.4, -s * 0.9, 0);
+        token.gfx.fillStyle(color, 1);
+        token.gfx.fillTriangle(s * 0.6, 0, -s * 0.4, -s * 0.5, -s * 0.4, s * 0.5);
         break;
       }
       case 'tank': {
+        // 각진 더미 — 크기가 다른 사각형 3개를 어긋나게 겹쳐서 불규칙한 무더기로
         const s = VIEW.tankSize;
-        token.gfx.fillRect(-s / 2, -s / 2, s, s);
+        token.gfx.fillRect(-s * 0.5, -s * 0.15, s * 0.65, s * 0.55);
+        token.gfx.fillRect(-s * 0.1, -s * 0.45, s * 0.6, s * 0.5);
+        token.gfx.fillRect(s * 0.05, -s * 0.05, s * 0.45, s * 0.4);
         break;
       }
-      case 'boss':
-        token.gfx.fillCircle(0, 0, VIEW.bossRadius);
+      case 'boss': {
+        // 큰 스모그 덩어리 + 안으로 말려드는 소용돌이(호를 겹쳐서 표현)
+        const r = VIEW.bossRadius;
+        token.gfx.fillCircle(0, 0, r);
+        token.gfx.lineStyle(Math.max(2, r * 0.12), 0x000000, 0.35);
+        token.gfx.beginPath();
+        token.gfx.arc(0, 0, r * 0.62, Phaser.Math.DegToRad(20), Phaser.Math.DegToRad(280));
+        token.gfx.strokePath();
+        token.gfx.beginPath();
+        token.gfx.arc(r * 0.05, -r * 0.05, r * 0.3, Phaser.Math.DegToRad(200), Phaser.Math.DegToRad(430));
+        token.gfx.strokePath();
         break;
+      }
       case 'swarm':
-      default:
-        token.gfx.fillCircle(0, 0, VIEW.swarmRadius);
+      default: {
+        // 흩어진 입자 뭉치 — 크기가 다른 작은 원 여러 개를 느슨하게 겹쳐서
+        const s = VIEW.swarmRadius;
+        token.gfx.fillCircle(-s * 0.6, s * 0.3, s * 0.55);
+        token.gfx.fillCircle(s * 0.5, s * 0.5, s * 0.5);
+        token.gfx.fillCircle(s * 0.1, -s * 0.4, s * 0.65);
+        token.gfx.fillCircle(-s * 0.3, -s * 0.15, s * 0.45);
         break;
+      }
     }
   }
 

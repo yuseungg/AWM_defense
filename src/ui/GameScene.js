@@ -59,6 +59,10 @@ export class GameScene extends Phaser.Scene {
     // (디스크상 파일 경로는 CLAUDE.md §3 그대로 assets/towers/<id>.png).
     Object.keys(towersData).forEach(id => this.load.image(`tower_${id}`, `towers/${id}.png`));
     Object.keys(enemiesData).forEach(type => this.load.image(`enemy_${type}`, `enemies/${type}.png`));
+    // 서포터/장애물은 아직 화면에 그리는 렌더러가 없다(§0 알려진 미완성) — 텍스처는 미리 로드해둬서
+    // 나중에 렌더러가 생기면 preload() 수정 없이 바로 쓸 수 있게 한다.
+    Object.keys(supportsData).forEach(id => this.load.image(`support_${id}`, `supports/${id}.png`));
+    Object.keys(obstaclesData).forEach(id => this.load.image(`obstacle_${id}`, `obstacles/${id}.png`));
   }
 
   async create() {

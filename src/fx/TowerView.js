@@ -9,7 +9,8 @@
  * BuildUI의 오라 추적과 동일한 gap) 지금은 위치 갱신을 못 한다 — 재배치 UI 자체도 아직 없어서
  * 실질적으로 발생하지 않는다.
  *
- * 에셋이 없는 지금은 towers.json id별 색(levels[0].tint) 사각형 플레이스홀더를 쓴다.
+ * 에셋이 없는 지금은 랜드마크별 실루엣 도형 플레이스홀더를 쓴다(docs/ASSET_GUIDE.md와 동일한
+ * 실루엣 규칙 — 윤곽만으로 식별 가능해야 한다는 원칙을 코드에도 그대로 반영).
  */
 
 import Phaser from 'phaser';
@@ -18,6 +19,46 @@ import { VIEW } from '../ui/UITheme.js';
 import towersData from '../../data/towers.json';
 
 const ASSET_KEY = id => `tower_${id}`;
+
+/** 랜드마크별 실루엣 — 전부 원점(0,0) 기준으로 그린다. docs/ASSET_GUIDE.md 실루엣 규칙과 1:1 대응 */
+const SILHOUETTES = {
+  // N서울타워 — 첨탑형: 좁은 기단 + 삼각 첨탑 + 안테나
+  nseoulTower(g, s) {
+    g.fillRect(-s * 0.18, s * 0.28, s * 0.36, s * 0.22);
+    g.fillTriangle(-s * 0.22, s * 0.28, s * 0.22, s * 0.28, 0, -s * 0.35);
+    g.fillRect(-s * 0.03, -s * 0.5, s * 0.06, s * 0.18);
+  },
+  // 청계천 — 가로로 긴 물결 띠
+  cheonggyecheon(g, s) {
+    g.fillRoundedRect(-s * 0.5, -s * 0.14, s, s * 0.28, s * 0.14);
+  },
+  // 광화문 — 문루형: 사다리꼴 기단 + 삼각 지붕
+  gwanghwamun(g, s) {
+    g.fillTriangle(-s * 0.5, -s * 0.05, s * 0.5, -s * 0.05, 0, -s * 0.48);
+    g.fillPoints([
+      { x: -s * 0.4, y: s * 0.42 }, { x: s * 0.4, y: s * 0.42 },
+      { x: s * 0.3, y: -s * 0.06 }, { x: -s * 0.3, y: -s * 0.06 },
+    ], true);
+  },
+  // DDP — 유선형 덩어리: 각 없는 매끈한 타원
+  ddp(g, s) {
+    g.fillEllipse(0, 0, s * 0.9, s * 0.55);
+  },
+  // 롯데월드타워 — 가늘고 긴 사다리꼴(아래가 넓고 위로 갈수록 뾰족)
+  lotteWorldTower(g, s) {
+    g.fillPoints([
+      { x: -s * 0.22, y: s * 0.5 }, { x: s * 0.22, y: s * 0.5 },
+      { x: s * 0.07, y: -s * 0.5 }, { x: -s * 0.07, y: -s * 0.5 },
+    ], true);
+  },
+  // 서울숲 — 나무 캐노피 3개 겹침 + 밑동
+  seoulForest(g, s) {
+    g.fillCircle(-s * 0.22, -s * 0.05, s * 0.28);
+    g.fillCircle(s * 0.22, -s * 0.05, s * 0.28);
+    g.fillCircle(0, -s * 0.28, s * 0.28);
+    g.fillRect(-s * 0.06, s * 0.2, s * 0.12, s * 0.25);
+  },
+};
 
 export class TowerView {
   constructor(scene) {
@@ -38,38 +79,50 @@ export class TowerView {
     const def = towersData[id];
     if (!def) return;
 
-    const key = ASSET_KEY(id);
-    const useAsset = this.scene.textures.exists(key);
+    const gfx = this.scene.add.graphics();
+    const sprite = this.scene.add.image(x, y, '__DEFAULT').setVisible(false);
+    gfx.setPosition(x, y);
 
-    const rect = this.scene.add.rectangle(x, y, VIEW.towerSize, VIEW.towerSize, this.tintOf(def, 0))
-      .setStrokeStyle(2, VIEW.towerStrokeColor, VIEW.towerStrokeAlpha)
-      .setVisible(!useAsset);
-    const sprite = this.scene.add.image(x, y, useAsset ? key : '__DEFAULT').setVisible(useAsset);
-
-    rect.setScale(def.levels[0].scale);
-    sprite.setScale(def.levels[0].scale);
-
-    this.byInstance.set(instanceId, { rect, sprite, towerId: id, useAsset });
+    const entry = { gfx, sprite, towerId: id };
+    this.byInstance.set(instanceId, entry);
+    this.redraw(entry, 0);
   }
 
   applyLevel(instanceId, level) {
     const entry = this.byInstance.get(instanceId);
     if (!entry) return; // 이론상 objectBuilt가 항상 먼저 오므로 안 걸리지만 방어적으로 둠
+    this.redraw(entry, level);
+  }
+
+  /** 텍스처가 있으면 이미지로, 없으면(지금 기본) 랜드마크별 실루엣 도형으로 그린다 */
+  redraw(entry, level) {
     const def = towersData[entry.towerId];
     const lvl = def.levels[level];
     if (!lvl) return;
 
-    entry.rect.setFillStyle(this.tintOf(def, level)).setScale(lvl.scale);
-    entry.sprite.setScale(lvl.scale);
-  }
+    const key = ASSET_KEY(entry.towerId);
+    if (this.scene.textures.exists(key)) {
+      entry.gfx.setVisible(false);
+      entry.sprite.setTexture(key).setVisible(true).setScale(lvl.scale);
+      return;
+    }
 
-  tintOf(def, level) {
-    return Phaser.Display.Color.HexStringToColor(def.levels[level].tint).color;
+    entry.sprite.setVisible(false);
+    entry.gfx.clear().setVisible(true).setScale(lvl.scale);
+
+    // 실루엣 밑에 얇은 기준 원 하나 — 어떤 모양이든 "여기 서 있다"는 발판 표시가 통일되게
+    entry.gfx.lineStyle(1, VIEW.towerStrokeColor, VIEW.towerStrokeAlpha);
+    entry.gfx.strokeCircle(0, 0, VIEW.towerSize * 0.55);
+
+    entry.gfx.fillStyle(Phaser.Display.Color.HexStringToColor(lvl.tint).color, 1);
+    const draw = SILHOUETTES[entry.towerId];
+    if (draw) draw(entry.gfx, VIEW.towerSize);
+    else entry.gfx.fillRect(-VIEW.towerSize / 2, -VIEW.towerSize / 2, VIEW.towerSize, VIEW.towerSize);
   }
 
   destroy() {
     EventBus.off(EV.objectBuilt, this.onBuilt, this);
     EventBus.off(EV.objectChanged, this.onChanged, this);
-    this.byInstance.forEach(({ rect, sprite }) => { rect.destroy(); sprite.destroy(); });
+    this.byInstance.forEach(({ gfx, sprite }) => { gfx.destroy(); sprite.destroy(); });
   }
 }
