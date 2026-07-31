@@ -17,7 +17,7 @@
 | **`main` 빌드** | ✅ 정상 (`npm run build` 확인) |
 | **마지막 갱신** | 2026-07-31 / B |
 | **현재 페이즈** | **P1 코어 로직 완료 (A) + P3(절대 사수) 완료 (B) + 오브젝트 렌더러 완료 (B, D4) — 일정 변경으로 D5까지 추가 작업 진행 중** |
-| **A 진행률** | **P1 완료** + `GameCore.js` 1단계 완료(`buildTower`/`canBuild`/`upgrade`/`relocate`/`getState`/`setSpeed`/`setPaused`/`startNextWave`). **`LevelSystem.js` 신규 완료(D4, `feat/game-core`에 force-push — 우리 `main` 위에 리베이스함)** — XP/레벨/`unlockedTowers` 자동 해금 동작. `buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy` 4개는 여전히 스텁. **`GameCore.reset()`은 아직 없음(§3 C5 미해결)** |
+| **A 진행률** | **P1 완료** + `GameCore.js` 1단계 완료. **D4 세션 중에만 `LevelSystem.js`→`DraftSystem.js`+`PerkSystem.js`를 연달아 `feat/game-core`에 푸시(N4 권장 순서 1·2번 완료)** — XP/레벨/`unlockedTowers`/`pickDraftCard`(퍼크 누적·서포터 보유 추적·장애물 픽)까지 실제 동작. **아직 이 저장소(`main`/`feat/ui`)엔 없음** — A 브랜치에만 있다. 남은 건 `buildSupport`/`buildObstacle`/`pickPolicy`(N4 순서 3번, Supporter/Obstacle) 뿐. **`GameCore.reset()`은 아직 없음(§3 C5 미해결)** |
 | **B 진행률** | **✅ 절대 사수 6개(D3) + 오브젝트 렌더러·에셋 파이프라인(D4) 전부 완료.** `EnemyView.js`/`TowerView.js` 신규, `vite.config.js` publicDir 설정. **D4에 `GameScene.js`에 Phaser `update()`가 없던 걸 발견·수정**(실제 코어 시뮬레이션이 전혀 안 돌고 있었음, §2 N3). **A의 코어 스왑 제안은 보류 — `?real=1` 플래그로 대체**(§2 N4). **`DraftOverlay.js`에 빈 `draftCards` soft-lock 버그 발견·수정**(§2 N5 — A의 `LevelSystem.js`가 트리거함) |
 | **Mock 상태** | ✅ **B가 선작성·유지보수** (`src/MockGameCore.js`) → §6-4 "Mock이 스펙이다". `unlockedTowers` 초기값 버그 수정(§2 N2) |
 | **⚠️ `GameCore.js` 병합 주의** | A의 `feat/game-core` 브랜치를 **그대로 병합하지 말 것**. 그 브랜치의 `main.js`는 B의 D2 리팩터링(씬 분리) 이전 기준이라 통째로 병합하면 그 작업이 지워진다. `GameCore.js`+`/src/game/*` 9종은 B가 이미 골라서 `feat/ui`/`main`에 반영해뒀다 — 자세한 내용은 §2 N1 |
@@ -165,6 +165,11 @@ A가 "GameScene 코어 스왑을 자기가 하겠다"고 제안했는데, 지금
 
 **틀렸을 때 영향:** `DraftOverlay.js`의 빈 배열 가드 4줄 되돌리면 끝(5분). 되돌리면 안 되는 이유가
 명확한 버그라 A 승인 불필요(§4의 "UI는 안 멈춘다" 원칙을 그대로 따른 수정).
+
+**후속(같은 세션 중 발생):** 이 글을 쓰고 나서 `git fetch`해보니 A가 곧바로 `DraftSystem.js`/
+`PerkSystem.js`까지 올려서 `pickDraftCard`가 실제 카드로 동작하게 만들었다 — 이 버그의 근본 원인
+(빈 배열)은 이미 해소된 셈이다. **그래도 가드는 그대로 둔다** — 앞으로 `policyCards`가 어떤 이유로든
+비게 되는 경우(예: 정책 풀이 소진되는 엣지 케이스)에도 같은 실패 모드를 막아주는 일반적인 안전판이다.
 
 ### [기록] N0 · B · 2026-07-29 (D2) — main.js MockScene 교체
 
