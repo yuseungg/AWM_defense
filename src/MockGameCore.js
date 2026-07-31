@@ -43,7 +43,10 @@ class Mock {
       obstacles: [],
       perks: { globalCrit: 0, globalDamage: 0, globalPierce: 0 },
       policies: [],
-      unlockedTowers: ['nseoulTower'],
+      // 실제 GameCore는 unlockedTowers를 매번 `unlockLevel <= CURRENT_LEVEL`로 재계산한다 —
+      // 시작 레벨(1)의 청계천도 처음부터 포함돼야 한다. levelUp 이벤트만으로 채우면
+      // "레벨 1로 시작하는데 레벨 1 해금 타워가 안 보이는" 불일치가 생긴다 [발견·수정: BuildUI 검증 중]
+      unlockedTowers: Object.values(towersData).filter(t => t.unlockLevel <= 1).map(t => t.id),
       kills: 0,
       bestWave: Number(localStorage.getItem('bestWave') || 0),
       isPrepPhase: true,
