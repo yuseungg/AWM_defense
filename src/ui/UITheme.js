@@ -1,7 +1,7 @@
 /**
  * UITheme.js — 모든 연출 상수의 단일 소유처
  *
- * ⚠️ B 부재(D4~D7) 중 A가 UI를 튜닝할 때 **이 파일의 숫자만** 바꾼다.
+ * ⚠️ B 부재(D6~D7) 중 A가 UI를 튜닝할 때 **이 파일의 숫자만** 바꾼다.
  *    로직 파일(SeoulTowerLight / DamageNumber / DraftOverlay)은 건드리지 않는다.
  *
  * 증상 → 고칠 상수 매핑은 HANDOFF.md 참조.
@@ -102,6 +102,30 @@ export const CONTROLS = {
   gap:            8,    // 버튼 사이 간격. ↑ 올리면 더 벌어진다
   fontSize:       14,
   disabledAlpha:  0.35, // 드래프트 오버레이가 열렸을 때 흐려지는 정도. ↓ 낮추면 더 흐릿해진다
+};
+
+/**
+ * 오브젝트 렌더러 — 타워/적 화면 표시. 에셋이 없는 지금은 단색 도형 플레이스홀더로 그린다.
+ * 에셋이 들어오면(§6 자동 교체 파이프라인) 이 상수들은 안 쓰이게 되지만 폴백 경로로는 계속 남는다.
+ */
+export const VIEW = {
+  // 적 — archetype별 형태 구분 (dust=swarm/car=fast/trash=tank/boss=boss, enemies.json 기준)
+  enemyPoolSize:  150,   // 웨이브 40+ 100개 이상 대비 여유분. EnemyPool.js 기본 120에 맞춰 여유를 더 줌
+  swarmRadius:    6,     // 미세먼지(작은 원). ↑ 올리면 뭉쳐 보이는 느낌이 강해진다
+  fastSize:       14,    // 과속차량(삼각형 한 변). ↑ 올리면 더 커진다
+  tankSize:       18,    // 쓰레기더미(사각형 한 변)
+  bossRadius:     22,    // 보스(큰 원)
+  enemyColors: {         // 적 타입별 색 — 형태(archetype)와 겹쳐서 이중으로 구분되게
+    dust:  0xc9b458,
+    car:   0xe57373,
+    trash: 0x8a6d3b,
+    boss:  0x8e44ad,
+  },
+
+  // 타워 — towers.json id별 색(levels[].tint) 구분. 사거리와 무관하게 셀(40px) 안에 들어와야 함
+  towerSize:        28,   // 셀 40px 안에 여백을 두고 들어오는 크기. ↑ 올리면 셀을 거의 꽉 채운다
+  towerStrokeColor: 0xf2f4f8,
+  towerStrokeAlpha: 0.6,
 };
 
 /**

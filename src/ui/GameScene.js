@@ -13,6 +13,8 @@ import mapData from '../../data/map.json';
 import { EventBus, EV } from '../EventBus.js';
 import { SeoulTowerLight } from '../fx/SeoulTowerLight.js';
 import { DamageNumber } from '../fx/DamageNumber.js';
+import { EnemyView } from '../fx/EnemyView.js';
+import { TowerView } from '../fx/TowerView.js';
 import { HUD } from './HUD.js';
 import { DraftOverlay } from './DraftOverlay.js';
 import { Controls } from './Controls.js';
@@ -25,11 +27,38 @@ import obstaclesData from '../../data/obstacles.json';
 import supportsData from '../../data/supports.json';
 import policiesData from '../../data/policies.json';
 import towersData from '../../data/towers.json';
+import enemiesData from '../../data/enemies.json';
 
 const FXTEST = new URLSearchParams(location.search).get('fxtest') === '1';
+const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
 
 export class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
+
+  /**
+   * 에셋 자동 교체 파이프라인 — `assets/<종류>/<id>.png` = json의 id와 1:1 (HANDOFF.md §6).
+   * 실패(파일 없음)해도 loaderror만 조용히 넘어간다 — TowerView/EnemyView가
+   * `scene.textures.exists(key)`로 직접 확인해서 없으면 도형 플레이스홀더로 그린다.
+   * PNG를 넣거나 빼는 것만으로 코드 변경 없이 반영된다.
+   */
+  preload() {
+    if (DEBUG) {
+      this._failedAssets = [];
+      this.load.on('loaderror', file => this._failedAssets.push(file.key));
+      this.load.on('complete', () => {
+        if (this._failedAssets.length) {
+          console.log(`[에셋] 로드 실패(플레이스홀더로 대체) ${this._failedAssets.length}건:`, this._failedAssets.join(', '));
+        }
+      });
+    } else {
+      this.load.on('loaderror', () => {}); // 프로덕션에서는 404 스팸을 우리 쪽에서 더 얹지 않는다
+    }
+
+    // vite.config.js의 publicDir이 assets/를 site root로 서빙하므로 URL엔 "assets/" 접두어가 없다
+    // (디스크상 파일 경로는 CLAUDE.md §3 그대로 assets/towers/<id>.png).
+    Object.keys(towersData).forEach(id => this.load.image(`tower_${id}`, `towers/${id}.png`));
+    Object.keys(enemiesData).forEach(type => this.load.image(`enemy_${type}`, `enemies/${type}.png`));
+  }
 
   async create() {
     this.cameras.main.setBackgroundColor(COLOR.bg);
@@ -38,9 +67,6 @@ export class GameScene extends Phaser.Scene {
     // 조명 = 체력바. SeoulTowerLight가 cityDamaged/cityHealed를 알아서 구독한다
     this.light = new SeoulTowerLight(this, tower.x, tower.y, 13);
     this.add.text(tower.x, tower.y - 30, 'N서울타워', { fontSize: '13px', color: '#f2f4f8' }).setOrigin(0.5);
-
-    // 데미지 숫자 — enemyDamaged를 알아서 구독한다
-    this.dmg = new DamageNumber(this);
 
     // 골드/웨이브/계절/XP — goldChanged 등 4개 이벤트를 알아서 구독한다
     this.hud = new HUD(this);
@@ -57,6 +83,13 @@ export class GameScene extends Phaser.Scene {
     // 건물 선택 바 + 배치 미리보기 + 사거리/오라 원 — 절대 사수
     this.buildUI = new BuildUI(this, this.core);
 
+    // 타워/적 화면 표시 — EnemyView는 core.__isMock으로 좌표 갱신 방식을 한 번만 정한다
+    this.towerView = new TowerView(this);
+    this.enemyView = new EnemyView(this, this.core);
+
+    // 데미지 숫자 — enemyDamaged를 알아서 구독한다. 타워/적 도형 위에 떠야 하므로 그 다음에 만든다
+    this.dmg = new DamageNumber(this);
+
     // 레벨업 드래프트 3장 / 보스 정책 3장 — levelUp·bossKilled를 알아서 구독한다. GameCore.setPaused를
     // 직접 호출하므로 core가 준비된 뒤에 만든다.
     this.draft = new DraftOverlay(this, this.core);
@@ -68,6 +101,16 @@ export class GameScene extends Phaser.Scene {
     GameCore.__startMock?.();
 
     if (FXTEST) this.setupFxTestKeys();
+  }
+
+  /**
+   * 실제 GameCore는 매 프레임 update(deltaMs) 호출로 웨이브 타이머·적 이동·투사체·타워 발사를
+   * 전진시킨다(GameCore.js 자체 문서화된 계약). MockGameCore는 자체 setInterval로 돌아가서
+   * update()가 없다 — `?.`로 안전하게 건너뛴다. (발견 경위: EnemyView를 실제 코어로 검증하다가
+   * 적이 전혀 안 움직이는 걸 보고 찾음. SYNC.md §2 참고)
+   */
+  update(time, delta) {
+    this.core?.update?.(delta);
   }
 
   /**
