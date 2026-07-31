@@ -15,11 +15,12 @@
 | 항목 | 상태 |
 |---|---|
 | **`main` 빌드** | ✅ 정상 (`npm run build` 확인) |
-| **마지막 갱신** | 2026-07-30 / B |
-| **현재 페이즈** | **P1 코어 로직 완료 (A) + P3 진행 중 (B, D3 마감 — Controls·GameOverScene·HANDOFF 골격까지)** |
-| **A 진행률** | **P1 완료** — PathSystem·GridSystem·Enemy·EnemyPool·Tower·Projectile·Combat·Economy·WaveManager 9종. **`GameCore.js` 1단계 요청함(B→A)**, **`GameCore.reset()` 추가 요청(§3 C5)** — 완성 전까지 `GameScene.js`는 `MockGameCore.js`를 씀 |
-| **B 진행률** | `Controls.js`·`GameOverScene.js` 완료 · `HANDOFF.md` 골격 작성 완료(기능마다 채우는 방식으로 전환) · 다음: `BuildUI.js` |
-| **Mock 상태** | ✅ **B가 선작성** (`src/MockGameCore.js`) → §6-4 "Mock이 스펙이다" |
+| **마지막 갱신** | 2026-07-31 / B |
+| **현재 페이즈** | **P1 코어 로직 완료 (A) + P3 완료 (B) — B의 코드 작업 종료, D3 인계 마감** |
+| **A 진행률** | **P1 완료** + `GameCore.js` 1단계 완료(`buildTower`/`canBuild`/`upgrade`/`relocate`/`getState`/`setSpeed`/`setPaused`/`startNextWave`). `buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy` 4개는 스텁. **`GameCore.reset()`은 아직 없음(§3 C5 미해결)** |
+| **B 진행률** | **✅ 절대 사수 6개 전부 완료** (`BuildUI.js`가 D3 마지막 항목). `HANDOFF.md` 전체 채움 완료. **B의 코드 작업은 여기서 끝** — D4~D7 부재 |
+| **Mock 상태** | ✅ **B가 선작성·유지보수** (`src/MockGameCore.js`) → §6-4 "Mock이 스펙이다". 오늘 `unlockedTowers` 초기값 버그 수정(§2 N1) |
+| **⚠️ `GameCore.js` 병합 주의** | A의 `feat/game-core` 브랜치를 **그대로 병합하지 말 것**. 그 브랜치의 `main.js`는 B의 D2 리팩터링(씬 분리) 이전 기준이라 통째로 병합하면 그 작업이 지워진다. `GameCore.js`+`/src/game/*` 9종은 B가 이미 골라서 `feat/ui`/`main`에 반영해뒀다 — 자세한 내용은 §2 N1 |
 | **배포 링크** | ✅ https://yuseungg.github.io/AWM_defense/ |
 
 ### 🚨 최우선 공지 — B 부재 일정
@@ -47,6 +48,28 @@
 **내 가정:** 중복 없이 랜덤 3장. 이걸로 UI 만들어둠.
 **틀렸을 때 영향:** DraftOverlay.js 추첨 부분만 수정 (10분)
 ```
+
+### 🚨 [중요] N1 · B · 2026-07-31 (D3) — `feat/game-core`의 `main.js`가 B의 D2 리팩터링과 충돌한다
+
+**발견 경위:** `BuildUI.js`를 실제 `GameCore.js`로 스모크 테스트해보려고 `git diff origin/main origin/feat/game-core --stat`를 돌려봤더니, `Controls.js`/`DraftOverlay.js`/`GameScene.js`/`HUD.js`/`mapView.js` 등 B의 UI 파일이 전부 "삭제"로 나왔다.
+
+**원인:** `feat/game-core`는 B가 D2에 `main.js`를 리팩터링(씬을 `GameScene.js`/`MockScene.js`/`VerifyScene.js`/`mapView.js`로 분리)하기 **이전** 커밋에서 갈라져 나갔다. A가 이번에 추가한 `?core=1` 검증 모드(`feat: GameCore 코어 배선 + ?core=1 검증 모드`, `a734cb1`)도 그 구식 `main.js` 안에 `CoreScene` 클래스를 직접 넣는 방식이다. **이 브랜치를 그대로 `git merge`하면 B의 리팩터링이 통째로 되돌아간다.**
+
+**내가 한 일:** 브랜치 전체를 병합하지 않고, 충돌 없는 부분만 골라서 가져왔다.
+- 확인해보니 `src/game/*.js` 9종은 **이미 `feat/ui`/`main`에 있었다**(세션 5의 `feat/game-core` 통합 때 A의 P1 커밋들이 이미 들어와 있음 — `git diff`로 내용 100% 동일 확인). 실제로 빠져있던 건 **`src/GameCore.js` 하나뿐**이라 그것만 가져왔다.
+- `main.js`는 **가져오지 않았다.** 현재(B가 리팩터링한) 구조가 기준이고, `GameScene.js`의 "코어 전환 지점"(50번째 줄 근처) import 한 줄만 바꾸면 실제 코어로 전환된다 — 이건 B가 직접 헤드리스로 검증 완료(타워 배치·즉시 웨이브·전투 루프, 콘솔 에러 0건).
+
+**A에게 필요한 것:** `feat/game-core` 브랜치는 이제 참고용으로만 쓰고, **병합하지 말 것.** 앞으로 `/src/game/`·`GameCore.js`를 고칠 땐 지금 `main`에 있는 버전 위에서 작업하면 된다(내용은 A가 짠 것과 동일 — 파일만 옮겨왔다). `GameCore.reset()`(§3 C5)은 여전히 미해결.
+
+**틀렸을 때 영향:** 없음 — 파일 내용을 바꾸지 않고 그대로 옮긴 것뿐이라 A가 이어서 작업해도 diff가 깨끗하다.
+
+### [기록] N2 · B · 2026-07-31 (D3) — MockGameCore 초기 `unlockedTowers` 버그 수정
+
+**발견:** `BuildUI.js` 검증 중, 게임 시작(레벨 1)부터 청계천(`unlockLevel:1`)이 선택 바에 안 뜨는 걸 발견했다. 실제 `GameCore.js`는 `unlockedTowers`를 매번 `unlockLevel <= CURRENT_LEVEL`로 재계산해서 시작 레벨(1)의 타워도 처음부터 포함하는데, `MockGameCore.js`는 초기값이 하드코딩된 `['nseoulTower']`뿐이고 `levelUp` 이벤트로만 채워서 "레벨 1로 시작하는데 레벨 1 해금 타워가 없는" 상태였다(레벨 2에 도달해서야 `unlockLevel:2`인 광화문만 추가되고 청계천은 영원히 안 채워짐).
+
+**처리:** `MockGameCore.js`의 초기 `unlockedTowers`를 `Object.values(towersData).filter(t => t.unlockLevel <= 1).map(t => t.id)`로 변경해 실제 코어와 동일한 시작 상태를 만들었다. CLAUDE.md §6-3 "Mock과 실제 동작이 다르면 실제 코어가 정답이다" 원칙에 따른 수정.
+
+**틀렸을 때 영향:** `MockGameCore.js` 초기화 줄 1개 되돌리면 끝(5분). A 승인 불필요(Mock은 B 소유, 실제 코어 동작에 맞춘 수정이라 계약 변경도 아님).
 
 ### [기록] N0 · B · 2026-07-29 (D2) — main.js MockScene 교체
 
@@ -253,6 +276,38 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 **main 빌드:** ✅ / ❌
 ```
+
+---
+
+## [2026-07-31] B · 세션 8 (D3 이어서 — `BuildUI.js`, 절대 사수 6개 전부 완료)
+
+**한 일**
+- `src/ui/BuildUI.js` 구현 — 건물 선택 바(해금된 타워만, N서울타워는 상시 지형물이라 제외) + 격자 스냅 미리보기(가능/불가 색) + 사거리 원(테두리만) + 오라 원(채움+낮은 알파, 색과 형태 둘 다로 사거리와 구분) + 실패 토스트(`actionRejected`의 `message`를 그대로 씀, 선택 바 바로 위에 표시)
+- 성능: `canBuild()`를 pointermove 매 프레임이 아니라 **셀이 바뀔 때만** 호출(사용자 피드백 반영)
+- `?fxtest=1`에 `V`(전체 타워 사거리 원 토글)·`C`(오라 원 마우스 추적 — 중앙 고정이 아니라 따라다니게 해서 "어느 타워가 버프 범위에 들어오는가"를 실제로 검증 가능하게 함) 추가
+- `UITheme.js`에 `BUILD` 블록 추가, `HANDOFF.md` §3 매핑표·§0·§5 갱신
+- **`DraftOverlay.js` 수정**: 오버레이가 열려 있는 동안 `BuildUI`도 `Controls`와 동일한 패턴(`setInputEnabled`)으로 잠그도록 4곳(`show`/`tryShowNext`/`forceCloseAll`/`destroy`) 추가 — 원래 계획엔 없었는데 실제 테스트해보니 오버레이가 떠 있어도 배치가 그대로 되는 걸 발견해서 고쳤다(HANDOFF §5에 기록)
+- **`MockGameCore.js` 버그 수정**(§2 N2): 시작 레벨(1)의 청계천이 초기 `unlockedTowers`에 안 들어가던 문제
+- **`src/GameCore.js`를 `feat/game-core`에서 가져옴**(§2 N1) — `/src/game/*.js` 9종은 이미 세션 5에 들어와 있었고 실제로 빠진 건 이 파일 하나뿐이었다. 브랜치 전체 병합은 안 함(구식 `main.js`와 충돌). BuildUI를 포함한 전체 UI를 실제 코어로 헤드리스 스모크 테스트해서 콘솔 에러 0건 확인 후, `GameScene.js`의 코어 전환 지점은 다시 Mock으로 되돌려둠(코어 전환 시점은 A의 P4 판단)
+
+**검증**: headless Chromium(Playwright, 세션 스크래치패드 전용)으로 (1) 선택→미리보기 색 분기(ok/ng) (2) 셀 이동 시에만 `canBuild` 호출되는지 (3) 실제 배치 성공 시 버튼에 체크+dim (4) 유니크 타워라 재클릭 불가 (5) 드래프트 오버레이가 열려있는 동안 배치가 잠기고 닫히면 풀리는지 (6) V/C 검증 키가 사거리(파랑 테두리)/오라(보라 채움)를 형태로 명확히 구분해서 보여주는지 (7) 실제 `GameCore.js`로 스왑해서 타워 배치·즉시 웨이브·전투 루프까지 — 전부 확인, 콘솔 에러 0건
+
+**지금 되는 것 / 안 되는 것**
+- 됨: 절대 사수 6개(조명·특효크리 숫자·드래프트·사거리/오라 원·2초 재시작·배속) **전부 완료**. `GameCore.js`가 저장소에 있고 동작 확인됨(단, 기본은 여전히 Mock)
+- 안 됨: 서포터/장애물 배치 UI 없음(스텁과 맞물려 오늘 스코프 아님). `Particles.js`/`StatusFx.js`/`SkyTint.js`/`BossAlert.js`/`TitleScene.js`/`UpgradeUI.js` 미착수(비상 절단 순서에 따라 A가 판단)
+
+**상대에게 필요한 것**
+- `GameCore.reset()`(§3 C5) — 여전히 미해결
+- `feat/game-core` 브랜치를 **그대로 병합하지 말 것**(§2 N1 필독)
+- 실제 `WaveManager`의 초기 `season`이 `null`이라 HUD에 잠깐 "· null"로 뜸 — 급하면 초기값을 `waves.json` 첫 시즌으로
+
+**내가 한 가정**
+- 없음. 사용자 피드백 5개(canBuild 셀 단위 호출, C 키 마우스 추적, 사거리/오라 형태 구분, 토스트 위치, 유니크 버튼 비활성화) 전부 반영
+
+**다음 세션에 할 것 (A, D4~)**
+- 없음 — B의 코드 작업은 여기서 끝. `HANDOFF.md`가 인계 문서의 전부
+
+**main 빌드:** ✅ (아래에서 확인 후 커밋)
 
 ---
 

@@ -18,24 +18,32 @@
 - `/src/ui/Controls.js` — 배속 1x/2x/3x·일시정지·즉시 다음 웨이브. pause 소유권 규칙은 §5 참고
 - `/src/ui/GameOverScene.js` — 결과 화면(웨이브 크게·신기록 연출). 실제 Phaser 씬 전환이 아니라 오버레이 컴포넌트(§5 참고)
 - `/src/ui/MockScene.js`(`?mock=1`), `/src/ui/VerifyScene.js`(`?verify=1`), `/src/ui/mapView.js`(공유 지도 렌더링)
+- `/src/ui/BuildUI.js` — 건물 선택 바 + 배치 미리보기 + 사거리/오라 원. **절대 사수 6개 전부 완료**
 - `/src/main.js` — Phaser 부트 전용(URL 플래그로 씬 선택만 함)
 - A: `/src/game/` 9종 완성 — `PathSystem`·`GridSystem`·`Enemy`·`EnemyPool`·`Tower`·`Projectile`·`Combat`·`Economy`·`WaveManager`
+- `/src/GameCore.js` — A가 1단계 구현 완료(`buildTower`/`canBuild`/`upgrade`/`relocate`/`getState`/`setSpeed`/`setPaused`/`startNextWave`).
+  `buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy` 4개는 스텁(`{ok:false, reason:'notImplemented'}`)
 
-**🔴 최우선 — `GameCore.js` 부재**
-`/src/game/`의 9개 파일이 전부 완성돼 있지만 **아무 데서도 import하지 않는다.** 헤드리스 브라우저로
-네트워크 요청을 직접 찍어서 확인함 — 9개 파일 전부 로드조차 안 됨. `GameScene.js`는 지금 전부
-`MockGameCore.js`로 동작 중이다(적 이동·조명·데미지숫자·HUD 전부 Mock의 랜덤값).
+**✅ 절대 사수 6개 전부 완료.** `BuildUI`가 D3에 마지막으로 들어갔다 — 이제 B의 코드 작업은 끝이다.
 
-**연결 지점은 정확히 한 곳이다**: `GameScene.js:39` 부근 "코어 전환 지점" 주석 아래
-`await import('../MockGameCore.js')` 한 줄을 `await import('../GameCore.js')`로 바꾸면 된다.
-그 외 `GameScene.js`의 어떤 부분도 바꿀 필요가 없다(`GameCore`의 반환값 규약 `{ok, reason?, instanceId?}`,
-좌표=셀 인덱스 규약을 지키기만 하면).
+**GameCore.js는 이제 저장소에 있지만, 아직 기본으로 켜져 있지 않다.**
+`GameScene.js`는 지금도 `MockGameCore.js`를 쓴다(§5-2 참고 — 실제 코어의 드래프트/서포터/장애물이
+전부 스텁이라 지금 켜면 레벨업 카드가 전부 조용히 실패한다). **B가 직접 실제 코어로 스모크 테스트는
+끝냈다** — `GameScene.js:50`의 `await import('../MockGameCore.js')`를 `await import('../GameCore.js')`로
+바꿔서 헤드리스 브라우저로 확인함: 타워 배치(`BuildUI`)·즉시 웨이브·실제 전투 루프까지 콘솔 에러 없이
+정상 동작. 확인 후 다시 Mock으로 되돌려놨다 — **코어를 언제 실제로 전환할지는 A의 P4 판단**이다
+(서포터/장애물/드래프트 픽이 실제로 반영되게 만든 다음이 자연스러운 시점).
 
-**미완성인 것** — §5에 전체 목록.
+**⚠️ `feat/game-core` 브랜치를 그대로 병합하지 말 것.** 그 브랜치의 `main.js`는 B가 D2에 리팩터링
+(GameScene/MockScene/VerifyScene/mapView.js 분리)하기 **이전** 시점 기준이다. A가 브랜치에 추가한
+`?core=1` 검증 모드도 그 구식 `main.js` 안에 새 씬 클래스를 직접 넣는 방식이라, 브랜치를 통째로
+병합하면 이 리팩터링이 지워진다. `/src/game/*.js` 9종은 세션 5 통합 때 이미 `main`에 들어와 있었고,
+**빠져있던 건 `GameCore.js` 하나뿐**이라 그것만 B가 가져왔다. A는 지금 `main`에 있는 파일들 위에
+계속 작업하면 되고(내용은 A가 짠 것과 동일), `main.js` 구조는 현재(B가 리팩터링한) 버전이 기준이다.
 
-**🔴 `BuildUI`(배치 미리보기·사거리 원·오라 원) 없음.** 절대 사수 6개 중 유일하게 남은 항목.
-**A가 만들면 안 되는 감각 영역이다** — 배치 가능/불가 미리보기, 사거리·오라 반경 원의 크기감·
-투명도는 숫자가 아니라 "손에 쥐었을 때 느낌"으로 맞추는 것이라 B가 직접 만들어야 한다.
+**사소한 발견**: 실제 `WaveManager`는 시작 시 `season`이 `null`이라 HUD에 "웨이브 0 · null"로 잠깐
+뜬다(Mock은 `'봄'`으로 초기화됨). 첫 웨이브 시작하면 정상화된다 — 급하면 `WaveManager`에서 초기
+season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 
 ---
 
@@ -119,6 +127,12 @@
 | 게임오버 전환이 뚝 끊기거나 너무 느리다 | `GAMEOVER.fadeInMs` (**300ms 넘기지 말 것** — §7 사수 조건) |
 | 신기록 연출이 안 보인다/너무 산만하다 | `GAMEOVER.newRecordColor`, `GAMEOVER.newRecordPulseMs` |
 | 재시작 버튼이 작다/안 눌린다 | `GAMEOVER.buttonWidth`, `GAMEOVER.buttonHeight`, `GAMEOVER.buttonFontSize` |
+| 배치 미리보기가 잘 안 보인다 | `BUILD.previewAlpha` ↑ |
+| 사거리 원과 오라 원이 헷갈린다 | 색이 아니라 **형태**로 구분돼 있다(사거리=테두리만, 오라=채움) — 그래도 헷갈리면 `BUILD.auraFillAlpha` ↑ 또는 `BUILD.rangeLineWidth` ↑ |
+| 오라 원이 밑에 있는 타워/경로를 가린다 | `BUILD.auraFillAlpha` ↓ |
+| 선택 바 버튼이 작다/이름이 잘린다 | `BUILD.buttonWidth` ↑, `BUILD.fontSize` |
+| 배치 실패 문구가 안 보인다/너무 빨리 사라진다 | `BUILD.rejectToastMs` ↑ |
+| 이미 지은 유니크 타워 버튼이 안 흐려 보인다 | `BUILD.builtAlpha` ↓ |
 
 ---
 
@@ -147,8 +161,11 @@
   마지막 호출자가 이긴다. `DraftOverlay`도 이걸 쓰기 때문에(오버레이 여는 동안 강제 정지), 오버레이가
   열려 있는 동안은 `Controls`의 버튼을 `setInputEnabled(false)`로 아예 잠가서 유저가 pause를
   건드릴 수 없게 막고, 오버레이가 큐를 다 비우고 닫힐 때 `Controls.isUserPaused`를 다시 읽어
-  `setPaused()`를 복원한다. **새로 pause를 호출하는 컴포넌트를 추가한다면 반드시 이 패턴(호출 전
-  `Controls.setInputEnabled(false)`로 잠그고, 끝나면 `isUserPaused` 복원)을 따라야 한다** — 안 그러면
+  `setPaused()`를 복원한다. **`BuildUI`도 같은 패턴을 따른다** — `DraftOverlay.show()`/`tryShowNext()`/
+  `forceCloseAll()`/`destroy()`가 `scene.buildUI?.setInputEnabled(bool)`도 같이 호출해서, 카드가 떠 있는
+  동안은 배치 미리보기·클릭이 전부 잠긴다(선택 상태는 유지 — 닫히면 이어서 배치 가능). **새로 pause를
+  호출하는 컴포넌트를 추가한다면 반드시 이 패턴(호출 전 `Controls.setInputEnabled(false)`·
+  `BuildUI.setInputEnabled(false)`로 잠그고, 끝나면 복원)을 따라야 한다** — 안 그러면
   "카드/모달이 떠 있는데 게임이 돈다" 버그가 조용히 재발한다.
 - **재시작은 `location.reload()`다. `scene.restart()`/`scene.start('Game')`을 쓰면 안 된다.**
   `WaveManager`/`Economy`/`GridSystem`이 모듈 싱글톤이라 씬만 새로 만들면 조명 0·웨이브 62 같은
@@ -157,11 +174,12 @@
 - **`bestWave` localStorage는 A(`WaveManager.js`)가 이미 읽고 쓴다** (`grep -rn "localStorage" src/game/ src/MockGameCore.js`로 확인함 — `WaveManager.js` 39번째 줄에서 읽고 226번째 줄에서 쓴다, `MockGameCore.js`도 동일 패턴).
   **`GameOverScene.js`는 `bestWave`를 저장하지 않는다** — `gameOver` 이벤트의 `isNewRecord`를 그대로
   표시만 한다. B가 중복 저장하면 안 됨(값이 어긋난다).
-- **`GameCore.js` 자체가 아직 없다.** B가 요청함(1단계). 도착하면 `buildTower`/`canBuild`/`getState`/`setPaused`는 구현되지만 `buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy` 4개는 스텁(`{ok:false, reason:'notImplemented'}`)으로 남을 예정 — `DraftOverlay`는 이미 이 실패를 흡수하도록 만들어져 있으니 손댈 필요 없다(§4)
+- **`GameCore.js`는 이제 저장소에 있다(§0 참고)** — `buildTower`/`canBuild`/`getState`/`setPaused`/`upgrade`/`relocate`는 실제로 동작 확인함(B가 헤드리스로 스모크 테스트). `buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy` 4개는 여전히 스텁(`{ok:false, reason:'notImplemented'}`) — `DraftOverlay`는 이미 이 실패를 흡수하도록 만들어져 있으니 손댈 필요 없다(§4)
+- **`BuildUI`는 타워 배치만 처리한다(오늘 스코프).** 서포터/장애물 배치 UI는 없다 — `buildSupport`/`buildObstacle`가 스텁인 것과 맞물려 있다. 드래프트로 서포터를 뽑아도(Mock 기준) 배치할 UI가 없어 `instanceId`만 `#pending`으로 남는다
+- **오라 원은 실제로 지어진 세운상가가 있을 때만 보인다.** `buildSupport`가 스텁인 지금은 항상 빈 상태다 — `?fxtest=1`의 `C` 키(마우스 추적)로 반경/색/형태만 독립 검증했다. 서포터 배치가 실제로 붙으면 `BuildUI.handleObjectBuilt`가 `objectBuilt`(kind:'support') 이벤트만으로 자동으로 원을 그린다(추가 작업 불필요)
 - **적 스프라이트 렌더러가 없다.** `enemySpawned`/`enemyKilled` 이벤트는 발행되지만(Mock이든 실제 `WaveManager`든) 화면에 적 그래픽 자체가 없다. Mock으로 테스트해도 안 보이는 게 정상이다
-- **건설 UI가 없다.** `BuildUI.js` 미착수 — 클릭으로 타워/서포터/장애물을 지을 방법 자체가 아직 없다
 - **`Particles.js`/`StatusFx.js`/`SkyTint.js`/`BossAlert.js` 파일 자체가 없다.** `UITheme.js`의 `PARTICLE`/`SHAKE` 상수는 존재하지만 아무 코드도 이걸 읽지 않는다(§3에 표시해둠)
-- **`TitleScene.js`/`UpgradeUI.js`/`CodexUI.js` 미착수** (`Controls.js`/`GameOverScene.js`는 완료 — §0 참고)
+- **`TitleScene.js`/`UpgradeUI.js`/`CodexUI.js` 미착수** (`Controls.js`/`GameOverScene.js`/`BuildUI.js`는 완료 — §0 참고)
 - A 쪽 `LevelSystem.js`/`PerkSystem.js`/`DraftSystem.js`/`Supporter.js`/`Obstacle.js`/`Debug.js` 미착수
 - **정책/드래프트 픽이 실제로 반영되는지 검증 불가.** `MockGameCore`에서는 반영되지만(퍼크 누적 등) 실제 `GameCore`는 아직 스텁이라 확인할 방법이 없다
 - `assets/` 폴더 자체가 없다 (§6)
