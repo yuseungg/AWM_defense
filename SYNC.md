@@ -17,13 +17,13 @@
 | **`main` 빌드** | ✅ 정상 (`npm run build` 확인) |
 | **마지막 갱신** | 2026-07-31 / B |
 | **현재 페이즈** | **P1 코어 로직 완료 (A) + P3(절대 사수) 완료 (B) + 오브젝트 렌더러 완료 (B, D4) — 일정 변경으로 D5까지 추가 작업 진행 중** |
-| **A 진행률** | **P1 완료** + `GameCore.js` 1단계 완료. **D4 세션 중에만 `LevelSystem.js`→`DraftSystem.js`+`PerkSystem.js`를 연달아 `feat/game-core`에 푸시(N4 권장 순서 1·2번 완료)** — XP/레벨/`unlockedTowers`/`pickDraftCard`(퍼크 누적·서포터 보유 추적·장애물 픽)까지 실제 동작. **아직 이 저장소(`main`/`feat/ui`)엔 없음** — A 브랜치에만 있다. 남은 건 `buildSupport`/`buildObstacle`/`pickPolicy`(N4 순서 3번, Supporter/Obstacle) 뿐. **`GameCore.reset()`은 아직 없음(§3 C5 미해결)** |
+| **A 진행률** | **P1 완료** + `GameCore.js` 1단계 완료. **D4 하루 만에 N4 권장 순서 ①`LevelSystem` ②`DraftSystem`+`PerkSystem` ③`Supporter`+`Obstacle`(`buildSupport`/`buildObstacle` 실구현, `f8c6585`)까지 백엔드 전부 완료** — `GameCore` 레벨에선 드래프트 카드 7종이 다 살아있다. **아직 이 저장소(`main`/`feat/ui`)엔 없음** — A 브랜치에만 있다, D5에 B가 파일 단위로 가져와 스왑 예정(§2 N7). **단, `BuildUI`(B 소유)가 서포터/장애물 배치 UI를 아직 안 만들어서 플레이어 입장에선 여전히 죽은 카드다 — D5에 B가 먼저 만든다.** 남은 건 `pickPolicy`(보스 정책 효과 적용)와 장애물 강화(`Obstacle`은 `upgrade` 대상이 아직 아님) 뿐. **`GameCore.reset()`은 아직 없음(§3 C5 미해결)** |
 | **B 진행률** | **✅ 절대 사수 6개(D3) + 오브젝트 렌더러·에셋 파이프라인(D4) 전부 완료.** `EnemyView.js`/`TowerView.js` 신규, `vite.config.js` publicDir 설정. **D4에 `GameScene.js`에 Phaser `update()`가 없던 걸 발견·수정**(실제 코어 시뮬레이션이 전혀 안 돌고 있었음, §2 N3). **A의 코어 스왑 제안은 보류 — `?real=1` 플래그로 대체**(§2 N4). **`DraftOverlay.js`에 빈 `draftCards` soft-lock 버그 발견·수정**(§2 N5 — A의 `LevelSystem.js`가 트리거함) |
 | **Mock 상태** | ✅ **B가 선작성·유지보수** (`src/MockGameCore.js`) → §6-4 "Mock이 스펙이다". `unlockedTowers` 초기값 버그 수정(§2 N2) |
 | **⚠️ `GameCore.js` 병합 주의** | A의 `feat/game-core` 브랜치를 **그대로 병합하지 말 것**. 그 브랜치의 `main.js`는 B의 D2 리팩터링(씬 분리) 이전 기준이라 통째로 병합하면 그 작업이 지워진다. `GameCore.js`+`/src/game/*` 9종은 B가 이미 골라서 `feat/ui`/`main`에 반영해뒀다 — 자세한 내용은 §2 N1 |
 | **🔴 `GameScene.js` update() 필수** | `GameCore.update(deltaMs)`를 매 프레임 불러야 실제 코어의 웨이브·적 이동이 돈다. `GameScene.update(time,delta){ this.core?.update?.(delta); }`를 실수로 지우면 "적이 안 움직인다"가 재발한다(§2 N3) |
 | **🔴 `DraftOverlay.js`의 빈 카드 가드 필수** | `draftCards`/`policyCards`가 빈 배열이면 오버레이를 안 여는 가드가 `show()` 맨 앞에 있다. 이걸 지우면 `DraftSystem` 붙기 전까지 레벨업할 때마다 게임이 영구 정지한다(§2 N5) |
-| **코어 스왑 타이밍** | LevelSystem·DraftSystem 완료했지만 **스왑은 보류.** 드래프트 풀 7종 중 서포터2+장애물2(4종)를 아직 배치할 수 없어서, 지금 스왑하면 카드 3장 중 평균 1.7장이 죽은 카드가 된다. Supporter/Obstacle 배치(N4 순서 ③)까지 끝나면 스왑 — 자세한 내용은 §2 N6 |
+| **코어 스왑 타이밍** | **API 조건은 충족, UI가 아직 안 끝남 — D5에 처리.** N4 순서 ③(Supporter/Obstacle)이 `GameCore` 레벨에선 끝났지만, `BuildUI.js`가 여전히 타워만 배치해서 서포터/장애물 카드를 뽑아도 맵에 놓을 방법이 없다. D5에 ①`BuildUI`에 서포터/장애물 배치 추가 → ②스왑 → ③전체 검증 → ④baseline 재촬영 → ⑤촬영 대본 갱신 순서로 진행(§2 N6·N7) |
 | **배포 링크** | ✅ https://yuseungg.github.io/AWM_defense/ |
 
 ### 🚨 최우선 공지 — B 부재 일정 (2026-07-31 갱신: D4~D7 → D6~D7로 축소)
@@ -191,6 +191,44 @@ Mock 데모를 기본값으로 유지하는 게 낫다.
 
 **틀렸을 때 영향:** 없음, 판단 기록일 뿐. A가 다르게 보면(예: "죽은 카드도 괜찮다, 지금 스왑하자")
 다음 세션에 반대 의견을 §2에 남기면 같이 조정한다.
+
+### 📢 [A에게] N7 · B → A · 2026-07-31 (D4 마감) — ③ 완료 확인. D5에 스왑한다 (단, B가 먼저 할 일이 있다)
+
+**`f8c6585`(`Supporter`+`Obstacle` 배치, `buildSupport`/`buildObstacle` 실구현) 확인했다.** N6에서
+기다리던 조건 — N4 권장 순서 ①②③ 전부 완료. 하루 만에 끝냈다, 정말 빠르다.
+
+**⚠️ 그런데 이 글을 쓰다가 발견한 게 있다 — 백엔드만 끝났고 프런트가 안 끝났다.**
+`GameCore.buildSupport`/`buildObstacle`은 이제 동작하지만, **`BuildUI.js`(B 소유)는 여전히
+타워만 클릭 배치를 처리한다**(`grep -n "buildSupport\|buildObstacle" src/ui/BuildUI.js`로 확인 —
+서포터는 오라 원 표시를 위해 읽기만 하고, 배치 트리거는 어디에도 없다). 즉 플레이어가 드래프트에서
+세운상가/통나무 카드를 뽑아도 **맵에 놓을 방법이 아직 없다.** N6에서 계산했던 "죽은 카드 4/7"
+문제가 API 레벨에서는 해소됐지만, **UI 레벨에서는 그대로다** — 지금 스왑해도 플레이어 입장에서는
+카드를 뽑는 순간까지만 의미가 있고 그 뒤로는 여전히 아무 일도 안 일어난다.
+
+**결론: D5(마지막 작업일)에 다음 순서로 진행한다.**
+0. **(신규, 최우선) `BuildUI.js`에 서포터/장애물 배치 흐름 추가** — 타워 선택 바와 같은 패턴으로
+   확장하거나(픽으로 얻은 서포터/장애물을 별도 목록으로 보여주고 클릭 배치), 최소 기능만 갖춘
+   버전이라도 만든다. **이게 없으면 스왑을 해도 체감상 달라지는 게 없다.**
+1. A의 `feat/game-core`에서 이번에도 **브랜치 전체가 아니라 바뀐 파일만** 골라 가져온다(N1의
+   교훈 그대로 — `main.js` 구조는 우리 것이 기준). 이번엔 `GameCore.js`·`LevelSystem.js`·
+   `DraftSystem.js`·`PerkSystem.js`·`Supporter.js`·`Obstacle.js`·`WaveManager.js`·`Economy.js` 정도가
+   대상일 것 — 실제 diff는 D5에 다시 확인한다
+2. `GameScene.js`의 코어 전환 지점(§0) 삼항에서 **기본값 쪽을 `GameCore.js`로 승격** —
+   `?real=1` 분기 자체는 지워도 되고 남겨도 무방(둘 다 같은 모듈을 가리키게 됨)
+3. 전체 시나리오 재검증: 타워 배치·**서포터 배치(0번에서 만든 UI로) → 오라 반경 원이 실제 위치에
+   뜨는지**(`BuildUI`가 이미 `objectBuilt`(kind:'support') 이벤트만으로 자동 대응하도록 만들어져
+   있다, HANDOFF.md §5)·**장애물 배치(0번 UI로)**·드래프트 카드 3장이 전부 살아있는지·보스 정책
+   (여전히 `pickPolicy` 스텁이라 효과는 안 붙음, 알고 진행)
+4. `/docs/baseline/` 스크린샷 5장 재촬영(Mock 기준으로 찍은 거라 실제 코어 화면과 달라질 수 있음)
+5. `HANDOFF.md` §8 촬영 대본의 "시나리오 판단" 갱신(이제 (A) 실제 코어가 항상 가능해짐), 필요하면
+   컷 3(드래프트)·컷 4(통나무 콤보 — 서포터/장애물 배치 UI가 생기면 드디어 가능해진다) 갱신
+6. 게임 소개 PDF 초안 작업
+
+**남는 것(스왑해도 안 되는 것)**: `pickPolicy`(보스 정책 카드는 뜨지만 골라도 효과 없음),
+장애물 강화(`Obstacle`이 `upgrade` 대상이 아직 아님 — `findBuildable`이 타워/서포터만 찾음).
+D5에 A가 여유 있으면 이어서 하고, 아니면 그대로 제출해도 절대 사수엔 영향 없다.
+
+**틀렸을 때 영향:** 없음, 계획 기록. D5에 막히는 부분이 생기면 그 자리에서 §2에 새로 기록한다.
 
 ### [기록] N0 · B · 2026-07-29 (D2) — main.js MockScene 교체
 
@@ -397,6 +435,61 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 **main 빌드:** ✅ / ❌
 ```
+
+---
+
+## [2026-07-31] B · 세션 12 (D4 마감)
+
+**한 일**
+- **오브젝트 렌더러** — `EnemyView.js`(archetype별 도형, 실제 코어=`EnemyPool.getActive()` 폴링 /
+  Mock=`PathSystem` 자체 보간)·`TowerView.js`(랜드마크별 실루엣) 신규
+- **에셋 자동 교체 파이프라인** — `vite.config.js` `publicDir: 'assets'` + `GameScene.preload()` +
+  `textures.exists()` 폴백. 더미 PNG로 검증 완료
+- **`?real=1` 플래그** — 기본값은 Mock 유지, `?real=1`로 A가 코드 수정 없이 실제 코어 진도 확인
+- **`/docs/ASSET_GUIDE.md`** — 아트 방향·팔레트·규격·실루엣 규칙·프롬프트 템플릿·14종 우선순위·
+  납품 절차. 완성 프롬프트 14개를 채팅으로도 전달
+- **플레이스홀더 실루엣 개선** — 에셋 없이도 랜드마크 6종·적 4종이 형태로 구분되게
+
+**발견/수정**
+- **`GameScene.js`에 Phaser `update(time,delta)`가 없어서 실제 코어의 웨이브 타이머·적 이동·
+  투사체·타워 발사가 한 번도 돈 적이 없었다.** `this.core?.update?.(delta)` 한 줄 추가로 해결
+  (§2 N3). 지난 세션의 "실제 코어 검증 완료" 기록이 이 버그 때문에 불완전했다는 것도 같이 기록
+- **`levelUp`의 `draftCards`가 빈 배열이면 `DraftOverlay`가 화면을 어둡게 만든 채 영구 정지한다.**
+  A의 `LevelSystem.js`가 트리거하는 상황이라(`DraftSystem` 전 단계엔 항상 빈 배열) `?real=1`을
+  켜고 레벨업 한 번만 찍어도 게임이 멈추는 상태였다. `DraftOverlay.show()`에 빈 카드 가드를
+  추가해서 해결(§2 N5)
+
+**판단**
+- **코어 스왑을 D4엔 보류했다.** LevelSystem·DraftSystem은 완료됐지만 서포터·장애물을 실제로
+  배치할 방법이 없어서(`buildSupport`/`buildObstacle` 스텁), 지금 스왑하면 드래프트 카드 3장 중
+  평균 1.7장이 죽은 카드가 된다(§2 N6). A가 같은 세션 안에 ③(Supporter/Obstacle 배치, `f8c6585`)
+  까지 끝내서 **API 레벨의 죽은 카드 문제는 해소됐다.**
+- **그런데 문서를 정리하다가 `BuildUI.js`(B 소유)가 여전히 타워만 배치한다는 걸 재확인했다** —
+  `buildSupport`/`buildObstacle`이 동작해도 그걸 호출할 UI가 없으면 플레이어 입장에서는 여전히
+  죽은 카드다. D5에 **이 UI부터 만들고** 스왑하기로 계획을 수정했다(§2 N7)
+
+**지금 되는 것 / 안 되는 것**
+- 됨: 절대 사수 6개(D3) + 오브젝트 렌더러·에셋 파이프라인·`?real=1`(D4) 전부 완료. A는 N4→N6→N7
+  권장 순서(LevelSystem→DraftSystem→Supporter/Obstacle)를 D4 하루 만에 전부 끝냄(백엔드 기준)
+- 안 됨: 실제 PNG 에셋 0장(가이드·파이프라인만 완성). 코어는 아직 Mock이 기본값(D5에 스왑 예정).
+  서포터/장애물을 맵에 놓는 UI가 없음(D5 최우선 작업)
+
+**상대에게 필요한 것**
+- N7 참고 — D5에 BuildUI 확장 → 파일 가져오기 → 스왑 순서로 진행. 이견 있으면 §2에 반대 의견 남기기
+- `GameCore.reset()`(§3 C5) — 여전히 미해결
+
+**내가 한 가정**
+- 없음
+
+**다음 세션에 할 것 (D5, 마지막 작업일)**
+1. **`BuildUI.js`에 서포터/장애물 배치 흐름 추가**(최우선 — 이게 없으면 스왑해도 체감이 안 바뀐다)
+2. 코어 스왑(파일 가져오기 → `GameScene.js` 기본값 교체)
+3. 전체 시나리오 재검증(타워·서포터·장애물 배치, 드래프트 3장, 보스 정책)
+4. `/docs/baseline/` 스크린샷 재촬영
+5. `HANDOFF.md` §8 촬영 대본 갱신
+6. 게임 소개 PDF 초안
+
+**main 빌드:** ✅
 
 ---
 

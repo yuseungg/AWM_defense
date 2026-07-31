@@ -44,31 +44,43 @@
 됐지만 시간 기반 시뮬레이션(웨이브 진행·적 이동)은 실제로 돈 적이 없었다.
 
 **GameCore.js는 이제 저장소에 있지만, 아직 기본값이 아니다 — `?real=1`로 언제든 확인할 수 있다.**
+**✅ 스왑의 백엔드 조건은 D4에 전부 충족됐다. ⚠️ 단, `BuildUI`(B 소유)의 서포터/장애물 배치 UI가
+아직 없어서 D5에 그것부터 만든 뒤 스왑한다(SYNC.md §2 N7).**
 
-A가 D4 세션에 "GameScene 코어 스왑을 자기가 하겠다"고 제안했지만, 아직 이르다고 판단해 보류했다
-(§2 A에게 보내는 항목 참고). 대신 통째로 바꾸는 대신 **URL 플래그로 분기**해서, 기본값은 여전히
-Mock(전체 루프가 보이는 데모 상태 유지)으로 두고 A가 `?real=1`로 자기 진도를 그때그때 확인할 수 있게
-했다. 화면 좌상단에 빨간 "REAL CORE" 배지가 뜨면 실제 코어로 도는 중이라는 뜻이다.
+A가 D4 세션에 "GameScene 코어 스왑을 자기가 하겠다"고 제안했지만, 그날 시점엔 이르다고 판단해
+보류했었다(§2 N4·N6). 대신 통째로 바꾸는 대신 **URL 플래그로 분기**해서, 기본값은 Mock(전체
+루프가 보이는 데모 상태 유지)으로 두고 A가 `?real=1`로 자기 진도를 그때그때 확인할 수 있게 했다.
+화면 좌상단에 빨간 "REAL CORE" 배지가 뜨면 실제 코어로 도는 중이라는 뜻이다.
 
-- **분기 방법(스왑 아님)**: `GameScene.js` 75~83번째 줄 `// ══ 코어 전환 지점 ══` — 기본값은
-  `MockGameCore.js`, `?real=1`이면 `GameCore.js`. **기본값을 실제 코어로 승격시킬 때가 오면**
+- **분기 방법(현재, 스왑 전)**: `GameScene.js` 75~83번째 줄 `// ══ 코어 전환 지점 ══` — 기본값은
+  `MockGameCore.js`, `?real=1`이면 `GameCore.js`. **기본값을 실제 코어로 승격시킬 때(=스왑)**
   삼항의 기본값 쪽(`: await import('../MockGameCore.js')`) 한 줄만 `GameCore.js`로 바꾸면 된다.
-- **전환(승격) 판단 기준**: `GameCore.js`의 스텁 4개(`buildSupport`/`buildObstacle`/`pickDraftCard`/
-  `pickPolicy`)가 전부 실제로 구현돼서 `{ok:true}`를 반환할 때. 구체적인 선행 순서는 §2
-  "A에게 보내는 항목"에 있다 — LevelSystem → DraftSystem → Supporter/Obstacle.
-- **`?real=1` 검증 결과(D4, 이 시점 `main`의 `GameCore.js` 기준 — 아래 LevelSystem 단락 참고)** —
-  되는 것: 타워 배치(`BuildUI`+`TowerView`)·적 스폰과 이동(`EnemyView` 폴링, `update()` 수정 덕분에
-  실제로 돎)·웨이브 진행·전투(데미지 숫자·상성)·골드 경제·조명 체력·배속/일시정지/즉시웨이브·
-  **보스전(정책 카드 3장은 `WaveManager.js`가 자체 구현해서 실제로 뜬다)**까지 콘솔 에러 없이 정상
-  동작. 안 되는 것: 서포터/장애물 배치·정책 픽 효과 적용(스텁이라 정책 카드는 뜨지만 골라도 효과 없음).
-- **🚨 `LevelSystem.js`(A가 D4에 `feat/game-core`에 올림, 아직 `main`엔 없음) + `DraftOverlay.js` 안전판
-  (D4, 이미 `main`에 있음)**: A가 XP/레벨/`unlockedTowers` 자동 해금을 구현했다(N4 권장 순서 1번).
-  그런데 `levelUp`의 `draftCards`가 항상 빈 배열이라(`DraftSystem` 다음 단계), 그 상태로
-  `DraftOverlay`가 열리면 **화면이 어두워진 채 영구 정지**하는 버그가 있었다 — B가 미리 발견해서
-  `DraftOverlay.show()`에 "카드 0장이면 안 연다" 가드를 추가해뒀다(이미 `main`에 반영됨, SYNC.md
-  §2 N5). **`LevelSystem.js` 자체는 아직 이 저장소에 없다** — A의 브랜치에만 있고, 우리 정책상
-  `feat/game-core`를 통째로 병합하지 않으므로(§0 상단 경고 참고), `GameCore.js` 때와 같은 방식으로
-  이 파일만 골라 가져와야 반영된다.
+- **✅ 백엔드 조건 — D4에 충족됨**: N4가 요구한 순서(LevelSystem → DraftSystem → Supporter/Obstacle)를
+  A가 D4 하루 만에 전부 끝냈다(`e015671`→`0dd0ca7`→`f8c6585`). `GameCore.buildSupport`/
+  `buildObstacle`가 이제 실제로 동작한다. **남은 스텁은 `pickPolicy`(보스 정책 효과 적용) 하나뿐**
+  이고, 이건 스왑을 막는 조건이 아니다(보스 정책 카드는 `WaveManager.js`가 자체 구현해서 스왑
+  여부와 무관하게 이미 뜬다 — 골라도 효과가 안 붙을 뿐, D4에 이미 확인함).
+- **⚠️ 프런트엔드는 아직 안 됨 — 이게 D5의 진짜 최우선 작업이다**: `BuildUI.js`(B 소유)는
+  여전히 **타워 클릭 배치만** 처리한다(`grep -n "buildSupport\|buildObstacle" src/ui/BuildUI.js`로
+  확인 — 서포터는 오라 원 표시를 위해 읽기만 할 뿐 배치 트리거가 없다). 즉 `GameCore`가 준비돼도
+  **플레이어가 서포터/장애물 카드를 뽑을 방법은 있어도 맵에 놓을 방법이 없다** — 지금 스왑하면
+  드래프트 카드 3장 중 서포터/장애물이 나와도 여전히 죽은 카드처럼 보인다(N6이 걱정했던 문제가
+  API 레벨에서만 풀리고 UI 레벨에선 그대로 남아있다). **D5에 이 UI부터 만들고 나서 스왑한다.**
+- **D5 절차(SYNC.md §2 N7에 상세)**: ① `BuildUI.js`에 서포터/장애물 배치 흐름 추가(최우선)
+  ② A의 `feat/game-core`에서 바뀐 파일만 골라 가져오기(브랜치 전체 병합 금지 — §0 하단 경고)
+  ③ `GameScene.js` 기본값을 `GameCore.js`로 교체 ④ 전체 시나리오 재검증(타워·서포터·장애물 배치,
+  드래프트 3장, 보스 정책) ⑤ `/docs/baseline/` 재촬영 ⑥ §8 촬영 대본 갱신.
+- **`?real=1` 검증 결과(D4 시점, 스왑 전 마지막 확인)** — 되는 것: 타워 배치(`BuildUI`+`TowerView`)·
+  적 스폰과 이동(`EnemyView` 폴링, `update()` 수정 덕분에 실제로 돎)·웨이브 진행·전투(데미지
+  숫자·상성)·골드 경제·조명 체력·배속/일시정지/즉시웨이브·보스전(정책 카드 3장 실제로 뜸)까지
+  콘솔 에러 없이 정상 동작.
+- **🚨 `DraftOverlay.js` 안전판(D4, `main`에 있음, 절대 지우지 말 것)**: A의 `LevelSystem.js`가
+  XP/레벨/`unlockedTowers` 자동 해금을 붙였을 때, `levelUp`의 `draftCards`가 한동안(`DraftSystem`
+  붙기 전) 항상 빈 배열이었다. 그 상태로 `DraftOverlay`가 열리면 **화면이 어두워진 채 영구
+  정지**하는 버그가 있었다 — B가 미리 발견해서 `DraftOverlay.show()`에 "카드 0장이면 안 연다"
+  가드를 추가해뒀다(SYNC.md §2 N5). 지금은 `DraftSystem`이 붙어서 실제로 빈 배열이 올 일은
+  없어졌지만, **가드 자체는 일반적인 안전판으로 계속 남겨둔다**(앞으로 `policyCards`가 어떤
+  이유로든 비는 엣지 케이스에도 대응).
 
 **⚠️ `feat/game-core` 브랜치를 그대로 병합하지 말 것.** 그 브랜치의 `main.js`는 B가 D2에 리팩터링
 (GameScene/MockScene/VerifyScene/mapView.js 분리)하기 **이전** 시점 기준이다. A가 브랜치에 추가한
@@ -215,27 +227,34 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 - **`bestWave` localStorage는 A(`WaveManager.js`)가 이미 읽고 쓴다** (`grep -rn "localStorage" src/game/ src/MockGameCore.js`로 확인함 — `WaveManager.js` 39번째 줄에서 읽고 226번째 줄에서 쓴다, `MockGameCore.js`도 동일 패턴).
   **`GameOverScene.js`는 `bestWave`를 저장하지 않는다** — `gameOver` 이벤트의 `isNewRecord`를 그대로
   표시만 한다. B가 중복 저장하면 안 됨(값이 어긋난다).
-- **`GameCore.js`는 이제 저장소에 있다(§0 참고)** — `buildTower`/`canBuild`/`getState`/`setPaused`/`upgrade`/`relocate`는 실제로 동작 확인함(B가 헤드리스로 스모크 테스트). `buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy` 4개는 여전히 스텁(`{ok:false, reason:'notImplemented'}`) — `DraftOverlay`는 이미 이 실패를 흡수하도록 만들어져 있으니 손댈 필요 없다(§4)
-- **`BuildUI`는 타워 배치만 처리한다(오늘 스코프).** 서포터/장애물 배치 UI는 없다 — `buildSupport`/`buildObstacle`가 스텁인 것과 맞물려 있다. 드래프트로 서포터를 뽑아도(Mock 기준) 배치할 UI가 없어 `instanceId`만 `#pending`으로 남는다
-- **오라 원은 실제로 지어진 세운상가가 있을 때만 보인다.** `buildSupport`가 스텁인 지금은 항상 빈 상태다 — `?fxtest=1`의 `C` 키(마우스 추적)로 반경/색/형태만 독립 검증했다. 서포터 배치가 실제로 붙으면 `BuildUI.handleObjectBuilt`가 `objectBuilt`(kind:'support') 이벤트만으로 자동으로 원을 그린다(추가 작업 불필요)
-- **✅ 적/타워 렌더러는 이제 있다(D4, `EnemyView.js`/`TowerView.js`).** 아래 세 가지는 여전히 남은 갭:
+- **이 저장소(`main`/`feat/ui`)의 `GameCore.js`는 아직 D3 시점 버전이다** — `buildTower`/`canBuild`/
+  `getState`/`setPaused`/`upgrade`/`relocate`만 구현돼 있고 `buildSupport`/`buildObstacle`/
+  `pickDraftCard`/`pickPolicy` 4개는 스텁이다. **A의 브랜치(`feat/game-core`)에는 이미 4개 중 3개
+  (`buildSupport`/`buildObstacle`/`pickDraftCard`)가 구현돼 있다** — D5에 스왑할 때 같이 가져온다
+  (§0 참고). `pickPolicy`만 A 쪽에도 아직 스텁.
+- **🚨 `BuildUI`는 타워 배치만 처리한다 — 서포터/장애물을 맵에 놓는 UI가 없다.** D5에 A의
+  `buildSupport`/`buildObstacle`를 가져와도 **이 UI가 없으면 아무 의미가 없다**(§0 상단에 자세히
+  적어둠). D5 최우선 작업. 오라 원(세운상가 반경 표시)은 이미 준비돼 있다 — `BuildUI.handleObjectBuilt`가
+  `objectBuilt`(kind:'support') 이벤트만으로 자동으로 그리게 만들어놨으니, 배치 UI만 생기면
+  추가 작업 없이 바로 뜬다(`?fxtest=1`의 `C` 키로 반경/색/형태는 이미 독립 검증함).
+- **✅ 적/타워 렌더러는 이제 있다(D4, `EnemyView.js`/`TowerView.js`, D4에 실루엣도 개선).** 남은 갭:
   - **`TowerView`는 `relocate`(재배치) 시 위치를 못 옮긴다.** `objectChanged` 페이로드에 좌표가 없어서다
-    (EventBus.js 계약상 `{instanceId, action, level}`뿐 — `BuildUI`의 오라 추적과 동일한 gap, §2 참고).
+    (EventBus.js 계약상 `{instanceId, action, level}`뿐 — `BuildUI`의 오라 추적과 동일한 gap).
     실질 영향 없음 — 드래그 재배치 UI 자체가 아직 없어서 이 경로가 발생하지 않는다.
   - **`EnemyView`의 Mock 경로(자체 보간)는 슬로우/스턴/DoT를 반영하지 않는다.** `enemies.json`의 고정
     `speed`로만 전진한다 — 실제 코어(폴링 경로)는 100% 정확하다. Mock은 연출 검증용이라 허용 범위.
-  - **적/타워 색은 전부 플레이어 시점 상단(북쪽)에서 본 단색 도형이다.** 회전·방향 표시 없음(에셋이
-    들어오면 자연스럽게 해결됨).
+  - **적/타워는 전부 방향·회전 없는 정면 실루엣이다.** 에셋이 들어오면 자연스럽게 나아짐.
 - **🔴 D4에 발견·수정: `GameScene.js`에 Phaser `update()`가 없어서 실제 코어의 시간 기반 시뮬레이션
   (웨이브 진행·적 이동·투사체·타워 발사)이 전혀 안 돌고 있었다.** `update(time, delta) { this.core?.update?.(delta); }`
   한 줄 추가로 해결(§0 참고). **A가 실제 코어 관련 새 기능을 테스트할 때 "왜 안 움직이지"가 나오면
   이 메서드가 살아있는지부터 확인한다** — 실수로 지워지면 똑같은 증상이 재발한다.
+- **실제 PNG 에셋은 아직 0장이다.** 파이프라인·스타일 가이드(`/docs/ASSET_GUIDE.md`)·플레이스홀더
+  실루엣은 전부 준비됐다(§6) — 남은 건 실제로 그리는 것뿐. D6~D7에 B가 폰으로 채운다.
 - **`Particles.js`/`StatusFx.js`/`SkyTint.js`/`BossAlert.js` 파일 자체가 없다.** `UITheme.js`의 `PARTICLE`/`SHAKE` 상수는 존재하지만 아무 코드도 이걸 읽지 않는다(§3에 표시해둠)
 - **`TitleScene.js`/`UpgradeUI.js`/`CodexUI.js` 미착수** (`Controls.js`/`GameOverScene.js`/`BuildUI.js`는 완료 — §0 참고)
-- A 쪽 `LevelSystem.js`/`PerkSystem.js`/`DraftSystem.js`/`Supporter.js`/`Obstacle.js`/`Debug.js` 미착수
-- **`BuildUI`는 타워 배치만 처리한다.** 서포터/장애물 배치 UI는 없다 — `buildSupport`/`buildObstacle`가 스텁인 것과 맞물려 있다. 드래프트로 서포터를 뽑아도(Mock 기준) 배치할 UI가 없어 `instanceId`만 `#pending`으로 남는다
-- **오라 원은 실제로 지어진 세운상가가 있을 때만 보인다.** `buildSupport`가 스텁인 지금은 항상 빈 상태다 — `?fxtest=1`의 `C` 키(마우스 추적)로 반경/색/형태만 독립 검증했다. 서포터 배치가 실제로 붙으면 `BuildUI.handleObjectBuilt`가 `objectBuilt`(kind:'support') 이벤트만으로 자동으로 원을 그린다(추가 작업 불필요)
-- **정책/드래프트 픽이 실제로 반영되는지 검증 불가.** `MockGameCore`에서는 반영되지만(퍼크 누적 등) 실제 `GameCore`는 아직 스텁이라 확인할 방법이 없다
+- **A 쪽 나머지 미완성: `pickPolicy`(보스 정책 효과 적용)·장애물 강화**(`Obstacle`이 아직 `upgrade`
+  대상이 아님 — `GameCore.findBuildable`이 타워/서포터만 찾는다). `Debug.js`도 여전히 없음(§8 참고).
+  둘 다 절대 사수엔 영향 없어서, D5에 A가 여유 있으면 이어서 하고 아니면 그대로 제출해도 된다
 
 ---
 
