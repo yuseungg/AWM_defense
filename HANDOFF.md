@@ -1,4 +1,4 @@
-# HANDOFF.md — B 부재(D4~D7) 인계 문서
+# HANDOFF.md — B 부재(D6~D7) 인계 문서
 
 > **이 문서는 골격 문서다.** D3까지 기능이 끝날 때마다 채워 넣는다 — 시간이 끊겨도
 > 이 시점까지의 인계 내용은 항상 최신 상태로 존재한다.
@@ -12,7 +12,11 @@
 **완성된 것**
 - `/src/fx/SeoulTowerLight.js` — 조명 4단계, 색 보간·플래시·맥동·회복 연출
 - `/src/fx/DamageNumber.js` — 오브젝트 풀링(200개), 색(특효)/크기(크리) 직교 분리
-- `/src/ui/GameScene.js` — 기본 화면(지도+조명+데미지숫자+HUD+드래프트 연결)
+- `/src/fx/EnemyView.js` — 적 화면 표시(archetype별 도형, 오브젝트 풀링). 실제 코어=`EnemyPool.getActive()`
+  폴링 / Mock=`PathSystem` 자체 보간, 생성 시점에 한 번만 분기 (D4 신규, §0 하단 참고)
+- `/src/fx/TowerView.js` — 타워 화면 표시(`towers.json` id별 색), `objectChanged`(upgraded)로 tint/scale
+  갱신해 역사 변천 표현. 유니크 룰로 최대 6개뿐이라 풀링 불필요 (D4 신규)
+- `/src/ui/GameScene.js` — 기본 화면(지도+조명+데미지숫자+HUD+드래프트+타워/적 렌더러 연결)
 - `/src/ui/HUD.js` — 골드/웨이브·계절/레벨+XP바
 - `/src/ui/DraftOverlay.js` — 레벨업 3장/보스 정책 3장, 큐 처리, "코어 실패해도 안 멈춤" 안전판
 - `/src/ui/Controls.js` — 배속 1x/2x/3x·일시정지·즉시 다음 웨이브. pause 소유권 규칙은 §5 참고
@@ -20,24 +24,38 @@
 - `/src/ui/MockScene.js`(`?mock=1`), `/src/ui/VerifyScene.js`(`?verify=1`), `/src/ui/mapView.js`(공유 지도 렌더링)
 - `/src/ui/BuildUI.js` — 건물 선택 바 + 배치 미리보기 + 사거리/오라 원. **절대 사수 6개 전부 완료**
 - `/src/main.js` — Phaser 부트 전용(URL 플래그로 씬 선택만 함)
+- **에셋 자동 교체 파이프라인** — `vite.config.js`의 `publicDir: 'assets'` + `GameScene.preload()`의
+  `loaderror` 처리 + `TowerView`/`EnemyView`의 `textures.exists()` 폴백. `assets/towers/<id>.png`·
+  `assets/enemies/<type>.png`를 Git에 올리기만 하면 코드 변경 없이 반영된다(§6 참고, 실제 PNG로 검증 완료)
 - A: `/src/game/` 9종 완성 — `PathSystem`·`GridSystem`·`Enemy`·`EnemyPool`·`Tower`·`Projectile`·`Combat`·`Economy`·`WaveManager`
 - `/src/GameCore.js` — A가 1단계 구현 완료(`buildTower`/`canBuild`/`upgrade`/`relocate`/`getState`/`setSpeed`/`setPaused`/`startNextWave`).
   `buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy` 4개는 스텁(`{ok:false, reason:'notImplemented'}`)
 
-**✅ 절대 사수 6개 전부 완료.** `BuildUI`가 D3에 마지막으로 들어갔다 — 이제 B의 코드 작업은 끝이다.
+**✅ 절대 사수 6개는 D3에 완료.** 일정이 바뀌어 작업일이 5일로 늘면서 D4부터 오브젝트 렌더러 +
+에셋 파이프라인을 추가로 작업 중이다(§1 표 참고, `SYNC.md` §1도 동일하게 갱신됨).
+
+**🔴 D4 발견 — `GameScene.js`에 Phaser `update(time, delta)`가 없어서 실제 코어가 멈춰 있었다.**
+`GameCore.js`의 `update(deltaMs)`는 `WaveManager.update()`를 돌려서 웨이브 타이머·적 이동·투사체·
+타워 발사를 전진시키는 **매 프레임 호출 계약**인데, 아무도 이걸 부르지 않고 있었다 — Mock은 자체
+`setInterval`로 돌아가서 이 문제가 지금까지 안 보였다. `EnemyView`를 실제 코어로 검증하다가 "적이
+전혀 안 움직인다"에서 발견했다. `GameScene.js`에 `update(time, delta) { this.core?.update?.(delta); }`
+한 줄을 추가해서 고쳤다(Mock엔 `.update()`가 없어서 `?.`로 안전하게 건너뜀). **이전 세션의 "실제
+코어 스모크 테스트 통과" 기록은 이 버그 때문에 불완전한 검증이었다** — 타워 배치·이벤트 발행까지는
+됐지만 시간 기반 시뮬레이션(웨이브 진행·적 이동)은 실제로 돈 적이 없었다.
 
 **GameCore.js는 이제 저장소에 있지만, 아직 기본으로 켜져 있지 않다.**
 
-- **전환 방법**: `GameScene.js` 48번째 줄 `// ══ 코어 전환 지점 ══` 주석 바로 아래,
-  51번째 줄의 `const { GameCore } = await import('../MockGameCore.js');`를
+- **전환 방법**: `GameScene.js` 74번째 줄 `// ══ 코어 전환 지점 ══` 주석 바로 아래,
+  77번째 줄의 `const { GameCore } = await import('../MockGameCore.js');`를
   `await import('../GameCore.js')`로 **한 줄만** 바꾸면 된다. 그 외 `GameScene.js`의
   어떤 부분도 안 바꿔도 된다.
 - **전환 판단 기준**: `GameCore.js`의 스텁 4개(`buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy`)가
   전부 실제로 구현돼서 `{ok:true}`를 반환할 때 전환한다. 지금 전환하면 드래프트/서포터/장애물 관련
   기능이 전부 조용히 실패한다(`DraftOverlay`가 실패를 흡수하도록 만들어져 있어서 게임이 멈추진
   않지만, 카드를 골라도 아무 효과가 없다).
-- **검증 완료**: B가 이미 이 스왑을 헤드리스 브라우저로 직접 확인했다 — 타워 배치(`BuildUI`)·
-  즉시 웨이브·실제 전투 루프까지 콘솔 에러 없이 정상 동작. 확인 후 다시 Mock으로 되돌려놨다.
+- **검증 완료(재검증, D4)**: 위 `update()` 버그를 고친 뒤 다시 헤드리스로 확인 — 타워 배치(`BuildUI`)·
+  즉시 웨이브·**실제 웨이브 진행과 적 이동(`EnemyView` 폴링)**·전투(데미지 숫자)까지 콘솔 에러 없이
+  정상 동작. 확인 후 다시 Mock으로 되돌려놨다.
 
 **⚠️ `feat/game-core` 브랜치를 그대로 병합하지 말 것.** 그 브랜치의 `main.js`는 B가 D2에 리팩터링
 (GameScene/MockScene/VerifyScene/mapView.js 분리)하기 **이전** 시점 기준이다. A가 브랜치에 추가한
@@ -138,10 +156,14 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 | 선택 바 버튼이 작다/이름이 잘린다 | `BUILD.buttonWidth` ↑, `BUILD.fontSize` |
 | 배치 실패 문구가 안 보인다/너무 빨리 사라진다 | `BUILD.rejectToastMs` ↑ |
 | 이미 지은 유니크 타워 버튼이 안 흐려 보인다 | `BUILD.builtAlpha` ↓ |
+| 적이 안 보인다/너무 작다 | `VIEW.swarmRadius`/`VIEW.fastSize`/`VIEW.tankSize`/`VIEW.bossRadius` ↑ |
+| 적 색이 구분 안 된다 | `VIEW.enemyColors` (타입별 hex) |
+| 타워가 셀 안에 너무 작다/꽉 차 보인다 | `VIEW.towerSize` (40px 셀 기준, 사거리와 무관) |
+| 타워 테두리가 안 보인다 | `VIEW.towerStrokeColor`, `VIEW.towerStrokeAlpha` ↑ |
 
 ---
 
-## 4. A가 지켜야 할 규칙 (D4~D7 경계 해제 조건)
+## 4. A가 지켜야 할 규칙 (D6~D7 경계 해제 조건)
 
 `SYNC.md` §1 원본 그대로:
 1. **`UITheme.js` 상수부터 바꾼다** (§3 표 참고)
@@ -182,22 +204,48 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 - **`GameCore.js`는 이제 저장소에 있다(§0 참고)** — `buildTower`/`canBuild`/`getState`/`setPaused`/`upgrade`/`relocate`는 실제로 동작 확인함(B가 헤드리스로 스모크 테스트). `buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy` 4개는 여전히 스텁(`{ok:false, reason:'notImplemented'}`) — `DraftOverlay`는 이미 이 실패를 흡수하도록 만들어져 있으니 손댈 필요 없다(§4)
 - **`BuildUI`는 타워 배치만 처리한다(오늘 스코프).** 서포터/장애물 배치 UI는 없다 — `buildSupport`/`buildObstacle`가 스텁인 것과 맞물려 있다. 드래프트로 서포터를 뽑아도(Mock 기준) 배치할 UI가 없어 `instanceId`만 `#pending`으로 남는다
 - **오라 원은 실제로 지어진 세운상가가 있을 때만 보인다.** `buildSupport`가 스텁인 지금은 항상 빈 상태다 — `?fxtest=1`의 `C` 키(마우스 추적)로 반경/색/형태만 독립 검증했다. 서포터 배치가 실제로 붙으면 `BuildUI.handleObjectBuilt`가 `objectBuilt`(kind:'support') 이벤트만으로 자동으로 원을 그린다(추가 작업 불필요)
-- **적 스프라이트 렌더러가 없다.** `enemySpawned`/`enemyKilled` 이벤트는 발행되지만(Mock이든 실제 `WaveManager`든) 화면에 적 그래픽 자체가 없다. Mock으로 테스트해도 안 보이는 게 정상이다
+- **✅ 적/타워 렌더러는 이제 있다(D4, `EnemyView.js`/`TowerView.js`).** 아래 세 가지는 여전히 남은 갭:
+  - **`TowerView`는 `relocate`(재배치) 시 위치를 못 옮긴다.** `objectChanged` 페이로드에 좌표가 없어서다
+    (EventBus.js 계약상 `{instanceId, action, level}`뿐 — `BuildUI`의 오라 추적과 동일한 gap, §2 참고).
+    실질 영향 없음 — 드래그 재배치 UI 자체가 아직 없어서 이 경로가 발생하지 않는다.
+  - **`EnemyView`의 Mock 경로(자체 보간)는 슬로우/스턴/DoT를 반영하지 않는다.** `enemies.json`의 고정
+    `speed`로만 전진한다 — 실제 코어(폴링 경로)는 100% 정확하다. Mock은 연출 검증용이라 허용 범위.
+  - **적/타워 색은 전부 플레이어 시점 상단(북쪽)에서 본 단색 도형이다.** 회전·방향 표시 없음(에셋이
+    들어오면 자연스럽게 해결됨).
+- **🔴 D4에 발견·수정: `GameScene.js`에 Phaser `update()`가 없어서 실제 코어의 시간 기반 시뮬레이션
+  (웨이브 진행·적 이동·투사체·타워 발사)이 전혀 안 돌고 있었다.** `update(time, delta) { this.core?.update?.(delta); }`
+  한 줄 추가로 해결(§0 참고). **A가 실제 코어 관련 새 기능을 테스트할 때 "왜 안 움직이지"가 나오면
+  이 메서드가 살아있는지부터 확인한다** — 실수로 지워지면 똑같은 증상이 재발한다.
 - **`Particles.js`/`StatusFx.js`/`SkyTint.js`/`BossAlert.js` 파일 자체가 없다.** `UITheme.js`의 `PARTICLE`/`SHAKE` 상수는 존재하지만 아무 코드도 이걸 읽지 않는다(§3에 표시해둠)
 - **`TitleScene.js`/`UpgradeUI.js`/`CodexUI.js` 미착수** (`Controls.js`/`GameOverScene.js`/`BuildUI.js`는 완료 — §0 참고)
 - A 쪽 `LevelSystem.js`/`PerkSystem.js`/`DraftSystem.js`/`Supporter.js`/`Obstacle.js`/`Debug.js` 미착수
+- **`BuildUI`는 타워 배치만 처리한다.** 서포터/장애물 배치 UI는 없다 — `buildSupport`/`buildObstacle`가 스텁인 것과 맞물려 있다. 드래프트로 서포터를 뽑아도(Mock 기준) 배치할 UI가 없어 `instanceId`만 `#pending`으로 남는다
+- **오라 원은 실제로 지어진 세운상가가 있을 때만 보인다.** `buildSupport`가 스텁인 지금은 항상 빈 상태다 — `?fxtest=1`의 `C` 키(마우스 추적)로 반경/색/형태만 독립 검증했다. 서포터 배치가 실제로 붙으면 `BuildUI.handleObjectBuilt`가 `objectBuilt`(kind:'support') 이벤트만으로 자동으로 원을 그린다(추가 작업 불필요)
 - **정책/드래프트 픽이 실제로 반영되는지 검증 불가.** `MockGameCore`에서는 반영되지만(퍼크 누적 등) 실제 `GameCore`는 아직 스텁이라 확인할 방법이 없다
-- `assets/` 폴더 자체가 없다 (§6)
 
 ---
 
-## 6. 에셋 교체 규약
+## 6. 에셋 교체 규약 — ✅ D4에 자동 교체 파이프라인 구축·검증 완료
 
-`assets/<종류>/<id>.png` = 해당 `json`의 `id` 필드와 1:1 대응 (예: `assets/towers/cheonggyecheon.png`).
+`assets/<종류>/<id>.png` = 해당 `json`의 `id` 필드와 1:1 대응 (예: `assets/towers/cheonggyecheon.png`,
+`assets/enemies/dust.png`). **디렉터리는 저장소 최상단 `assets/`를 그대로 쓴다** — CLAUDE.md §3 구조
+그대로다.
 
-**🔴 `assets/` 폴더 자체가 아직 없다.** 로드 실패 시 폴백(placeholder 도형 등) 처리도 **미구현**이다 —
-지금 에셋을 넣으면 경로가 안 맞을 때 조용히 안 뜨기만 할 뿐 에러도 안 남을 수 있다(Phaser 기본 동작
-확인 필요). 에셋을 받으면 로더에 `onerror`/`load-error` 핸들러부터 넣는 걸 권장.
+**동작 원리**
+1. `vite.config.js`에 `publicDir: 'assets'`를 설정해서 `assets/` 내용을 그대로 정적 서빙한다
+   (원래 Vite 기본값인 `/public/` 폴더가 이 프로젝트엔 없어서 대체함).
+2. `GameScene.preload()`가 `towers.json`/`enemies.json`의 모든 id/type에 대해 `assets/towers/<id>.png`·
+   `assets/enemies/<type>.png` 로드를 **전부 시도**한다. 파일이 없으면 Phaser가 콘솔에 로드 실패를
+   찍지만(`?debug=1`일 때만 우리 쪽에서 한 줄로 요약 로그) 게임은 멈추지 않는다.
+3. `TowerView`/`EnemyView`가 그릴 때마다 `scene.textures.exists(key)`로 직접 확인한다 —
+   있으면 이미지, 없으면 도형 플레이스홀더. **코드에서 아무것도 안 바꿔도 된다.**
+
+**검증**: 더미 PNG(`cheonggyecheon.png`, `dust.png`)를 `assets/towers/`·`assets/enemies/`에 넣고
+헤드리스로 확인 — 그 둘만 로드 성공 목록에 들어가고 나머지는 그대로 실패(플레이스홀더 폴백) 확인.
+검증 후 더미 파일은 삭제했다(실제 에셋 아님).
+
+**B가 부재 중에도 폰으로 GitHub 웹에 `assets/towers/gwanghwamun.png`처럼 파일 하나만 올리면,
+다음 배포 빌드부터 자동으로 반영된다.** A가 코드를 손댈 필요가 전혀 없다.
 
 ---
 
@@ -216,22 +264,19 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 **판단 없이 그대로 따라 찍으면 되게 썼다.** 초 단위 타임라인 + 정확한 키까지 적었다.
 총 45~58초, 7컷.
 
-### 🔴 촬영 전 필수 확인 — 타워/적 스프라이트가 없다
+### ✅ D4 갱신 — 타워/적 스프라이트 렌더러 생김
 
-**`objectBuilt`를 구독해서 지도 위에 뭔가를 그리는 코드가 어디에도 없다** (`grep -rn "objectBuilt" src/`로 확인 —
-`BuildUI.js`는 선택 바 버튼만 갱신하고 지도에는 아무것도 안 그린다). 즉 **타워를 지어도 그 위치에
-아무 그림도 안 남는다.** 적도 마찬가지다(§5에 이미 기록됨 — `enemySpawned`/`enemyKilled`는 발행되지만
-그래픽이 없다). 그래서 "청계천이 실제로 미세먼지를 쏘는" 장면은 지금 **찍을 수 없다** — 빈 화면에
-숫자만 뜨는 걸로 보인다.
+이전 버전은 "타워/적이 화면에 안 보인다"를 촬영 전 필수 확인으로 올려뒀는데, D4에 `EnemyView.js`/
+`TowerView.js`가 생기면서 해결됐다. **이제 컷 2는 fxtest 강제 발행 대신 실제 화면(타워 사각형 +
+archetype별 도형 적)을 그대로 찍을 수 있다** — 아래 컷 2 지시가 그 기준으로 바뀌었다.
 
-**대응:** 아래 컷 2는 처음부터 `?fxtest=1`의 `W`/`T` 키로 데미지 숫자만 강제 발행하는 걸 기준으로
-짰다(빈 화면이어도 "노란 숫자 + 효과가 굉장했다!" 자체는 진짜 연출이라 의도대로 보인다). **타워 스프라이트를
-그리는 코드 한 줄**(`BuildUI.handleObjectBuilt`에서 `kind==='tower'`일 때 `scene.add.circle(x, y, 12, tint)` 정도)을
-D4~D7 중 A가 추가할 여유가 있으면 컷 2 임팩트가 훨씬 좋아진다 — 필수는 아니고 있으면 좋은 것.
+단, 에셋(PNG)이 아직 하나도 없어서 전부 **단색 도형 플레이스홀더**다(사각형 타워, 원/삼각형/사각형 적).
+심사 인상을 더 올리고 싶으면 §6 파이프라인이 이미 동작하니 D6~D7 중 PNG 몇 장만 넣어도 그대로
+반영된다 — 필수는 아니고 있으면 훨씬 좋은 것.
 
 ### 시나리오 판단 — (A) 실제 코어 vs (B) Mock
 
-**확인 절차:** `GameScene.js` 51번째 줄 `await import('../MockGameCore.js')`를
+**확인 절차:** `GameScene.js` 77번째 줄 `await import('../MockGameCore.js')`를
 `await import('../GameCore.js')`로 바꾸고 웨이브 5까지 진행해본다.
 - 실제 처치로 레벨업 카드가 뜨고, 카드를 고르면 `pickDraftCard`가 `{ok:true}`를 반환한다
   → **(A) 실제 코어로 촬영.** 이게 최선이다 — 아래 각 컷의 "(A)" 지시를 따른다.
@@ -245,7 +290,7 @@ D4~D7 중 A가 추가할 여유가 있으면 컷 2 임팩트가 훨씬 좋아진
 
 **⚠️ `?debug=1`의 웨이브 점프(`1`~`9`)·`G`(골드)·`X`(XP)·`K`(적 전멸)·`H`(무적) 키는 아직 없다.**
 `CLAUDE.md` §7에 명세만 있고 실제 구현 파일(`Debug.js`)이 없다(`git show HEAD:src/game/Debug.js` → 없음).
-A가 D4~D7에 이걸 만들면 (A) 시나리오 촬영이 훨씬 쉬워진다(웨이브를 실제로 다섯 번 뛰지 않고 바로
+A가 D6~D7에 이걸 만들면 (A) 시나리오 촬영이 훨씬 쉬워진다(웨이브를 실제로 다섯 번 뛰지 않고 바로
 5로 점프) — 없으면 아래 (A) 지시대로 `Controls`의 3배속 + "즉시 웨이브" 버튼으로 대신한다.
 
 ---
@@ -263,18 +308,20 @@ A가 D4~D7에 이걸 만들면 (A) 시나리오 촬영이 훨씬 쉬워진다(�
 
 ---
 
-### 컷 2 — 특효 데미지 숫자 (4-12s, 8초) ⭐ 차별점 #2, 가장 크게 보여야 함
+### 컷 2 — 청계천 특효 데미지 숫자 (4-12s, 8초) ⭐ 차별점 #2, 가장 크게 보여야 함
 
-- **URL**: `?fxtest=1`
-- **키 타임라인**:
-  - 4s: `T` (특효+크리 동시 — 노란 큰 숫자 + "효과가 굉장했다!" 라벨)
-  - 6s: `W` (특효만, 다른 위치)
-  - 8s: `T`
-  - 10s: `W`
-- **배속**: 무관(디버그 이벤트라 배속 영향 안 받음)
-- **성공 기준**: 노란 숫자가 화면에 최소 3번 뜨고, "효과가 굉장했다!" 라벨이 상단 중앙에 최소 1번 보임.
-  숫자 위치가 매번 랜덤이라 여러 번 눌러서 **화면 중앙 근처에서 뜨는 타이밍**을 골라 쓴다
-- **(A)/(B) 공통** — 코어와 무관
+**D4부터 실제 화면으로 찍을 수 있다** — 타워(회색 사각형)와 미세먼지(작은 원 여럿, swarm)가
+둘 다 화면에 보이고, 청계천은 `strongAgainst.dust: 2.0`이라 미세먼지에 자동으로 특효가 뜬다.
+
+- **(A) 실제 코어(권장)**: 기본 URL(플래그 없음). 청계천을 경로 근처(예: 셀 500,250 부근)에 배치 →
+  웨이브 1(계절 봄, 미세먼지 비중 80%)이 시작되면 자연스럽게 특효가 여러 번 뜬다. 타이밍이 안 맞으면
+  `Controls`의 즉시 웨이브로 앞당긴다
+- **(B) Mock 또는 타이밍이 안 맞을 때(백업)**: `?fxtest=1` → `T`(특효+크리) → `W`(특효) 반복 —
+  강제 발행이라 화면에 타워/적이 없어도 숫자 자체는 진짜 연출과 동일하게 뜬다
+- **배속**: 1x (숫자가 잘 보이게)
+- **성공 기준**: 회색 타워 사각형 근처에서 미세먼지(원)에 노란 숫자가 최소 3번 뜨고, "효과가
+  굉장했다!" 라벨이 상단 중앙에 최소 1번 보임
+- **(A)/(B) 공통** — 코어와 무관(데미지 숫자 연출 자체는 `EventBus` 이벤트 하나로 동일하게 동작)
 
 ---
 
@@ -296,7 +343,7 @@ A가 D4~D7에 이걸 만들면 (A) 시나리오 촬영이 훨씬 쉬워진다(�
 `?fxtest=1`에도 이걸 강제로 쏘는 키가 없다.
 
 **권장: 이 컷은 최종 영상에서 뺀다.** 시간이 남으면 대안 두 가지:
-1. A가 D4~D7에 obstacle 배치 흐름(간단한 클릭 배치 + `buildObstacle` 구현)을 만들면 그때 채운다
+1. A가 D6~D7에 obstacle 배치 흐름(간단한 클릭 배치 + `buildObstacle` 구현)을 만들면 그때 채운다
 2. 대신 컷 2(데미지 숫자)를 8초 더 늘리거나, 컷 6(조명 전환)을 조명 1단계씩 나눠서 늘린다
 
 ---
@@ -355,7 +402,7 @@ A가 D4~D7에 이걸 만들면 (A) 시나리오 촬영이 훨씬 쉬워진다(�
 | `O` | 게임오버 | 강제 발행(신기록 토글) |
 | `ESC` | 드래프트 | 강제 닫기(찍다가 꼬이면 이걸로 리셋) |
 
-전부 `?fxtest=1`에서만 동작한다. `?debug=1`(A 영역) 키는 D4~D7에 `Debug.js`가 만들어지기 전까진
+전부 `?fxtest=1`에서만 동작한다. `?debug=1`(A 영역) 키는 D6~D7에 `Debug.js`가 만들어지기 전까진
 존재하지 않는다(위 "시나리오 판단" 참고).
 
 ---

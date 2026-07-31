@@ -16,24 +16,28 @@
 |---|---|
 | **`main` 빌드** | ✅ 정상 (`npm run build` 확인) |
 | **마지막 갱신** | 2026-07-31 / B |
-| **현재 페이즈** | **P1 코어 로직 완료 (A) + P3 완료 (B) — B의 코드 작업 종료, D3 인계 마감** |
-| **A 진행률** | **P1 완료** + `GameCore.js` 1단계 완료(`buildTower`/`canBuild`/`upgrade`/`relocate`/`getState`/`setSpeed`/`setPaused`/`startNextWave`). `buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy` 4개는 스텁. **`GameCore.reset()`은 아직 없음(§3 C5 미해결)** |
-| **B 진행률** | **✅ 절대 사수 6개 전부 완료** (`BuildUI.js`가 D3 마지막 항목). `HANDOFF.md` 전체 채움 완료. **B의 코드 작업은 여기서 끝** — D4~D7 부재 |
-| **Mock 상태** | ✅ **B가 선작성·유지보수** (`src/MockGameCore.js`) → §6-4 "Mock이 스펙이다". 오늘 `unlockedTowers` 초기값 버그 수정(§2 N1) |
+| **현재 페이즈** | **P1 코어 로직 완료 (A) + P3(절대 사수) 완료 (B) + 오브젝트 렌더러 완료 (B, D4) — 일정 변경으로 D5까지 추가 작업 진행 중** |
+| **A 진행률** | **P1 완료** + `GameCore.js` 1단계 완료(`buildTower`/`canBuild`/`upgrade`/`relocate`/`getState`/`setSpeed`/`setPaused`/`startNextWave`). `buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy` 4개는 스텁. **`GameCore.reset()`은 아직 없음(§3 C5 미해결)**. `feat/game-core`에 새 커밋 없음(D4 세션 확인) |
+| **B 진행률** | **✅ 절대 사수 6개(D3) + 오브젝트 렌더러·에셋 파이프라인(D4) 전부 완료.** `EnemyView.js`/`TowerView.js` 신규, `vite.config.js` publicDir 설정. **D4에 `GameScene.js`에 Phaser `update()`가 없던 걸 발견·수정**(실제 코어 시뮬레이션이 전혀 안 돌고 있었음, §2 N3) |
+| **Mock 상태** | ✅ **B가 선작성·유지보수** (`src/MockGameCore.js`) → §6-4 "Mock이 스펙이다". `unlockedTowers` 초기값 버그 수정(§2 N2) |
 | **⚠️ `GameCore.js` 병합 주의** | A의 `feat/game-core` 브랜치를 **그대로 병합하지 말 것**. 그 브랜치의 `main.js`는 B의 D2 리팩터링(씬 분리) 이전 기준이라 통째로 병합하면 그 작업이 지워진다. `GameCore.js`+`/src/game/*` 9종은 B가 이미 골라서 `feat/ui`/`main`에 반영해뒀다 — 자세한 내용은 §2 N1 |
+| **🔴 `GameScene.js` update() 필수** | `GameCore.update(deltaMs)`를 매 프레임 불러야 실제 코어의 웨이브·적 이동이 돈다. `GameScene.update(time,delta){ this.core?.update?.(delta); }`를 실수로 지우면 "적이 안 움직인다"가 재발한다(§2 N3) |
 | **배포 링크** | ✅ https://yuseungg.github.io/AWM_defense/ |
 
-### 🚨 최우선 공지 — B 부재 일정
+### 🚨 최우선 공지 — B 부재 일정 (2026-07-31 갱신: D4~D7 → D6~D7로 축소)
 
 | 항목 | 내용 |
 |---|---|
-| **B 작업 가능일** | **D1 · D2 · D3 (3일)** |
-| **B 부재** | **D4 ~ D7 — 제출일 포함. 복귀 없음 전제** |
+| **B 작업 가능일** | **D1 ~ D5 (5일)** — 기존 3일에서 주말 이틀(D4·D5) 추가 |
+| **B 부재** | **D6 ~ D7 — 제출일 포함. 월요일부터 시작, 복귀 없음 전제** |
 | **부재 중 경계 규칙** | **전면 해제.** A가 `/src/ui/`, `/src/fx/`, `/assets/` 수정 가능 |
-| **A의 수정 규칙** | ① `UITheme.js` 상수만 우선 ② 로직 수정 시 `// [A-D5]` 주석 ③ 커밋 prefix `ui(A):` |
+| **A의 수정 규칙** | ① `UITheme.js` 상수만 우선 ② 로직 수정 시 `// [A-D5]` 주석(표기는 유지 — grep 패턴 그대로 씀) ③ 커밋 prefix `ui(A):` |
 | **A가 건드리면 안 되는 로직 3개** | `SeoulTowerLight.js` 보간 / `DamageNumber.js` 풀링 / `DraftOverlay.js` 큐 처리 |
-| **부재 중 B 가능 작업** | AI 에셋 PNG 납품(GitHub 웹 업로드) · `SYNC.md` 원격 승인 · D6 영상 러프컷 승인 |
-| **D4 이후 인수 문서** | `HANDOFF.md` (B가 D3 저녁까지 작성) |
+| **부재 중 B 가능 작업** | AI 에셋 PNG 납품(GitHub 웹 업로드) · `SYNC.md` 원격 승인 · 영상 러프컷 승인 |
+| **D6 이후 인수 문서** | `HANDOFF.md` (B가 D5 저녁까지 완성) |
+
+**참고**: `// [A-D5]` 주석 규칙 자체의 이름(`D5`)은 바뀌지 않는다 — D3 시점에 이미 커밋된 관례 표기라
+grep 검색 패턴으로 굳어 있다. 실제 부재 시작일(D6)과 별개로 그대로 쓴다.
 
 ---
 
@@ -57,7 +61,7 @@
 
 **내가 한 일:** 브랜치 전체를 병합하지 않고, 충돌 없는 부분만 골라서 가져왔다.
 - 확인해보니 `src/game/*.js` 9종은 **이미 `feat/ui`/`main`에 있었다**(세션 5의 `feat/game-core` 통합 때 A의 P1 커밋들이 이미 들어와 있음 — `git diff`로 내용 100% 동일 확인). 실제로 빠져있던 건 **`src/GameCore.js` 하나뿐**이라 그것만 가져왔다.
-- `main.js`는 **가져오지 않았다.** 현재(B가 리팩터링한) 구조가 기준이고, `GameScene.js`의 "코어 전환 지점"(50번째 줄 근처) import 한 줄만 바꾸면 실제 코어로 전환된다 — 이건 B가 직접 헤드리스로 검증 완료(타워 배치·즉시 웨이브·전투 루프, 콘솔 에러 0건).
+- `main.js`는 **가져오지 않았다.** 현재(B가 리팩터링한) 구조가 기준이고, `GameScene.js`의 "코어 전환 지점"(74번째 줄 근처(D4 세션에 preload() 추가로 줄 번호가 밀림)) import 한 줄만 바꾸면 실제 코어로 전환된다 — 이건 B가 직접 헤드리스로 검증 완료(타워 배치·즉시 웨이브·전투 루프, 콘솔 에러 0건).
 
 **A에게 필요한 것:** `feat/game-core` 브랜치는 이제 참고용으로만 쓰고, **병합하지 말 것.** 앞으로 `/src/game/`·`GameCore.js`를 고칠 땐 지금 `main`에 있는 버전 위에서 작업하면 된다(내용은 A가 짠 것과 동일 — 파일만 옮겨왔다). `GameCore.reset()`(§3 C5)은 여전히 미해결.
 
@@ -70,6 +74,26 @@
 **처리:** `MockGameCore.js`의 초기 `unlockedTowers`를 `Object.values(towersData).filter(t => t.unlockLevel <= 1).map(t => t.id)`로 변경해 실제 코어와 동일한 시작 상태를 만들었다. CLAUDE.md §6-3 "Mock과 실제 동작이 다르면 실제 코어가 정답이다" 원칙에 따른 수정.
 
 **틀렸을 때 영향:** `MockGameCore.js` 초기화 줄 1개 되돌리면 끝(5분). A 승인 불필요(Mock은 B 소유, 실제 코어 동작에 맞춘 수정이라 계약 변경도 아님).
+
+### 🚨 [중요] N3 · B · 2026-07-31 (D4) — `GameScene.js`에 Phaser `update()`가 없어서 실제 코어가 멈춰 있었다
+
+**발견 경위:** `EnemyView.js`(오늘 신규)를 실제 `GameCore.js`로 검증하는데 적이 전혀 안 움직였다.
+`EnemyPool.getActive()`를 매 프레임 폴링하는 내 코드는 맞는데, 폴링해도 배열이 항상 비어 있었다 —
+`GameCore.js`의 `update(deltaMs) { WaveManager.update(deltaMs/1000); }`를 **아무도 호출하지 않고 있었다.**
+
+**원인:** `GameCore.js`의 `update()`는 A가 만들 때부터 "매 프레임 밖에서 불러줘야 하는" 계약으로
+작성돼 있다(자체 타이머 없음). `MockGameCore.js`는 반대로 자기 `setInterval`로 알아서 도는 구조라
+지금까지 `GameScene.js`가 `update()`를 안 불러도 아무 문제가 없었다 — 실제 코어로 전환한 적이
+지난 세션 딱 한 번뿐이었고, 그때는 "타워 배치·즉시 웨이브 골드 지급"까지만 확인하고 끝나서
+시간 기반 시뮬레이션(웨이브 진행 타이머·적 이동)이 실제로 도는지는 검증한 적이 없었다.
+
+**처리:** `GameScene.js`에 Phaser 씬 라이프사이클 메서드 `update(time, delta)`를 추가해서
+`this.core?.update?.(delta)`를 매 프레임 호출하게 했다. `?.`로 감싼 이유는 `MockGameCore`에 `update`
+메서드 자체가 없어서(호출하면 TypeError) — Mock일 때는 조용히 아무 일도 안 하고 넘어간다.
+
+**틀렸을 때 영향:** 없음 — 순수 추가라 되돌릴 이유가 없다. **오히려 이 한 줄이 실수로 지워지면
+"실제 코어로 전환했는데 적이 안 움직인다"가 그대로 재발한다** — A가 D6~D7 이후 `GameScene.js`를
+건드릴 때 이 메서드를 지우지 않도록 HANDOFF.md §0/§5에도 굵게 표시해뒀다.
 
 ### [기록] N0 · B · 2026-07-29 (D2) — main.js MockScene 교체
 
@@ -276,6 +300,58 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 **main 빌드:** ✅ / ❌
 ```
+
+---
+
+## [2026-07-31] B · 세션 9 (D4 — 오브젝트 렌더러 + 에셋 파이프라인)
+
+**한 일**
+- **일정 변경 반영**: B 부재가 D4~D7(4일)에서 D6~D7(2일)로 축소 — 작업일이 3일→5일로 늘어서.
+  `HANDOFF.md`·`SYNC.md`의 D4~D7 표기를 전부 D6~D7로 갱신(§1 참고)
+- `src/fx/EnemyView.js` 신설 — 적 화면 표시(archetype별 단색 도형: swarm=원/fast=삼각형/tank=사각형/
+  boss=큰 원). **좌표 갱신 방식을 생성 시점에 한 번만 결정**: 실제 코어는 `EnemyPool.getActive()`를
+  매 프레임 폴링(§3상 읽기 허용, A의 시뮬레이션과 100% 일치), Mock은 `enemySpawned`/`enemyKilled` +
+  `PathSystem.getPointAtDistance()`로 자체 보간(근사치). 오브젝트 풀링 적용(웨이브 40+ 대비)
+- `src/fx/TowerView.js` 신설 — 타워 화면 표시(`towers.json` id별 색 사각형), `objectChanged`(upgraded)로
+  tint/scale 반영해 역사 변천 표현. 유니크 룰상 최대 6개뿐이라 풀링 불필요
+- `UITheme.js`에 `VIEW` 블록 추가(적 색/크기, 타워 크기), `HANDOFF.md` §3 매핑표 반영
+- **에셋 자동 교체 파이프라인** — `vite.config.js`에 `publicDir: 'assets'` 추가(Vite 기본 `/public/`이
+  없어서 대체), `GameScene.preload()`에서 `towers.json`/`enemies.json`의 모든 id/type에 대해
+  `assets/towers/<id>.png`·`assets/enemies/<type>.png` 로드 시도 + `loaderror` 처리, `TowerView`/
+  `EnemyView`가 `scene.textures.exists(key)`로 있으면 이미지·없으면 도형 폴백. 더미 PNG로 실제 검증 완료
+  (검증 후 삭제 — 진짜 에셋 아님)
+- **🚨 부수 발견·수정(§2 N3): `GameScene.js`에 Phaser `update()`가 없어서 실제 코어의 웨이브 진행·적
+  이동이 전혀 안 돌고 있었다.** `EnemyView`를 실제 코어로 검증하다가 발견. `update(time,delta){
+  this.core?.update?.(delta); }` 한 줄 추가로 해결. **지난 세션의 "실제 코어 스모크 테스트 통과"는
+  이 버그 때문에 불완전한 검증이었다** — 타워 배치는 됐지만 시간 기반 시뮬레이션은 실제로 돈 적이 없었음
+- `HANDOFF.md` §0/§3/§5/§6/§8 갱신 — 렌더러 완료 반영, `update()` 버그 경고, 에셋 파이프라인 검증
+  완료 표시, 촬영 대본 컷 2를 실제 화면 기준으로 수정(더 이상 빈 화면에 숫자만 뜨지 않음)
+
+**검증**: headless Chromium으로 (1) Mock 모드 — 적이 archetype별 색·모양으로 스폰되어 실제로 경로를
+따라 이동하는 것 확인(스크린샷 시계열 비교) (2) 실제 `GameCore.js`로 스왑 — `update()` 수정 전엔 적이
+전혀 안 움직이는 것 확인 → 수정 후 스웜(뭉친 원)·삼각형이 정상 이동, 실전투(데미지 숫자)까지 확인
+(3) 타워 배치 시 사각형이 정확한 위치·색으로 렌더링 (4) `BuildUI`/`DraftOverlay` 잠금과 렌더러가
+서로 안 부딪히는 것 확인 (5) 에셋 파이프라인 — 더미 PNG 2개만 로드 성공, 나머지는 그대로 폴백
+
+**지금 되는 것 / 안 되는 것**
+- 됨: 타워·적이 전부 화면에 보임(플레이스홀더 도형). 에셋 자동 교체 파이프라인 동작. 실제 코어의
+  시간 기반 시뮬레이션이 이제 정상 작동
+- 안 됨: 에셋 자체는 여전히 0장(파이프라인만 완성). `TowerView`는 재배치 시 좌표 갱신 불가(§5, 재배치
+  UI 자체가 없어서 실질 영향 없음). Mock의 적 이동은 슬로우/스턴 미반영 근사치
+
+**상대에게 필요한 것**
+- `GameCore.reset()`(§3 C5) — 여전히 미해결
+- **`GameScene.js`의 `update()` 메서드를 실수로 지우지 말 것**(§2 N3) — 지우면 실제 코어 시뮬레이션이 재차 멈춘다
+- `feat/game-core` 브랜치를 그대로 병합하지 말 것(§2 N1, 계속 유효)
+
+**내가 한 가정**
+- 없음. 렌더러 방식(코어 종류별 분기)은 사용자에게 먼저 보고하고 승인받은 뒤 구현
+
+**다음 세션에 할 것**
+- 에셋 PNG 실제 납품(우선순위: N서울타워→청계천→적 3종→보스→나머지 랜드마크→서포터→장애물)
+- 여유 있으면 `Debug.js`(웨이브 점프 등) 또는 obstacle 배치 흐름
+
+**main 빌드:** ✅
 
 ---
 
