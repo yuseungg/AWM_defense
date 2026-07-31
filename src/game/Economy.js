@@ -14,9 +14,14 @@ const DEFAULT_START_GOLD = 200;
 
 export function createEconomy(startGold = waves.startGold ?? DEFAULT_START_GOLD) {
   let gold = startGold;
+  let goldMul = 1; // 서울시청(전역 처치골드↑) 반영. WaveManager.recalculateBuffs()가 갱신한다(§5-2)
 
   function getGold() {
     return gold;
+  }
+
+  function setGoldMul(mul) {
+    goldMul = mul;
   }
 
   function add(amount) {
@@ -32,7 +37,7 @@ export function createEconomy(startGold = waves.startGold ?? DEFAULT_START_GOLD)
   }
 
   function addKillReward(enemyDef) {
-    add(enemyDef.reward);
+    add(Math.round(enemyDef.reward * goldMul));
   }
 
   function addWaveClearBonus(wave) {
@@ -50,6 +55,7 @@ export function createEconomy(startGold = waves.startGold ?? DEFAULT_START_GOLD)
     addKillReward,
     addWaveClearBonus,
     addInstantWaveBonus,
+    setGoldMul,
   };
 }
 

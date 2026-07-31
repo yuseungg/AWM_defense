@@ -22,15 +22,19 @@ import applyHits from './Combat.js';
 import Economy from './Economy.js';
 import LevelSystem from './LevelSystem.js';
 import PerkSystem from './PerkSystem.js';
+import GridSystem from './GridSystem.js';
 
 const ENEMY_TYPES = ['dust', 'car', 'trash'];
 const SEASON_CYCLE_LENGTH = 40; // seasons 배열이 덮는 웨이브 범위(1~40)
+const OBSTACLE_HIT_RADIUS = GridSystem.cell / 2;
 
 export function createWaveManager({ perksProvider, getLevel } = {}) {
   const getPerks = perksProvider ?? (() => ({ globalDamage: 0, globalCrit: 0, globalPierce: 0 }));
   const readLevel = getLevel ?? (() => 1);
 
   const towers = [];
+  const supports = [];
+  const obstacles = [];
   let enemySeq = 0;
 
   const state = {
@@ -54,13 +58,52 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
   EnemyPool.setOnEnemyDeath(onEnemyDeath);
   EnemyPool.setOnEnemyReachCore(onEnemyReachCore);
 
-  // ── 타워 레지스트리
+  // ── 타워·서포터·장애물 레지스트리
   function addTower(tower) { towers.push(tower); }
   function removeTower(tower) {
     const idx = towers.indexOf(tower);
     if (idx !== -1) towers.splice(idx, 1);
   }
   function getTowers() { return towers; }
+
+  function addSupport(support) { supports.push(support); }
+  function removeSupport(support) {
+    const idx = supports.indexOf(support);
+    if (idx !== -1) supports.splice(idx, 1);
+  }
+  function getSupports() { return supports; }
+
+  function addObstacle(obstacle) { obstacles.push(obstacle); }
+  function removeObstacle(obstacle) {
+    const idx = obstacles.indexOf(obstacle);
+    if (idx !== -1) obstacles.splice(idx, 1);
+  }
+  function getObstacles() { return obstacles; }
+
+  /**
+   * 오라 재계산 (CLAUDE.md §5-2, 이벤트 기반 — 매 프레임 거리 계산 금지).
+   * 호출 시점: 타워/서포터 건설·재배치·강화(GameCore가 호출).
+   */
+  function recalculateBuffs() {
+    towers.forEach(t => t.resetToBase());
+
+    supports
+      .filter(s => s.def.effect.type.startsWith('aura'))
+      .forEach(support => {
+        towers
+          .filter(t => Math.hypot(t.x - support.x, t.y - support.y) <= support.def.effect.radius)
+          .forEach(t => t.applyBuff({ type: support.def.effect.type, value: support.effectiveValue }));
+      });
+
+    applyGlobalEffects();
+    EventBus.emit(EV.buffsRecalculated, { towerStats: towers });
+  }
+
+  /** 퍼크는 Combat.js가 매 히트 PerkSystem.get()을 직접 읽어서 캐싱이 필요 없다. 정책은 P3 미구현. */
+  function applyGlobalEffects() {
+    const cityHall = supports.find(s => s.def.effect.type === 'globalGold');
+    Economy.setGoldMul(cityHall ? 1 + cityHall.effectiveValue : 1);
+  }
 
   // ── 계절 결정. wave>40이면 seasonLoopFrom 기준 40주기로 순환(난이도 스케일은 원래 wave로 계속 오름)
   function resolveSeason(wave) {
@@ -149,12 +192,42 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
     const enemies = EnemyPool.getActive();
     for (let i = enemies.length - 1; i >= 0; i--) enemies[i].update(scaledDt);
 
+    updateObstacles(scaledDt, enemies);
+
     // 스폰/발사는 prep phase엔 멈추지만, 이미 날아가던 투사체는 계속 처리해서
     // 이전 웨이브의 유탄이 prep phase 내내 허공에 멈춰있지 않게 한다.
     if (!state.isPrepPhase) towers.forEach(tower => fireTower(tower, scaledDt));
 
     const projectiles = ProjectilePool.getActive();
     for (let i = projectiles.length - 1; i >= 0; i--) projectiles[i].update(scaledDt);
+  }
+
+  /**
+   * 쿨다운이 찬 장애물마다 반경 내 "전부"의 적에게 효과를 적용한다(스웜 대응).
+   * 반경(칸 절반)·쿨다운으로 이미 제한되므로 밸런스는 P4에서 obstacles.json 수치만 조정하면 된다.
+   */
+  function updateObstacles(dt, enemies) {
+    obstacles.forEach(obstacle => {
+      obstacle.cooldownRemaining = Math.max(0, obstacle.cooldownRemaining - dt);
+      if (obstacle.cooldownRemaining > 0) return;
+
+      const targets = enemies.filter(
+        e => e.alive && Math.hypot(e.x - obstacle.x, e.y - obstacle.y) <= OBSTACLE_HIT_RADIUS
+      );
+      if (!targets.length) return;
+
+      const payload = obstacle.effectivePayload;
+      targets.forEach(enemy => {
+        enemy.applyEffect(payload);
+        EventBus.emit(EV.statusApplied, { enemyId: enemy.id, type: payload.type, duration: payload.duration });
+      });
+
+      obstacle.cooldownRemaining = obstacle.def.effect.cooldown;
+      EventBus.emit(EV.obstacleTriggered, {
+        instanceId: obstacle.instanceId, type: obstacle.id, x: obstacle.x, y: obstacle.y,
+        cooldown: obstacle.def.effect.cooldown,
+      });
+    });
   }
 
   function fireTower(tower, dt) {
@@ -278,6 +351,13 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
     addTower,
     removeTower,
     getTowers,
+    addSupport,
+    removeSupport,
+    getSupports,
+    addObstacle,
+    removeObstacle,
+    getObstacles,
+    recalculateBuffs,
     update,
     startNextWave,
     setPaused,

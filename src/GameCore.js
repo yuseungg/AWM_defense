@@ -13,6 +13,8 @@ import supportsData from '../data/supports.json';
 import obstaclesData from '../data/obstacles.json';
 import GridSystem from './game/GridSystem.js';
 import Tower from './game/Tower.js';
+import Supporter from './game/Supporter.js';
+import Obstacle from './game/Obstacle.js';
 import WaveManager from './game/WaveManager.js';
 import Economy from './game/Economy.js';
 import LevelSystem from './game/LevelSystem.js';
@@ -22,13 +24,20 @@ import { EventBus, EV, REJECT } from './EventBus.js';
 
 const seqByType = {};
 
-// 드래프트로 획득한 서포터·장애물 설치권. 실제 배치(GridSystem 연동)는 다음 단계 — 지금은
-// "몇 개를 가지고 있는지"만 추적한다.
+// 드래프트로 획득한 서포터·장애물 설치권.
 let obstaclePicks = 0;
 const supportsOwned = new Set();
 
-function findTower(instanceId) {
-  return WaveManager.getTowers().find(t => t.instanceId === instanceId);
+function nextInstanceId(id) {
+  seqByType[id] = (seqByType[id] ?? 0) + 1;
+  return `${id}#${seqByType[id]}`;
+}
+
+/** 타워 또는 서포터에서 instanceId로 찾는다(장애물은 upgrade/relocate 대상이 아직 아님). */
+function findBuildable(instanceId) {
+  const tower = WaveManager.getTowers().find(t => t.instanceId === instanceId);
+  if (tower) return tower;
+  return WaveManager.getSupports().find(s => s.instanceId === instanceId);
 }
 
 function reject(action, reason) {
@@ -37,9 +46,14 @@ function reject(action, reason) {
 }
 
 function canBuild(id, cellX, cellY) {
-  const def = towersData[id];
-  if (!def) return { ok: false, reason: 'locked' };
+  if (towersData[id]) return canBuildTower(id, cellX, cellY);
+  if (supportsData[id]) return canBuildSupport(id, cellX, cellY);
+  if (obstaclesData[id]) return canBuildObstacle(id, cellX, cellY);
+  return { ok: false, reason: 'locked' };
+}
 
+function canBuildTower(id, cellX, cellY) {
+  const def = towersData[id];
   const gridResult = GridSystem.canPlace('tower', cellX, cellY);
   if (!gridResult.ok) return gridResult;
 
@@ -51,17 +65,37 @@ function canBuild(id, cellX, cellY) {
   return { ok: true };
 }
 
+function canBuildSupport(id, cellX, cellY) {
+  const gridResult = GridSystem.canPlace('support', cellX, cellY);
+  if (!gridResult.ok) return gridResult;
+
+  if (!supportsOwned.has(id)) return { ok: false, reason: 'locked' };
+
+  const alreadyBuilt = WaveManager.getSupports().some(s => s.id === id);
+  if (alreadyBuilt) return { ok: false, reason: 'unique' };
+
+  return { ok: true };
+}
+
+function canBuildObstacle(id, cellX, cellY) {
+  const gridResult = GridSystem.canPlace('obstacle', cellX, cellY);
+  if (!gridResult.ok) return gridResult;
+
+  if (obstaclePicks <= 0) return { ok: false, reason: 'noPick' };
+
+  return { ok: true };
+}
+
 function buildTower(towerId, cellX, cellY) {
   const check = canBuild(towerId, cellX, cellY);
   if (!check.ok) return reject('build', check.reason);
 
-  seqByType[towerId] = (seqByType[towerId] ?? 0) + 1;
-  const instanceId = `${towerId}#${seqByType[towerId]}`;
-
+  const instanceId = nextInstanceId(towerId);
   const tower = new Tower(towerId, instanceId, cellX, cellY);
   WaveManager.addTower(tower);
   GridSystem.occupy(cellX, cellY, { instanceId });
   LevelSystem.addBuildXp('tower');
+  WaveManager.recalculateBuffs(); // 기존 서포터 오라 범위 안에 지어졌을 수 있다
 
   EventBus.emit(EV.objectBuilt, {
     kind: 'tower', id: towerId, instanceId, cellX, cellY, x: tower.x, y: tower.y,
@@ -70,30 +104,69 @@ function buildTower(towerId, cellX, cellY) {
   return { ok: true, instanceId };
 }
 
-function upgrade(instanceId) {
-  const tower = findTower(instanceId);
-  if (!tower || !tower.canUpgrade()) return reject('upgrade', 'locked');
+function buildSupport(supportId, cellX, cellY) {
+  const check = canBuild(supportId, cellX, cellY);
+  if (!check.ok) return reject('build', check.reason);
 
-  const spend = Economy.trySpend(tower.upgradeCost());
+  const instanceId = nextInstanceId(supportId);
+  const support = new Supporter(supportId, instanceId, cellX, cellY);
+  WaveManager.addSupport(support);
+  GridSystem.occupy(cellX, cellY, { instanceId });
+  LevelSystem.addBuildXp('support');
+  WaveManager.recalculateBuffs();
+
+  EventBus.emit(EV.objectBuilt, {
+    kind: 'support', id: supportId, instanceId, cellX, cellY, x: support.x, y: support.y,
+  });
+
+  return { ok: true, instanceId };
+}
+
+function buildObstacle(obstacleId, cellX, cellY) {
+  const check = canBuild(obstacleId, cellX, cellY);
+  if (!check.ok) return reject('build', check.reason);
+
+  obstaclePicks--;
+  const instanceId = nextInstanceId(obstacleId);
+  const obstacle = new Obstacle(obstacleId, instanceId, cellX, cellY);
+  WaveManager.addObstacle(obstacle);
+  GridSystem.occupy(cellX, cellY, { instanceId });
+  LevelSystem.addBuildXp('obstacle');
+
+  EventBus.emit(EV.objectBuilt, {
+    kind: 'obstacle', id: obstacleId, instanceId, cellX, cellY, x: obstacle.x, y: obstacle.y,
+  });
+
+  return { ok: true, instanceId };
+}
+
+function upgrade(instanceId) {
+  const target = findBuildable(instanceId);
+  if (!target || !target.canUpgrade()) return reject('upgrade', 'locked');
+
+  const spend = Economy.trySpend(target.upgradeCost());
   if (!spend.ok) return reject('upgrade', spend.reason);
 
-  tower.upgrade();
-  EventBus.emit(EV.objectChanged, { instanceId, action: 'upgraded', level: tower.level });
+  target.upgrade();
+  WaveManager.recalculateBuffs();
+  EventBus.emit(EV.objectChanged, { instanceId, action: 'upgraded', level: target.level });
   return { ok: true };
 }
 
 function relocate(instanceId, cellX, cellY) {
-  const tower = findTower(instanceId);
-  if (!tower) return reject('relocate', 'locked');
+  const target = findBuildable(instanceId);
+  if (!target) return reject('relocate', 'locked');
 
-  const check = GridSystem.canPlace('tower', cellX, cellY);
+  const kind = WaveManager.getTowers().includes(target) ? 'tower' : 'support';
+  const check = GridSystem.canPlace(kind, cellX, cellY);
   if (!check.ok) return reject('relocate', check.reason);
 
-  GridSystem.release(tower.cellX, tower.cellY);
+  GridSystem.release(target.cellX, target.cellY);
   GridSystem.occupy(cellX, cellY, { instanceId });
-  tower.relocate(cellX, cellY);
+  target.relocate(cellX, cellY);
+  WaveManager.recalculateBuffs();
 
-  EventBus.emit(EV.objectChanged, { instanceId, action: 'relocated', level: tower.level });
+  EventBus.emit(EV.objectChanged, { instanceId, action: 'relocated', level: target.level });
   return { ok: true };
 }
 
@@ -124,8 +197,8 @@ function getState() {
     season: wm.season,
     cityLight: wm.cityLight,
     towers: WaveManager.getTowers(),
-    supports: [],
-    obstacles: [],
+    supports: WaveManager.getSupports(),
+    obstacles: WaveManager.getObstacles(),
     perks: PerkSystem.get(),
     policies: [],
     unlockedTowers: LevelSystem.getUnlockedTowers(),
@@ -143,6 +216,8 @@ export const GameCore = {
 
   canBuild,
   buildTower,
+  buildSupport,
+  buildObstacle,
   upgrade,
   relocate,
   pickDraftCard,
@@ -153,9 +228,7 @@ export const GameCore = {
 
   getState,
 
-  // 스텁 — 각 시스템(P3) 붙으면 구현
-  buildSupport: () => ({ ok: false, reason: 'notImplemented' }),
-  buildObstacle: () => ({ ok: false, reason: 'notImplemented' }),
+  // 스텁 — PolicySystem(P3) 붙으면 구현
   pickPolicy: () => ({ ok: false, reason: 'notImplemented' }),
 };
 
