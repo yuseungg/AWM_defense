@@ -20,6 +20,9 @@ import { W, H } from './ui/mapView.js';
 import { GameScene } from './ui/GameScene.js';
 import { MockScene } from './ui/MockScene.js';
 import { VerifyScene } from './ui/VerifyScene.js';
+// Debug.js는 자기완결형이다 — window keydown을 스스로 등록하고 ?debug=1도 스스로 확인한다.
+// 여기서는 모듈을 로드만 시켜준다(부수효과 목적 import). CLAUDE.md §7.
+import './game/Debug.js';
 
 const params = new URLSearchParams(location.search);
 const MOCK = params.get('mock') === '1';
