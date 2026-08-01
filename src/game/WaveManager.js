@@ -126,15 +126,21 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
     const extra = Math.floor(n / wavesData.countScalePerWaves);
     const hpMul = Math.pow(wavesData.hpScale, n - 1);
 
+    // 웨이브 총 스폰 수 풀: 타입별 spawnCount 범위를 전부 합쳐 하나의 총량으로 쓰고,
+    // mix 비율로 타입에 배분한다(mix=0 → 자연히 0마리, 게이트 없이 산수로 해결).
+    const totalMin = ENEMY_TYPES.reduce((s, t) => s + enemiesData[t].spawnCount[0], 0);
+    const totalMax = ENEMY_TYPES.reduce((s, t) => s + enemiesData[t].spawnCount[1], 0);
+    const total = Math.floor(totalMin + Math.random() * (totalMax - totalMin + 1)) + extra;
+    const mixSum = ENEMY_TYPES.reduce((s, t) => s + (season.mix[t] ?? 0), 0) || 1;
+
     const entries = [];
     ENEMY_TYPES.forEach(type => {
       const ratio = season.mix[type] ?? 0;
-      if (ratio <= 0) return;
+      const share = Math.round((total * ratio) / mixSum);
+      const count = Math.round(share * PolicySystem.getMul('enemySpawnMul', type));
+      if (count <= 0) return;
 
       const base = enemiesData[type];
-      const [min, max] = base.spawnCount;
-      const rawCount = Math.floor(min + Math.random() * (max - min + 1)) + extra;
-      const count = Math.round(rawCount * PolicySystem.getMul('enemySpawnMul', type));
       const interval = wavesData.spawn.intervalByType[type] ?? 0.3;
       const hpPolicyMul = PolicySystem.getMul('enemyHpMul', type);
       const scaledDef = { ...base, baseHp: Math.round(base.baseHp * hpMul * hpPolicyMul) };

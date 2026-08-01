@@ -12,6 +12,7 @@ import perksData from '../data/perks.json';
 import supportsData from '../data/supports.json';
 import obstaclesData from '../data/obstacles.json';
 import policiesData from '../data/policies.json';
+import mapData from '../data/map.json';
 import GridSystem from './game/GridSystem.js';
 import Tower from './game/Tower.js';
 import Supporter from './game/Supporter.js';
@@ -188,6 +189,25 @@ function pickDraftCard(cardId) {
   return { ok: true };
 }
 
+/**
+ * N서울타워(unlockLevel 0)는 플레이어 액션이 아니라 처음부터 있는 것이라 buildTower()를
+ * 안 거친다 — 건설 XP도 안 주고 objectBuilt도 안 쏜다(방금 지은 게 아니라 초기 상태라서).
+ * 함수로 분리해둔 이유: 지금은 모듈 로드 시 1회만 부르지만, GameCore.reset()이 생기면
+ * (SYNC.md C5, B 요청 대기 중) 그 안에서 다시 불러도 안전하도록(이미 있으면 스킵).
+ */
+function ensureNSeoulTower() {
+  if (WaveManager.getTowers().some(t => t.id === 'nseoulTower')) return;
+
+  const pos = mapData.nseoulTower;
+  const { cellX, cellY } = GridSystem.toCell(pos.x, pos.y);
+  const instanceId = nextInstanceId('nseoulTower');
+
+  const tower = new Tower('nseoulTower', instanceId, cellX, cellY);
+  WaveManager.addTower(tower);
+  GridSystem.occupy(cellX, cellY, { instanceId });
+  WaveManager.recalculateBuffs();
+}
+
 function pickPolicy(policyId) {
   if (!policiesData[policyId]) return { ok: false, reason: 'locked' };
 
@@ -219,6 +239,8 @@ function getState() {
     isPrepPhase: wm.isPrepPhase,
   };
 }
+
+ensureNSeoulTower(); // 모듈 로드 시 1회 — 웨이브1부터 조준·발사하려면 여기서 미리 있어야 한다
 
 export const GameCore = {
   update(deltaMs) {

@@ -410,6 +410,34 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 ---
 
+### 📢 C6 · A → B · 2026-08-01 — `main.js`에 `Debug.js` import 한 줄 추가 (통지)
+
+**변경:** `import './game/Debug.js';` 한 줄만 추가(CLAUDE.md §7 디버그 모드: `?debug=1`).
+**이유:** `Debug.js`가 `window` 레벨 `keydown`으로 자기완결 동작해서(씬 무관, `/src/ui/` 안 건드림),
+`main.js`에 로드만 시켜주면 된다. 모듈 자체가 로드 시점에 `?debug=1`을 확인해서 아니면 아무 것도 안 함.
+**⚠️ 참고:** `GameScene.js`가 아직 `MockGameCore.js`를 쓰고 있어서(스왑은 B 담당으로 합의됨),
+지금은 `?debug=1`을 켜도 기본 화면에서 키를 눌러봤자 눈에 보이는 변화가 없다 — `Debug.js`는
+진짜 `GameCore`/`WaveManager`/`Economy`/`LevelSystem`을 직접 조작해서다. 스왑 후에 정상 동작한다.
+**하위 호환:** 기존 씬 선택 로직·다른 import 그대로. 추가만.
+**상대 확인:** (통지 — 별도 승인 대기 없이 바로 사용. 이상 있으면 다음 세션에 정정)
+
+---
+
+### 📢 C7 · A → B · 2026-08-01 — N서울타워를 `GameCore` 자동 생성 — `GameScene` TEMP 있으면 제거 가능
+
+**변경:** `GameCore.js`에 `ensureNSeoulTower()` 추가. 모듈 로드 시 1회 실행돼서 `map.json.nseoulTower`
+위치에 N서울타워를 자동으로 만들어 `WaveManager` 타워 레지스트리에 넣는다. 이미 있으면 스킵(중복 생성 방지 —
+나중에 `GameCore.reset()`(C5)이 생겨서 다시 불러도 안전하도록 함수로 분리해둠). `getState().towers`에
+웨이브1 시작 전부터 포함되고, 웨이브1부터 바로 조준·발사한다(건설 XP·`objectBuilt`는 안 쏨 — 방금 지은 게
+아니라 처음부터 있는 것이라서).
+**요청:** `GameScene.js`(또는 다른 `/src/ui/`)에 N서울타워를 직접 만드는 TEMP 코드가 있으면 제거해도 됩니다
+— 지금 `main`을 찾아봤을 땐 안 보였는데, 로컬에 아직 커밋 안 하신 게 있을까 봐 남겨둡니다.
+**하위 호환:** `GameCore.js` 내부 로직 추가만. 시그니처·`getState()` 키 이름 변경 없음(기존에 빈 배열이던
+`towers`가 이제 최소 1개는 채워져 있다는 것만 다름).
+**상대 확인:** (통지 — 별도 승인 대기 없이 바로 사용. 이상 있으면 다음 세션에 정정)
+
+---
+
 ## 📝 4. 세션 로그 — 최신이 위
 
 > **템플릿을 복사해서 세션 끝날 때마다 맨 위에 추가한다. 5분이면 쓴다.**
@@ -999,6 +1027,7 @@ core 상태를 안 건드림 — 이미 알려진 특성) → `MockGameCore.js`�
 | D17 | 2026-07-28 | `GameCore` 좌표 = **셀 인덱스** · 반환 = **`{ ok, reason?, instanceId? }`** · `canBuild`도 객체 | boolean이면 실패 이유를 UI가 못 쓴다 |
 | D18 | 2026-07-28 | `instanceId` = `"cheonggyecheon#1"` 문자열 · `getState()` **매 프레임 호출 금지** | 로그 가독성 / 웨이브 40+ 성능 조항 |
 | D19 | 2026-07-30 | §5-1 데미지 공식 의사코드 오탈 정정: `tower.strongAgainst?.[enemy.id]` → `def.strongAgainst?.[enemy.type]` | `strongAgainst` 키는 종(species) id인데(`enemies.json`의 `id`), `enemy.id`는 스폰마다 고유한 인스턴스 id라 실제 데이터와 안 맞았다. `Enemy.js`/`Combat.js` 구현 기준으로 정정 |
+| D20 | 2026-08-01 | B가 발견한 버그 2건(§2 N2 · N3 문맥과 별개로 채팅 공유) **실제 적용** — `Tower.js` 쿨다운 `1/attackSpeed` → `attackSpeed`, `enemies.json` `speed` 130/385/80/95(dust/car/trash/boss)로 재조정 | 둘 다 `/src/game/`·`/data/*.json` 수치 필드라 A 소유 영역이라 B는 발견만 하고 A가 반영. `attackSpeed`는 GAME_DESIGN §6-3상 "발사 간격 초"라 그대로 쿨다운이어야 하는데 역수를 써서 빠른 타워가 느리게 쏘고 있었음. speed는 경로가 길어져 사거리 체류시간이 부족해 타워가 못 잡던 걸 정정(밸런스값, P4 재조정 가능) |
 
 > **✅ D9~D18은 2026-07-28 P0 통화에서 A와 합의 완료.** §3의 C1·C2·C3 전부 승인됨.
 
