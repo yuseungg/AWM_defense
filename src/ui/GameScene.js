@@ -21,7 +21,7 @@ import { Controls } from './Controls.js';
 import { GameOverScene } from './GameOverScene.js';
 import { BuildUI } from './BuildUI.js';
 import { drawMap, H } from './mapView.js';
-import { COLOR, DMG } from './UITheme.js';
+import { COLOR, DMG, HUD as HUDT } from './UITheme.js';
 import perksData from '../../data/perks.json';
 import obstaclesData from '../../data/obstacles.json';
 import supportsData from '../../data/supports.json';
@@ -31,6 +31,7 @@ import enemiesData from '../../data/enemies.json';
 
 const FXTEST = new URLSearchParams(location.search).get('fxtest') === '1';
 const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
+const REAL = new URLSearchParams(location.search).get('real') === '1';
 
 export class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
@@ -58,6 +59,10 @@ export class GameScene extends Phaser.Scene {
     // (디스크상 파일 경로는 CLAUDE.md §3 그대로 assets/towers/<id>.png).
     Object.keys(towersData).forEach(id => this.load.image(`tower_${id}`, `towers/${id}.png`));
     Object.keys(enemiesData).forEach(type => this.load.image(`enemy_${type}`, `enemies/${type}.png`));
+    // 서포터/장애물은 아직 화면에 그리는 렌더러가 없다(§0 알려진 미완성) — 텍스처는 미리 로드해둬서
+    // 나중에 렌더러가 생기면 preload() 수정 없이 바로 쓸 수 있게 한다.
+    Object.keys(supportsData).forEach(id => this.load.image(`support_${id}`, `supports/${id}.png`));
+    Object.keys(obstaclesData).forEach(id => this.load.image(`obstacle_${id}`, `obstacles/${id}.png`));
   }
 
   async create() {
@@ -72,10 +77,22 @@ export class GameScene extends Phaser.Scene {
     this.hud = new HUD(this);
 
     // ══ 코어 전환 지점 ══
-    // 실제 GameCore.js가 완성되면 아래 import 한 줄만 교체한다.
-    // 그 외 이 파일의 어떤 부분도 바꿀 필요가 없다. (SYNC.md §6-4 "Mock이 스펙이다")
-    const { GameCore } = await import('../MockGameCore.js');
+    // 기본값 = MockGameCore(전체 루프가 보이는 데모 상태 유지). `?real=1`을 붙이면 실제
+    // GameCore.js로 붙는다 — A가 LevelSystem/DraftSystem 등 자기 진도를 그때그때 확인하는 용도다.
+    // 스텁 4개(buildSupport/buildObstacle/pickDraftCard/pickPolicy)가 전부 채워져서 실제 코어를
+    // "기본값"으로 승격할 때가 오면, 아래 삼항의 기본값 쪽 한 줄만 바꾸면 된다.
+    // (SYNC.md §6-4 "Mock이 스펙이다" / §2 전환 전제 조건 참고)
+    const { GameCore } = REAL
+      ? await import('../GameCore.js')
+      : await import('../MockGameCore.js');
     this.core = GameCore;
+
+    if (REAL) {
+      this.add.text(HUDT.margin, 104, 'REAL CORE', {
+        fontSize: '12px', color: '#ff7043', fontStyle: 'bold',
+        backgroundColor: 'rgba(0,0,0,0.4)', padding: { x: 6, y: 3 },
+      });
+    }
 
     // 배속/일시정지/즉시웨이브. DraftOverlay가 pause 소유권을 조회하므로 draft보다 먼저 만든다
     this.controls = new Controls(this, this.core);

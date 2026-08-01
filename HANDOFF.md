@@ -43,19 +43,44 @@
 코어 스모크 테스트 통과" 기록은 이 버그 때문에 불완전한 검증이었다** — 타워 배치·이벤트 발행까지는
 됐지만 시간 기반 시뮬레이션(웨이브 진행·적 이동)은 실제로 돈 적이 없었다.
 
-**GameCore.js는 이제 저장소에 있지만, 아직 기본으로 켜져 있지 않다.**
+**GameCore.js는 이제 저장소에 있지만, 아직 기본값이 아니다 — `?real=1`로 언제든 확인할 수 있다.**
+**✅ 스왑의 백엔드 조건은 D4에 전부 충족됐다. ⚠️ 단, `BuildUI`(B 소유)의 서포터/장애물 배치 UI가
+아직 없어서 D5에 그것부터 만든 뒤 스왑한다(SYNC.md §2 N7).**
 
-- **전환 방법**: `GameScene.js` 74번째 줄 `// ══ 코어 전환 지점 ══` 주석 바로 아래,
-  77번째 줄의 `const { GameCore } = await import('../MockGameCore.js');`를
-  `await import('../GameCore.js')`로 **한 줄만** 바꾸면 된다. 그 외 `GameScene.js`의
-  어떤 부분도 안 바꿔도 된다.
-- **전환 판단 기준**: `GameCore.js`의 스텁 4개(`buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy`)가
-  전부 실제로 구현돼서 `{ok:true}`를 반환할 때 전환한다. 지금 전환하면 드래프트/서포터/장애물 관련
-  기능이 전부 조용히 실패한다(`DraftOverlay`가 실패를 흡수하도록 만들어져 있어서 게임이 멈추진
-  않지만, 카드를 골라도 아무 효과가 없다).
-- **검증 완료(재검증, D4)**: 위 `update()` 버그를 고친 뒤 다시 헤드리스로 확인 — 타워 배치(`BuildUI`)·
-  즉시 웨이브·**실제 웨이브 진행과 적 이동(`EnemyView` 폴링)**·전투(데미지 숫자)까지 콘솔 에러 없이
-  정상 동작. 확인 후 다시 Mock으로 되돌려놨다.
+A가 D4 세션에 "GameScene 코어 스왑을 자기가 하겠다"고 제안했지만, 그날 시점엔 이르다고 판단해
+보류했었다(§2 N4·N6). 대신 통째로 바꾸는 대신 **URL 플래그로 분기**해서, 기본값은 Mock(전체
+루프가 보이는 데모 상태 유지)으로 두고 A가 `?real=1`로 자기 진도를 그때그때 확인할 수 있게 했다.
+화면 좌상단에 빨간 "REAL CORE" 배지가 뜨면 실제 코어로 도는 중이라는 뜻이다.
+
+- **분기 방법(현재, 스왑 전)**: `GameScene.js` 75~83번째 줄 `// ══ 코어 전환 지점 ══` — 기본값은
+  `MockGameCore.js`, `?real=1`이면 `GameCore.js`. **기본값을 실제 코어로 승격시킬 때(=스왑)**
+  삼항의 기본값 쪽(`: await import('../MockGameCore.js')`) 한 줄만 `GameCore.js`로 바꾸면 된다.
+- **✅ 백엔드 조건 — D4에 충족됨**: N4가 요구한 순서(LevelSystem → DraftSystem → Supporter/Obstacle)를
+  A가 D4 하루 만에 전부 끝냈다(`e015671`→`0dd0ca7`→`f8c6585`). `GameCore.buildSupport`/
+  `buildObstacle`가 이제 실제로 동작한다. **남은 스텁은 `pickPolicy`(보스 정책 효과 적용) 하나뿐**
+  이고, 이건 스왑을 막는 조건이 아니다(보스 정책 카드는 `WaveManager.js`가 자체 구현해서 스왑
+  여부와 무관하게 이미 뜬다 — 골라도 효과가 안 붙을 뿐, D4에 이미 확인함).
+- **⚠️ 프런트엔드는 아직 안 됨 — 이게 D5의 진짜 최우선 작업이다**: `BuildUI.js`(B 소유)는
+  여전히 **타워 클릭 배치만** 처리한다(`grep -n "buildSupport\|buildObstacle" src/ui/BuildUI.js`로
+  확인 — 서포터는 오라 원 표시를 위해 읽기만 할 뿐 배치 트리거가 없다). 즉 `GameCore`가 준비돼도
+  **플레이어가 서포터/장애물 카드를 뽑을 방법은 있어도 맵에 놓을 방법이 없다** — 지금 스왑하면
+  드래프트 카드 3장 중 서포터/장애물이 나와도 여전히 죽은 카드처럼 보인다(N6이 걱정했던 문제가
+  API 레벨에서만 풀리고 UI 레벨에선 그대로 남아있다). **D5에 이 UI부터 만들고 나서 스왑한다.**
+- **D5 절차(SYNC.md §2 N7에 상세)**: ① `BuildUI.js`에 서포터/장애물 배치 흐름 추가(최우선)
+  ② A의 `feat/game-core`에서 바뀐 파일만 골라 가져오기(브랜치 전체 병합 금지 — §0 하단 경고)
+  ③ `GameScene.js` 기본값을 `GameCore.js`로 교체 ④ 전체 시나리오 재검증(타워·서포터·장애물 배치,
+  드래프트 3장, 보스 정책) ⑤ `/docs/baseline/` 재촬영 ⑥ §8 촬영 대본 갱신.
+- **`?real=1` 검증 결과(D4 시점, 스왑 전 마지막 확인)** — 되는 것: 타워 배치(`BuildUI`+`TowerView`)·
+  적 스폰과 이동(`EnemyView` 폴링, `update()` 수정 덕분에 실제로 돎)·웨이브 진행·전투(데미지
+  숫자·상성)·골드 경제·조명 체력·배속/일시정지/즉시웨이브·보스전(정책 카드 3장 실제로 뜸)까지
+  콘솔 에러 없이 정상 동작.
+- **🚨 `DraftOverlay.js` 안전판(D4, `main`에 있음, 절대 지우지 말 것)**: A의 `LevelSystem.js`가
+  XP/레벨/`unlockedTowers` 자동 해금을 붙였을 때, `levelUp`의 `draftCards`가 한동안(`DraftSystem`
+  붙기 전) 항상 빈 배열이었다. 그 상태로 `DraftOverlay`가 열리면 **화면이 어두워진 채 영구
+  정지**하는 버그가 있었다 — B가 미리 발견해서 `DraftOverlay.show()`에 "카드 0장이면 안 연다"
+  가드를 추가해뒀다(SYNC.md §2 N5). 지금은 `DraftSystem`이 붙어서 실제로 빈 배열이 올 일은
+  없어졌지만, **가드 자체는 일반적인 안전판으로 계속 남겨둔다**(앞으로 `policyCards`가 어떤
+  이유로든 비는 엣지 케이스에도 대응).
 
 **⚠️ `feat/game-core` 브랜치를 그대로 병합하지 말 것.** 그 브랜치의 `main.js`는 B가 D2에 리팩터링
 (GameScene/MockScene/VerifyScene/mapView.js 분리)하기 **이전** 시점 기준이다. A가 브랜치에 추가한
@@ -70,17 +95,18 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 
 ---
 
-## 1. URL 플래그 5종
+## 1. URL 플래그 6종
 
 | 플래그 | 씬 | 용도 | 소유 |
 |---|---|---|---|
-| (기본, 없음) | `GameScene` | 실제 게임 화면 | 공용 |
-| `?mock=1` | `MockScene` | Mock 이벤트 모니터(진단용) — "이벤트가 안 오는지 vs UI가 안 그리는지" 구분 | B |
+| (기본, 없음) | `GameScene` | 실제 게임 화면(`MockGameCore`로 동작) | 공용 |
+| `?mock=1` | `MockScene` | Mock 이벤트 모니터(진단용) — "이벤트가 안 오는지 vs UI가 안 그리는지" 구분. `GameScene`과 무관한 별도 씬(변경 없음) | B |
 | `?verify=1` | `VerifyScene` | 경로 검증 — 격자 정렬(40k+20)·완주 시간 자동 검사. `speed` 튜닝 시 유일한 회귀 검증 화면 | 공용(A가 주로 씀) |
 | `?fxtest=1` | `GameScene` 내부 | FX/드래프트 검증 키 | **B 영역** |
 | `?debug=1` | `GameScene` 내부 | 웨이브 점프(1~9)·골드(G)·XP(X)·적전멸(K)·무적(H)·배속 (`CLAUDE.md` §7) | **A 영역** |
+| `?real=1` | `GameScene` 내부 | **D4 신규.** `MockGameCore` 대신 실제 `GameCore.js`로 붙는다. 화면 좌상단에 빨간 "REAL CORE" 배지가 뜬다. A가 자기 진도 확인용(§0 참고) | A |
 
-`?fxtest=1`과 `?debug=1`은 숫자 키가 겹치면 서로 무력화되므로 **완전히 분리된 플래그**다. 서로 조합해서 켜도 무방(각 씬이 무관한 플래그는 무시).
+`?fxtest=1`과 `?debug=1`은 숫자 키가 겹치면 서로 무력화되므로 **완전히 분리된 플래그**다. 서로 조합해서 켜도 무방(각 씬이 무관한 플래그는 무시). `?real=1`은 숫자 키를 안 쓰므로 `?debug=1`과 같이 켜도 안전하다(`?real=1&debug=1`).
 
 ---
 
@@ -176,7 +202,7 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 |---|---|
 | `SeoulTowerLight.js` | 색 보간 tween과 델타(하강 폭) 티어 판정이 맞물려 있다. 과거 실제 버그(`camera.flash`의 `force` 기본값이 `false`라 보스급 플래시가 조용히 씹힘)가 이 파일에서 나왔다 — 상수 하나 잘못 옮겨도 "보스 관통인데 일반 관통처럼 보인다"는 발견하기 어려운 시그널 손실이 생긴다 |
 | `DamageNumber.js` | 프리 리스트/활성 리스트 풀링(스왑 삭제, "가장 오래된 것" 축출, eviction 스로틀)이 정교하게 맞물려 있다. 로직을 잘못 옮기면 웨이브 40+에서야 터지는 조용한 메모리 누수나 "숫자가 안 사라짐" 버그가 생긴다 — 심사 직전에 나오면 못 고친다 |
-| `DraftOverlay.js` | **이 프로젝트에서 유일하게 "게임이 통째로 멈추는" 실패 모드를 가진 파일이다.** `pick()`이 `closeCurrent()`를 호출하지 않는 경로가 생기면 `setPaused(true)` 상태로 게임이 영구 정지한다. 큐 순서(레벨업→정책)나 안전판(반환값 무관 항상 닫기, `destroy()`의 강제 unpause)을 건드리면 겉보기엔 멀쩡해 보이다가 특정 순서에서만 멈춘다 |
+| `DraftOverlay.js` | **이 프로젝트에서 유일하게 "게임이 통째로 멈추는" 실패 모드를 가진 파일이다.** `pick()`이 `closeCurrent()`를 호출하지 않는 경로가 생기면 `setPaused(true)` 상태로 게임이 영구 정지한다. 큐 순서(레벨업→정책)나 안전판(반환값 무관 항상 닫기, `destroy()`의 강제 unpause)을 건드리면 겉보기엔 멀쩡해 보이다가 특정 순서에서만 멈춘다. **D4에 안전판 하나 더 추가함**(`show()` 맨 앞의 빈 카드 가드) — `draftCards`/`policyCards`가 빈 배열이면 아예 안 열고 `tryShowNext()`로 넘긴다. **이것도 절대 지우면 안 된다** — `DraftSystem`이 붙기 전까지 A의 `LevelSystem.js`는 항상 빈 배열을 보내는데, 이 가드가 없으면 레벨업할 때마다 게임이 멈춘다(SYNC.md §2 N5) |
 
 ---
 
@@ -201,27 +227,34 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 - **`bestWave` localStorage는 A(`WaveManager.js`)가 이미 읽고 쓴다** (`grep -rn "localStorage" src/game/ src/MockGameCore.js`로 확인함 — `WaveManager.js` 39번째 줄에서 읽고 226번째 줄에서 쓴다, `MockGameCore.js`도 동일 패턴).
   **`GameOverScene.js`는 `bestWave`를 저장하지 않는다** — `gameOver` 이벤트의 `isNewRecord`를 그대로
   표시만 한다. B가 중복 저장하면 안 됨(값이 어긋난다).
-- **`GameCore.js`는 이제 저장소에 있다(§0 참고)** — `buildTower`/`canBuild`/`getState`/`setPaused`/`upgrade`/`relocate`는 실제로 동작 확인함(B가 헤드리스로 스모크 테스트). `buildSupport`/`buildObstacle`/`pickDraftCard`/`pickPolicy` 4개는 여전히 스텁(`{ok:false, reason:'notImplemented'}`) — `DraftOverlay`는 이미 이 실패를 흡수하도록 만들어져 있으니 손댈 필요 없다(§4)
-- **`BuildUI`는 타워 배치만 처리한다(오늘 스코프).** 서포터/장애물 배치 UI는 없다 — `buildSupport`/`buildObstacle`가 스텁인 것과 맞물려 있다. 드래프트로 서포터를 뽑아도(Mock 기준) 배치할 UI가 없어 `instanceId`만 `#pending`으로 남는다
-- **오라 원은 실제로 지어진 세운상가가 있을 때만 보인다.** `buildSupport`가 스텁인 지금은 항상 빈 상태다 — `?fxtest=1`의 `C` 키(마우스 추적)로 반경/색/형태만 독립 검증했다. 서포터 배치가 실제로 붙으면 `BuildUI.handleObjectBuilt`가 `objectBuilt`(kind:'support') 이벤트만으로 자동으로 원을 그린다(추가 작업 불필요)
-- **✅ 적/타워 렌더러는 이제 있다(D4, `EnemyView.js`/`TowerView.js`).** 아래 세 가지는 여전히 남은 갭:
+- **이 저장소(`main`/`feat/ui`)의 `GameCore.js`는 아직 D3 시점 버전이다** — `buildTower`/`canBuild`/
+  `getState`/`setPaused`/`upgrade`/`relocate`만 구현돼 있고 `buildSupport`/`buildObstacle`/
+  `pickDraftCard`/`pickPolicy` 4개는 스텁이다. **A의 브랜치(`feat/game-core`)에는 이미 4개 중 3개
+  (`buildSupport`/`buildObstacle`/`pickDraftCard`)가 구현돼 있다** — D5에 스왑할 때 같이 가져온다
+  (§0 참고). `pickPolicy`만 A 쪽에도 아직 스텁.
+- **🚨 `BuildUI`는 타워 배치만 처리한다 — 서포터/장애물을 맵에 놓는 UI가 없다.** D5에 A의
+  `buildSupport`/`buildObstacle`를 가져와도 **이 UI가 없으면 아무 의미가 없다**(§0 상단에 자세히
+  적어둠). D5 최우선 작업. 오라 원(세운상가 반경 표시)은 이미 준비돼 있다 — `BuildUI.handleObjectBuilt`가
+  `objectBuilt`(kind:'support') 이벤트만으로 자동으로 그리게 만들어놨으니, 배치 UI만 생기면
+  추가 작업 없이 바로 뜬다(`?fxtest=1`의 `C` 키로 반경/색/형태는 이미 독립 검증함).
+- **✅ 적/타워 렌더러는 이제 있다(D4, `EnemyView.js`/`TowerView.js`, D4에 실루엣도 개선).** 남은 갭:
   - **`TowerView`는 `relocate`(재배치) 시 위치를 못 옮긴다.** `objectChanged` 페이로드에 좌표가 없어서다
-    (EventBus.js 계약상 `{instanceId, action, level}`뿐 — `BuildUI`의 오라 추적과 동일한 gap, §2 참고).
+    (EventBus.js 계약상 `{instanceId, action, level}`뿐 — `BuildUI`의 오라 추적과 동일한 gap).
     실질 영향 없음 — 드래그 재배치 UI 자체가 아직 없어서 이 경로가 발생하지 않는다.
   - **`EnemyView`의 Mock 경로(자체 보간)는 슬로우/스턴/DoT를 반영하지 않는다.** `enemies.json`의 고정
     `speed`로만 전진한다 — 실제 코어(폴링 경로)는 100% 정확하다. Mock은 연출 검증용이라 허용 범위.
-  - **적/타워 색은 전부 플레이어 시점 상단(북쪽)에서 본 단색 도형이다.** 회전·방향 표시 없음(에셋이
-    들어오면 자연스럽게 해결됨).
+  - **적/타워는 전부 방향·회전 없는 정면 실루엣이다.** 에셋이 들어오면 자연스럽게 나아짐.
 - **🔴 D4에 발견·수정: `GameScene.js`에 Phaser `update()`가 없어서 실제 코어의 시간 기반 시뮬레이션
   (웨이브 진행·적 이동·투사체·타워 발사)이 전혀 안 돌고 있었다.** `update(time, delta) { this.core?.update?.(delta); }`
   한 줄 추가로 해결(§0 참고). **A가 실제 코어 관련 새 기능을 테스트할 때 "왜 안 움직이지"가 나오면
   이 메서드가 살아있는지부터 확인한다** — 실수로 지워지면 똑같은 증상이 재발한다.
+- **실제 PNG 에셋은 아직 0장이다.** 파이프라인·스타일 가이드(`/docs/ASSET_GUIDE.md`)·플레이스홀더
+  실루엣은 전부 준비됐다(§6) — 남은 건 실제로 그리는 것뿐. D6~D7에 B가 폰으로 채운다.
 - **`Particles.js`/`StatusFx.js`/`SkyTint.js`/`BossAlert.js` 파일 자체가 없다.** `UITheme.js`의 `PARTICLE`/`SHAKE` 상수는 존재하지만 아무 코드도 이걸 읽지 않는다(§3에 표시해둠)
 - **`TitleScene.js`/`UpgradeUI.js`/`CodexUI.js` 미착수** (`Controls.js`/`GameOverScene.js`/`BuildUI.js`는 완료 — §0 참고)
-- A 쪽 `LevelSystem.js`/`PerkSystem.js`/`DraftSystem.js`/`Supporter.js`/`Obstacle.js`/`Debug.js` 미착수
-- **`BuildUI`는 타워 배치만 처리한다.** 서포터/장애물 배치 UI는 없다 — `buildSupport`/`buildObstacle`가 스텁인 것과 맞물려 있다. 드래프트로 서포터를 뽑아도(Mock 기준) 배치할 UI가 없어 `instanceId`만 `#pending`으로 남는다
-- **오라 원은 실제로 지어진 세운상가가 있을 때만 보인다.** `buildSupport`가 스텁인 지금은 항상 빈 상태다 — `?fxtest=1`의 `C` 키(마우스 추적)로 반경/색/형태만 독립 검증했다. 서포터 배치가 실제로 붙으면 `BuildUI.handleObjectBuilt`가 `objectBuilt`(kind:'support') 이벤트만으로 자동으로 원을 그린다(추가 작업 불필요)
-- **정책/드래프트 픽이 실제로 반영되는지 검증 불가.** `MockGameCore`에서는 반영되지만(퍼크 누적 등) 실제 `GameCore`는 아직 스텁이라 확인할 방법이 없다
+- **A 쪽 나머지 미완성: `pickPolicy`(보스 정책 효과 적용)·장애물 강화**(`Obstacle`이 아직 `upgrade`
+  대상이 아님 — `GameCore.findBuildable`이 타워/서포터만 찾는다). `Debug.js`도 여전히 없음(§8 참고).
+  둘 다 절대 사수엔 영향 없어서, D5에 A가 여유 있으면 이어서 하고 아니면 그대로 제출해도 된다
 
 ---
 
@@ -246,6 +279,18 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 
 **B가 부재 중에도 폰으로 GitHub 웹에 `assets/towers/gwanghwamun.png`처럼 파일 하나만 올리면,
 다음 배포 빌드부터 자동으로 반영된다.** A가 코드를 손댈 필요가 전혀 없다.
+
+**D4 갱신**: `supports.json`/`obstacles.json`도 같은 방식으로 `preload()`에 추가해뒀다
+(`assets/supports/<id>.png`, `assets/obstacles/<id>.png`) — 화면에 그리는 렌더러는 아직 없지만
+텍스처는 미리 로드해두니 렌더러가 생기면 코드 변경 없이 바로 반영된다.
+
+**스타일 기준·프롬프트 템플릿·14종 우선순위는 `/docs/ASSET_GUIDE.md`를 본다.** B가 D6~D7 부재
+중 폰으로 에셋을 만들 때 참고할 유일한 문서 — 색상·규격·실루엣 규칙·완성된 프롬프트 14개가 전부
+그대로 복붙 가능한 형태로 들어있다.
+
+**플레이스홀더도 D4에 개선했다** — 에셋이 하나도 없어도 랜드마크 6종·적 4종이 전부 서로 다른
+도형 실루엣으로 구분된다(`TowerView.js`/`EnemyView.js`, `ASSET_GUIDE.md` §4 규칙과 동일한 형태
+기준 적용). "도형이라 게임처럼 안 보인다"는 문제는 에셋이 안 들어와도 상당 부분 해소됐다.
 
 ---
 
@@ -276,14 +321,17 @@ archetype별 도형 적)을 그대로 찍을 수 있다** — 아래 컷 2 지�
 
 ### 시나리오 판단 — (A) 실제 코어 vs (B) Mock
 
-**확인 절차:** `GameScene.js` 77번째 줄 `await import('../MockGameCore.js')`를
-`await import('../GameCore.js')`로 바꾸고 웨이브 5까지 진행해본다.
+**확인 절차(D4부터 훨씬 쉬워짐):** URL에 `?real=1`만 붙이고(파일 수정 불필요, §0·§1 참고)
+웨이브 5까지 진행해본다.
 - 실제 처치로 레벨업 카드가 뜨고, 카드를 고르면 `pickDraftCard`가 `{ok:true}`를 반환한다
-  → **(A) 실제 코어로 촬영.** 이게 최선이다 — 아래 각 컷의 "(A)" 지시를 따른다.
+  → **(A) `?real=1`로 촬영.** 이게 최선이다 — 아래 각 컷의 "(A)" 지시를 따른다.
 - 카드가 안 뜨거나(`LevelSystem` 미완성), 픽이 `{ok:false, reason:'notImplemented'}`면
-  → **(B) Mock으로 촬영.** `GameScene.js` import를 도로 `MockGameCore.js`로 돌려놓고
-  아래 각 컷의 "(B)" 지시를 따른다. **연출(조명·데미지숫자·드래프트 오버레이·게임오버)은 전부 진짜고
-  데이터만 시뮬레이션이다 — 안 찍는 것보다 훨씬 낫다.**
+  → **(B) 기본 URL(Mock)로 촬영.** 아래 각 컷의 "(B)" 지시를 따른다. **연출(조명·데미지숫자·
+  드래프트 오버레이·게임오버)은 전부 진짜고 데이터만 시뮬레이션이다 — 안 찍는 것보다 훨씬 낫다.**
+- **D4 시점 실측: (B)다.** `?real=1`로 직접 확인함 — XP/레벨이 영구 고정이라(`LevelSystem` 부재)
+  레벨업 카드가 원천적으로 안 뜬다(§0 "`?real=1` 검증 결과" 참고). `LevelSystem`이 생기면 이 판단을
+  다시 해본다. 단, **보스 정책 카드는 `?real=1`에서도 실제로 뜬다**(`WaveManager.js` 자체 구현) —
+  컷 5는 (A)/(B) 둘 다 시도해볼 만하다.
 
 이 판단은 컷 3(드래프트)·컷 5(보스)에서만 실제로 갈린다. 컷 1·2·6·7은 (A)/(B) 상관없이 동일하다
 (전부 `EventBus`에 직접 꽂혀 있는 `?fxtest=1` 연출이라 어느 코어를 쓰든 똑같이 동작한다).
@@ -327,8 +375,9 @@ A가 D6~D7에 이걸 만들면 (A) 시나리오 촬영이 훨씬 쉬워진다(�
 
 ### 컷 3 — 레벨업 드래프트 (12-20s, 8초)
 
-- **(A) 실제 코어**: 3배속으로 전환 후 "즉시 웨이브" 버튼을 연타해서 실제 레벨업이 뜰 때까지 진행 →
-  카드 3장 오버레이가 뜨면 배속을 1x로 낮추고 카드 하나를 클릭
+- **(A) `?real=1`**: 3배속으로 전환 후 "즉시 웨이브" 버튼을 연타해서 실제 레벨업이 뜰 때까지 진행 →
+  카드 3장 오버레이가 뜨면 배속을 1x로 낮추고 카드 하나를 클릭 (D4 시점엔 안 뜬다 — 위 "시나리오
+  판단" 참고, `LevelSystem` 생긴 뒤 재시도)
 - **(B) Mock**: `?fxtest=1` → `D` 키 (레벨업 드래프트 3장 강제, 해금 배너까지 같이 뜬다) → 카드 하나 클릭
 - **성공 기준**: 카드 3장 + 상단에 "OO 해금!" 배너(레벨이 딱 맞을 때만) + 카드 안에 효과 설명 한 줄이
   다 보임. 클릭하면 0.3초 안에 오버레이가 닫히고 게임이 바로 재개됨(멈춰 있으면 안 됨)
@@ -350,9 +399,11 @@ A가 D6~D7에 이걸 만들면 (A) 시나리오 촬영이 훨씬 쉬워진다(�
 
 ### 컷 5 — 보스 등장 → 처치 → 정책 3장 (28-38s, 10초)
 
-- **(A) 실제 코어**: `?debug=1`의 웨이브 점프가 있으면 5(또는 `waves.json`의 `boss.everyWaves`)로 점프.
-  없으면 3배속 + 즉시 웨이브 연타로 보스 웨이브까지 도달 → 보스가 뜨면 배속을 낮추고 실제 전투로 처치
-  (타워가 없으면 못 잡는다 — 컷 3 이후 상태를 이어서 쓰거나, 미리 타워 여러 개를 배치해둔다)
+- **(A) `?real=1`**: `?debug=1`의 웨이브 점프가 있으면 같이 켜서(`?real=1&debug=1`) 5(또는
+  `waves.json`의 `boss.everyWaves`)로 점프. 없으면 3배속 + 즉시 웨이브 연타로 보스 웨이브까지
+  도달 → 보스가 뜨면 배속을 낮추고 실제 전투로 처치(타워가 없으면 못 잡는다 — 컷 3 이후 상태를
+  이어서 쓰거나, 미리 타워 여러 개를 배치해둔다). **D4에 실측 확인함 — 정책 카드 3장은 실제로 뜬다**
+  (`WaveManager.js` 자체 구현이라 `LevelSystem` 유무와 무관)
 - **(B) Mock**: `?fxtest=1` → `F` 키 (보스 정책 카드 3장 강제) — 보스 스폰/체력바 연출 자체는
   `B`(조명 2단계 하강, 보스 관통 시뮬)로 대체 시연 가능하지만 정책 카드가 메인이므로 `F` 하나로 충분
 - **성공 기준**: 정책 카드 3장(레벨업 카드와 레이아웃은 같지만 해금 배너는 없음)이 뜨고 클릭 시 닫힘.
