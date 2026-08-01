@@ -24,6 +24,7 @@ import { Controls } from './Controls.js';
 import { GameOverScene } from './GameOverScene.js';
 import { BuildUI } from './BuildUI.js';
 import { UpgradeUI } from './UpgradeUI.js';
+import { ScreenFrame } from './ScreenFrame.js';
 import { drawMap, H } from './mapView.js';
 import { COLOR, DMG, HUD as HUDT } from './UITheme.js';
 import perksData from '../../data/perks.json';
@@ -76,6 +77,10 @@ export class GameScene extends Phaser.Scene {
   async create() {
     this.cameras.main.setBackgroundColor(COLOR.bg);
     const { tower } = drawMap(this);
+
+    // 레터박스 바 + 테두리 + 모서리 브라켓 — HUD/Controls/건설 바보다 먼저 만들어야
+    // 그 아래(뒤)에 깔린다(Phaser는 depth가 같으면 생성 순서로 z가 정해진다)
+    this.frame = new ScreenFrame(this);
 
     // 조명 = 체력바. SeoulTowerLight가 cityDamaged/cityHealed를 알아서 구독한다
     this.light = new SeoulTowerLight(this, tower.x, tower.y, 13);

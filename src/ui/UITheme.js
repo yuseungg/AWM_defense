@@ -19,11 +19,36 @@ export const COLOR = {
 };
 
 /**
+ * 화면 프레임 — HUD·Controls·건설 바가 맨 캔버스에 텍스트만 떠 있어서 데모처럼 보인다는
+ * 피드백 반영. 상/하단에 반투명 레터박스 바를 깔아 그 안의 UI가 "붙어 있는" 느낌을 주고,
+ * 화면 전체를 얇은 테두리 + 모서리 브라켓으로 감싼다. ScreenFrame.js가 이 값을 읽는다.
+ */
+export const FRAME = {
+  topBarHeight:    120,  // HUD(좌상단)·Controls(우상단)를 전부 담는 높이. ↑ 올리면 더 넉넉해진다
+  bottomBarHeight: 100,  // 건설 바(barY=660)를 담는 높이
+  barAlpha:        0.35, // ↑ 올리면 바가 더 짙어진다(과하면 그 위 텍스트 대비가 죽는다)
+  barBorderColor:  0x3fa7d6,
+  barBorderAlpha:  0.25, // 바와 플레이 영역 사이 경계선. 너무 튀지 않게 낮게 잡음
+
+  borderWidth: 2,
+  borderAlpha: 0.5,      // 화면 바깥 테두리. ↑ 올리면 더 또렷한 "창틀" 느낌이 된다
+
+  bracketLength: 28,     // 모서리 브라켓 한 변 길이
+  bracketInset:  6,      // 모서리에서 안쪽으로 얼마나 띄울지
+  bracketWidth:  3,
+  bracketAlpha:  0.8,
+};
+
+/**
  * 도로 표식 — 컨셉이 "적이 서울 도로를 타고 온다"라서 경로를 실제 차선/화살표가 있는
  * 도로처럼 그린다(mapView.js). 흰색 계열로 통일한다 — 한국 도로에서 진행방향 화살표·차로
  * 구분선은 보통 흰색이고, 노란색은 반대 차선 분리(양방향 도로) 전용이라 여긴 안 맞는다.
  */
 export const ROAD = {
+  edgeColor: 0x4a5468,   // 도로 양쪽 연석선 — 도로 면(COLOR.path)보다 밝은 회색으로 경계를 잡아준다
+  edgeAlpha: 0.9,
+  edgeWidth: 2,          // ↑ 올리면 연석이 더 두꺼워 보인다
+
   laneColor: 0xf2f4f8,
   laneAlpha: 0.35,   // ↑ 올리면 차선이 더 또렷해진다(과하면 그 위 적/타워가 묻힌다)
   laneWidth: 2,

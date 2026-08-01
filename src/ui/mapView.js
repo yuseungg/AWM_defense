@@ -55,6 +55,7 @@ export function drawMap(scene) {
   cellGfx.fillStyle(COLOR.path, 1);
   cells.forEach(([cx, cy]) => cellGfx.fillRect(cx * CELL, cy * CELL, CELL, CELL));
 
+  drawRoadEdges(scene, cells, CELL);
   drawDashedCenterline(scene, path);
   drawDirectionArrows(scene, path);
 
@@ -63,6 +64,24 @@ export function drawMap(scene) {
   scene.add.text(core.x, core.y - 30, '코어', { fontSize: '13px', color: '#f2f4f8' }).setOrigin(0.5);
 
   return { path, cells, core, tower };
+}
+
+/**
+ * 도로 양쪽 경계선(연석) — 도로 셀 집합의 "바깥 테두리"를 그린다. 셀 격자 기반이라 폴리라인
+ * 오프셋 계산(코너에서 이가 어긋나는 문제) 없이, 이웃 셀이 도로가 아닌 변만 골라 그으면
+ * S자로 꺾이는 구간까지 자동으로 딱 맞는다.
+ */
+function drawRoadEdges(scene, cells, cell) {
+  const set = new Set(cells.map(([cx, cy]) => `${cx},${cy}`));
+  const g = scene.add.graphics();
+  g.lineStyle(ROAD.edgeWidth, ROAD.edgeColor, ROAD.edgeAlpha);
+  cells.forEach(([cx, cy]) => {
+    const x = cx * cell, y = cy * cell;
+    if (!set.has(`${cx},${cy - 1}`)) g.lineBetween(x, y, x + cell, y);
+    if (!set.has(`${cx},${cy + 1}`)) g.lineBetween(x, y + cell, x + cell, y + cell);
+    if (!set.has(`${cx - 1},${cy}`)) g.lineBetween(x, y, x, y + cell);
+    if (!set.has(`${cx + 1},${cy}`)) g.lineBetween(x + cell, y, x + cell, y + cell);
+  });
 }
 
 /** 중앙 점선 차선 — 실선 대신 끊어 그려서 "도로" 느낌을 준다. 세그먼트별로 독립 계산해서 꺾이는 지점에서도 자연스럽다. */
