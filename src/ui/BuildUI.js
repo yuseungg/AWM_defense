@@ -14,10 +14,11 @@
 
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
-import { COLOR, BUILD, CONTROLS } from './UITheme.js';
+import { COLOR, BUILD, CONTROLS, VIEW } from './UITheme.js';
 import { CELL, W, H } from './mapView.js';
 import towersData from '../../data/towers.json';
 import supportsData from '../../data/supports.json';
+import obstaclesData from '../../data/obstacles.json';
 
 const FXTEST = new URLSearchParams(location.search).get('fxtest') === '1';
 const MAX_CX = W / CELL - 1;
@@ -29,7 +30,10 @@ export class BuildUI {
     this.core = core;
 
     this.selectedId = null;
+    this.selectedKind = null; // 'tower' | 'support' | 'obstacle' — selectedId만으론 종류가 안 구분됨
     this.builtIds = new Set();
+    this.pendingSupports = new Set();     // 드래프트로 얻었지만 아직 안 지은 서포터 id (유니크 — id당 1개)
+    this.pendingObstacles = new Map();    // 드래프트로 얻었지만 아직 안 지은 장애물 설치 가능 횟수 (id별)
     this.lastCx = null;
     this.lastCy = null;
     this.auraSupports = new Map(); // instanceId → { x, y, radius }
@@ -59,11 +63,13 @@ export class BuildUI {
     this.onObjectBuilt = payload => this.handleObjectBuilt(payload);
     this.onObjectChanged = payload => this.handleObjectChanged(payload);
     this.onRejected = ({ action, message }) => { if (action === 'build') this.showToast(message); };
+    this.onCardPicked = ({ cardId }) => this.handleCardPicked(cardId);
 
     EventBus.on(EV.levelUp, this.onLevelUp, this);
     EventBus.on(EV.objectBuilt, this.onObjectBuilt, this);
     EventBus.on(EV.objectChanged, this.onObjectChanged, this);
     EventBus.on(EV.actionRejected, this.onRejected, this);
+    EventBus.on(EV.cardPicked, this.onCardPicked, this);
 
     this.onPointerMove = pointer => this.handlePointerMove(pointer);
     this.onPointerDown = pointer => this.handlePointerDown(pointer);
@@ -76,29 +82,39 @@ export class BuildUI {
   }
 
   // ────────────────────────────────────────── 선택 바
+  /** 타워(해금순) + 서포터(드래프트로 얻어 미배치) + 장애물(드래프트로 얻어 남은 설치 횟수)을 한 줄로 합친다. */
+  buildItems() {
+    const items = this.unlockedTowers.map(id => ({ id, kind: 'tower', name: towersData[id].name, count: null }));
+    this.pendingSupports.forEach(id => items.push({ id, kind: 'support', name: supportsData[id].name, count: null }));
+    this.pendingObstacles.forEach((count, id) => {
+      if (count > 0) items.push({ id, kind: 'obstacle', name: obstaclesData[id].name, count });
+    });
+    return items;
+  }
+
   buildBar() {
     this.barButtons.forEach(b => b.group.forEach(o => o.destroy()));
     this.barButtons = [];
 
-    const ids = this.unlockedTowers;
-    const totalW = ids.length * BUILD.buttonWidth + (ids.length - 1) * BUILD.buttonGap;
+    const items = this.buildItems();
+    const totalW = items.length * BUILD.buttonWidth + Math.max(0, items.length - 1) * BUILD.buttonGap;
     let x = W / 2 - totalW / 2;
     const y = BUILD.barY;
 
-    ids.forEach(id => {
-      const def = towersData[id];
+    items.forEach(({ id, kind, name, count }) => {
       const cx = x + BUILD.buttonWidth / 2;
-      const built = this.builtIds.has(id);
-      const selected = id === this.selectedId;
+      const built = kind === 'tower' && this.builtIds.has(id);
+      const selected = id === this.selectedId && kind === this.selectedKind;
       const disabled = built || this.locked;
 
       const rect = this.scene.add.rectangle(cx, y, BUILD.buttonWidth, BUILD.barHeight, COLOR.slot)
         .setStrokeStyle(2, selected ? BUILD.selectedBorderColor : COLOR.accent, 0.7);
-      const swatch = this.scene.add.rectangle(
-        cx, y - 12, 16, 16,
-        Phaser.Display.Color.HexStringToColor(def.levels[0].tint).color,
-      );
-      const label = this.scene.add.text(cx, y + 14, def.name, {
+      const swatchColor = kind === 'tower'
+        ? Phaser.Display.Color.HexStringToColor(towersData[id].levels[0].tint).color
+        : (VIEW.objectColor[id] ?? COLOR.accent);
+      const swatch = this.scene.add.rectangle(cx, y - 12, 16, 16, swatchColor);
+      const labelText = count != null ? `${name} x${count}` : name;
+      const label = this.scene.add.text(cx, y + 14, labelText, {
         fontSize: `${BUILD.fontSize}px`, color: '#f2f4f8',
       }).setOrigin(0.5);
       const badge = this.scene.add.text(cx, y - 12, '✓', {
@@ -112,21 +128,34 @@ export class BuildUI {
         rect.setInteractive({ useHandCursor: true });
         rect.on('pointerdown', (_p, _lx, _ly, event) => {
           event.stopPropagation();
-          this.select(id);
+          this.select(id, kind);
         });
       }
 
-      this.barButtons.push({ id, group });
+      this.barButtons.push({ id, kind, group });
       x += BUILD.buttonWidth + BUILD.buttonGap;
     });
   }
 
-  select(id) {
-    this.selectedId = this.selectedId === id ? null : id;
+  select(id, kind) {
+    const same = this.selectedId === id && this.selectedKind === kind;
+    this.selectedId = same ? null : id;
+    this.selectedKind = same ? null : kind;
     this.lastCx = null;
     this.lastCy = null;
     this.previewGfx.clear();
     this.buildBar();
+  }
+
+  /** 픽 직후엔 아직 화면에 없는 카드 종류(서포터/장애물)를 바로 배치 대기열에 추가한다. 퍼크는 배치 불필요(즉시 적용). */
+  handleCardPicked(cardId) {
+    if (supportsData[cardId]) {
+      this.pendingSupports.add(cardId);
+      this.buildBar();
+    } else if (obstaclesData[cardId]) {
+      this.pendingObstacles.set(cardId, (this.pendingObstacles.get(cardId) || 0) + 1);
+      this.buildBar();
+    }
   }
 
   /**
@@ -162,22 +191,33 @@ export class BuildUI {
     this.lastCy = cy;
 
     const check = this.core.canBuild(this.selectedId, cx, cy);
-    this.drawPreview(cx, cy, check.ok);
+    this.drawPreview(cx, cy, check.ok, this.selectedKind);
   }
 
-  drawPreview(cx, cy, ok) {
+  /** 사거리 원(타워, 테두리) / 오라 원(오라형 서포터, 채움) / 셀 하이라이트만(장애물·전역형 서포터) — 형태로 구분(BUILD 절대 사수) */
+  drawPreview(cx, cy, ok, kind) {
     const px = cx * CELL + CELL / 2;
     const py = cy * CELL + CELL / 2;
-    const def = towersData[this.selectedId];
     const color = ok ? COLOR.ok : COLOR.ng;
 
     this.previewGfx.clear();
     this.previewGfx.fillStyle(color, BUILD.previewAlpha);
     this.previewGfx.fillRect(cx * CELL, cy * CELL, CELL, CELL);
 
-    // 사거리 원 = 테두리만 (오라 원과 형태로 구분)
-    this.previewGfx.lineStyle(BUILD.rangeLineWidth, BUILD.rangeColor, BUILD.rangeAlpha);
-    this.previewGfx.strokeCircle(px, py, def.range);
+    if (kind === 'tower') {
+      const def = towersData[this.selectedId];
+      this.previewGfx.lineStyle(BUILD.rangeLineWidth, BUILD.rangeColor, BUILD.rangeAlpha);
+      this.previewGfx.strokeCircle(px, py, def.range);
+    } else if (kind === 'support') {
+      const def = supportsData[this.selectedId];
+      if (def.effect.radius > 0) {
+        this.previewGfx.fillStyle(BUILD.auraColor, BUILD.auraFillAlpha);
+        this.previewGfx.lineStyle(BUILD.auraLineWidth, BUILD.auraColor, BUILD.auraLineAlpha);
+        this.previewGfx.fillCircle(px, py, def.effect.radius);
+        this.previewGfx.strokeCircle(px, py, def.effect.radius);
+      }
+    }
+    // obstacle: 경로 위 셀 하이라이트만 — 반경 개념이 없다
   }
 
   handlePointerDown(pointer) {
@@ -185,7 +225,9 @@ export class BuildUI {
     if (pointer.y >= BUILD.barY - BUILD.barHeight / 2) return;
     // 성공/실패 후처리는 objectBuilt/actionRejected 이벤트가 전담한다(단일 소스 유지).
     // GameCore가 스텁이어도({ok:false} 등) 이 호출 자체는 안전하다 — 미리보기는 이미 렌더링을 마쳤다.
-    this.core.buildTower(this.selectedId, this.lastCx, this.lastCy);
+    if (this.selectedKind === 'tower') this.core.buildTower(this.selectedId, this.lastCx, this.lastCy);
+    else if (this.selectedKind === 'support') this.core.buildSupport(this.selectedId, this.lastCx, this.lastCy);
+    else if (this.selectedKind === 'obstacle') this.core.buildObstacle(this.selectedId, this.lastCx, this.lastCy);
   }
 
   // ────────────────────────────────────────── 오라 원 (기존 세운상가)
@@ -199,12 +241,30 @@ export class BuildUI {
   handleObjectBuilt({ kind, id, x, y, instanceId }) {
     if (kind === 'tower') {
       this.builtIds.add(id);
-      if (this.selectedId === id) { this.selectedId = null; this.previewGfx.clear(); }
+      if (this.selectedId === id && this.selectedKind === 'tower') this.clearSelection();
       this.buildBar();
     } else if (kind === 'support') {
+      this.pendingSupports.delete(id); // 유니크 — 배치 완료 후엔 건설 바에서 사라진다
+      if (this.selectedId === id && this.selectedKind === 'support') this.clearSelection();
       this.trackAuraSupport({ id, x, y, instanceId });
       this.refreshAuraLayer();
+      this.buildBar();
+    } else if (kind === 'obstacle') {
+      // 같은 종류가 더 남아 있으면 재선택 없이 이어서 놓을 수 있게 선택은 유지한다
+      const remaining = (this.pendingObstacles.get(id) || 1) - 1;
+      if (remaining > 0) this.pendingObstacles.set(id, remaining);
+      else {
+        this.pendingObstacles.delete(id);
+        if (this.selectedId === id && this.selectedKind === 'obstacle') this.clearSelection();
+      }
+      this.buildBar();
     }
+  }
+
+  clearSelection() {
+    this.selectedId = null;
+    this.selectedKind = null;
+    this.previewGfx.clear();
   }
 
   handleObjectChanged({ instanceId, action }) {
@@ -290,6 +350,7 @@ export class BuildUI {
     EventBus.off(EV.objectBuilt, this.onObjectBuilt, this);
     EventBus.off(EV.objectChanged, this.onObjectChanged, this);
     EventBus.off(EV.actionRejected, this.onRejected, this);
+    EventBus.off(EV.cardPicked, this.onCardPicked, this);
     this.scene.input.off('pointermove', this.onPointerMove);
     this.scene.input.off('pointerdown', this.onPointerDown);
 

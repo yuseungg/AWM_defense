@@ -126,6 +126,17 @@ export const VIEW = {
   towerSize:        28,   // 셀 40px 안에 여백을 두고 들어오는 크기. ↑ 올리면 셀을 거의 꽉 채운다
   towerStrokeColor: 0xf2f4f8,
   towerStrokeAlpha: 0.6,
+
+  // 서포터/장애물 — supports.json/obstacles.json엔 타워와 달리 색 필드(tint)가 없어서
+  // docs/ASSET_GUIDE.md §6에서 B가 새로 배정한 색을 그대로 가져와 코드-문서 값을 일치시킨다.
+  supportSize:   26,
+  obstacleSize:  18,   // 경로 위 마커라 타워보다 작게 — 경로 자체를 가리지 않아야 함
+  objectColor: {
+    sewoon:       0x8c7ae6,
+    cityHall:     0x5b7c99,
+    log:          0x7a5230,
+    disinfectant: 0x4fc3c7,
+  },
 };
 
 /**
