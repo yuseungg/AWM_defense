@@ -439,6 +439,25 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 ---
 
+### C8 · B → A · 2026-08-01 — `towerFired` 이벤트 요청 (타워 발사 반동 애니메이션용)
+
+**변경 요청:** `Tower.update(dt)`가 쿨다운을 리셋하고 실제로 타겟을 쐈을 때(`return target` 분기)
+`EventBus.emit(EV.towerFired, { instanceId, x: this.x, y: this.y, targetX: target.x, targetY: target.y })`
+한 줄 추가. `EventBus.js`의 `EV`에 `towerFired: 'towerFired'` 상수도 같이.
+
+**이유:** B가 "타워도 발사 반동(2px 밀렸다 복귀 + 살짝 스케일)"을 넣었는데, 이 신호를 받을 이벤트가
+없었다. 지금은 임시로 `TowerView.js`가 `GameCore.getState().towers`(=`WaveManager.getTowers()`가
+복사 없이 그대로 돌려주는 배열, `GameCore.js:231`)를 씬 진입 시 1회 들고 매 프레임
+`tower.cooldownRemaining`이 리셋되는 순간(=쿨다운 값이 감소하다 갑자기 튀어오르는 순간)을 발사로
+간주해서 흉내 낸다(+ `tower.findTarget()`으로 반동 방향 추정, 순수 조회라 부작용 없음). 동작은
+하지만 **"배열이 참조로 온다"는 게 문서화된 계약이 아니라 A의 현재 구현 디테일**이라 나중에 방어적
+복사로 바뀌면(`[...towers]` 등) 조용히 깨진다(에러 없이 반동만 안 뜸). 진짜 이벤트가 생기면
+`TowerView.js`의 `tickRecoil()`을 그걸로 교체한다(HANDOFF.md §5에도 기록해둠).
+**하위 호환:** 새 이벤트 추가만. 기존 `EV` 20여 개·`GameCore` 시그니처 변경 없음.
+**상대 확인:** (검토 대기)
+
+---
+
 ## 📝 4. 세션 로그 — 최신이 위
 
 > **템플릿을 복사해서 세션 끝날 때마다 맨 위에 추가한다. 5분이면 쓴다.**
@@ -464,6 +483,51 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 **main 빌드:** ✅ / ❌
 ```
+
+---
+
+## [2026-08-01] B · 세션 14 (미래도시 패널 UI 개편 + 피격/이동/발사 애니메이션)
+
+**한 일**
+- `Panel.js` 신규 — `drawPanel`(모서리 잘림 다각형)/`drawSegmentBar` 공용 헬퍼. `HUD.js`(좌상단 고정,
+  `corners:['br']`)·`Controls.js`(우상단 고정, 버튼 4개가 간격 없이 붙어 `corners:['tl','br']` 한 덩어리)·
+  `BuildUI.js`(44×44 슬롯 = Container+drawPanel, 상태별 테두리색 4종+우하단 뱃지)를 전부 이걸로 재작성.
+  개별 파일이 직접 rectangle을 그리던 걸 전부 걷어냄
+- `UITheme.js`에 `PANEL`/`FONT`/`ANIM` 블록 신설. `letterSpacing`은 Phaser가 px 숫자만 받아서(CSS
+  `'0.18em'` 문자열을 넣으면 그 Text가 통째로 안 그려지는 버그를 실제로 겪음) em 배수로 저장하고
+  호출부에서 `em * fontSize`로 변환하는 규칙 확정(HANDOFF.md §3)
+- 피격/이동/발사 애니메이션 — 전부 에셋 없이 코드로만, tween 대신 `update(time,delta)`에서 직접 계산
+  (웨이브 40+ 100개 대비 오브젝트 풀링 원칙과 동일 이유):
+  - `EnemyView.js`: 히트스톱(40~60ms 렌더 정지)·넉백(3~5px)·스케일 펀치(특효·크리 시 1.5배 배율,
+    곱연산이라 동시면 2.25배) + archetype별 절차적 애니메이션(dust=jitter+float, car=고정 기울임,
+    tank=느린 bob, boss=자체 회전). 개체마다 `phase`를 스폰 시 랜덤으로 뽑아서 박자가 안 겹치게 함.
+    **절대 제약 준수**: `enemy.x/y`(A의 PathSystem 소유)는 `token.logicX/Y`에 그대로 기록만 하고,
+    실제 렌더 좌표는 `renderToken()`이 그 위에 오프셋을 더해서 별도 계산(`enemy.x/y` 직접 수정 없음)
+  - `TowerView.js`: 발사 반동(2px 밀렸다 복귀+스케일). **`towerFired` 이벤트가 없어서** A 내부
+    구현(`getTowers()`가 배열을 참조로 반환하는 점)에 기대는 임시 방편으로 구현 — §3 C8로 정식 요청
+    올림. 기존 배치 "쿵" 스쿼시 튠과 scale을 동시에 건드려서 서로 씹히던 버그를 리뷰 중 발견,
+    `entry.squashing` 가드로 수정 후 커밋(코드 리뷰 단계에서 잡음 — 실사용 전에 고쳐서 회귀 없음)
+
+**지금 되는 것 / 안 되는 것**
+- 됨: HUD/Controls/BuildUI 신규 패널 UI, 피격 리액션(Mock·실제 코어 둘 다 — `enemyDamaged`가
+  공통), 절차적 이동 애니메이션(archetype 4종)
+- 안 됨: 타워 발사 반동은 **Mock에서 원천적으로 꺼짐**(`cooldownRemaining` 필드가 없어서) —
+  `?real=1` + 실제 타워 배치로만 확인 가능. 이번 세션엔 헤드리스로 그 시나리오까지는 검증 못 함
+  (코드 리뷰로 로직만 확인, §5에 한계 기록)
+
+**상대에게 필요한 것**
+- A: `towerFired` 이벤트 검토(C8). 급하지 않음 — 지금 방식도 동작은 한다
+
+**내가 한 가정**
+- Controls 코너 스펙("첫 버튼 tl, 마지막 버튼 br")을 패널 전체의 대각선 두 코너로 해석함(개별
+  버튼마다 따로 자르는 게 아니라 묶음 하나가 대각선으로 잘린 하나의 다각형). 방향 승인 이후 진행
+
+**다음 세션에 할 것**
+- `?real=1`로 타워 발사 반동 실제 확인
+- 폰트(Pretendard) 파일이 들어오면 `index.html` `@font-face` + `FONT` 블록 실제 연결(현재는
+  시스템 폰트 폴백만 있고 파일 임베드 인프라는 아직 안 만듦)
+
+**main 빌드:** ✅
 
 ---
 

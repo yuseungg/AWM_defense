@@ -157,6 +157,21 @@ CSS `'0.18em'` 같은 문자열을 그대로 넣으면 파싱이 깨져서 그 T
 
 | 증상 | 고칠 상수 |
 |---|---|
+| 피격 타격감이 약하다(멈칫하는 느낌이 없다) | `ANIM.hitstopMs` ↑(40~60 권장 범위 밖으로 나가면 부자연스러움) |
+| 넉백이 안 보인다/너무 크다 | `ANIM.knockbackDist` (3~5px 권장), `ANIM.knockbackMs`(복귀 속도) |
+| 피격 스케일 펀치가 안 보인다 | `ANIM.scalePunchAmt` ↑, `ANIM.scalePunchMs` |
+| 특효·크리 피격이 일반 피격과 안 구분된다 | `ANIM.effectiveHitMul`, `ANIM.critHitMul` (곱연산 — 동시면 더 세짐) |
+| 미세먼지가 안 살아있어 보인다(뻣뻣하다) | `ANIM.dustJitterAmp`/`dustFloatAmp` ↑ |
+| 미세먼지 움직임이 너무 빠르다/느리다 | `ANIM.dustJitterFreq`/`dustFloatFreq` |
+| 과속차량이 안 기울어 보인다 | `ANIM.carTilt` ↑ (rad, 고정값) |
+| 쓰레기더미가 안 무거워 보인다(bob이 너무 작다/빠르다) | `ANIM.tankBobAmp` ↑, `ANIM.tankBobFreq` ↓ |
+| 보스가 안 도는 것처럼 보인다 | `ANIM.bossSpinFreq` ↑ |
+| 개체들이 전부 같은 박자로 움직여 기계적으로 보인다 | 코드 버그다(상수 아님) — `EnemyView.acquire()`의 `token.phase = Math.random()*Math.PI*2`가 스폰마다 새로 뽑히는지 확인 |
+| 타워 발사 반동이 안 보인다/너무 크다 | `ANIM.towerRecoilDist`, `ANIM.towerRecoilMs`, `ANIM.towerRecoilScalePunch` — **Mock에선 원천적으로 안 뜬다**(TowerView.js 상단 주석 참고, `core.__isMock`이면 `trackRecoil=false`) |
+| 타워를 막 지었는데 반동이 배치 "쿵" 애니메이션과 서로 씹힌다 | 이미 `entry.squashing` 가드로 막아뒀다 — 그래도 재발하면 `TowerView.playBuildSquash()`의 `onComplete`가 `squashing=false`를 세팅하는지 확인 |
+
+| 증상 | 고칠 상수 |
+|---|---|
 | 조명 전환이 안 띈다 | `LIGHT.flashAlphaPerLevel` ↑ |
 | 조명 전환이 너무 느리다/빠르다 | `LIGHT.transitionMs` |
 | 빨강(1단계) 경고가 눈에 안 띈다 | `LIGHT.pulseMsAtRed` ↓, `LIGHT.pulseScaleAtRed` ↑ |
@@ -237,6 +252,18 @@ CSS `'0.18em'` 같은 문자열을 그대로 넣으면 파싱이 깨져서 그 T
 ## 5. 알려진 미완성 목록
 
 **"이건 버그인가 미구현인가"로 시간 태우지 않게 전부 적는다.**
+
+- **⚠️ `towerFired` 이벤트가 없다 — TowerView.js의 발사 반동이 A 내부 구현에 암묵적으로 기대고 있다.**
+  타워가 "지금 쐈다"를 알려주는 EventBus 이벤트가 없어서(§6-1에 없음), `TowerView.js`가
+  `GameCore.getState().towers`(=`WaveManager.getTowers()`가 복사 없이 그대로 돌려주는 배열,
+  `GameCore.js:231`)를 씬 진입 시 1회 들고 있다가 매 프레임 `tower.cooldownRemaining`이
+  갑자기 튀어오르는 순간을 발사로 간주한다(+`tower.findTarget()`으로 반동 방향 추정). 전부
+  읽기 전용이고 논리 상태는 안 건드리지만, `getTowers()`가 "복사가 아니라 참조를 돌려준다"는
+  건 문서화된 계약이 아니라 A의 현재 구현 디테일이다 — A가 나중에 이 함수를 방어적 복사로
+  바꾸면(`[...towers]` 등) 조용히 깨진다(에러 없이 그냥 반동이 안 뜸). **이상적인 해결책은
+  A가 `towerFired: { instanceId, x, y }` 같은 이벤트를 추가해주는 것** — SYNC.md §3에 요청으로
+  올릴 것. Mock은 애초에 `cooldownRemaining` 필드가 없어서 이 기능 자체가 원천적으로 꺼진다
+  (`TowerView.trackRecoil = !core.__isMock`).
 
 - **pause 소유권 기준은 `Controls.isUserPaused`다.** `GameCore.setPaused(bool)`은 boolean 하나라
   마지막 호출자가 이긴다. `DraftOverlay`도 이걸 쓰기 때문에(오버레이 여는 동안 강제 정지), 오버레이가

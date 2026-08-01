@@ -12,11 +12,16 @@
  *     보낸다) 폴링할 대상이 없다. 대신 enemySpawned/enemyKilled로 토큰을 만들고, enemies.json의
  *     speed + PathSystem.getPointAtDistance()로 자체 보간한다 — 슬로우/스턴은 반영 안 되는 근사치지만
  *     Mock은 원래 연출 검증용이라 허용 범위다(SYNC.md §2 참고).
+ *
+ * ⚠️ 절대 제약: 적의 논리 위치는 A의 PathSystem/EnemyPool 소유다. setLogicPos()가 받은 x/y는
+ * 절대 수정하지 않고 token.logicX/logicY에 그대로 저장만 한다 — 화면에 실제로 찍히는 좌표는
+ * renderToken()이 그 위에 렌더 오프셋(히트스톱 정지·넉백·절차적 애니메이션)을 얹어서 별도로
+ * 계산한다(renderX = logicX + offsetX 식). 이 파일 안에서도 두 값을 절대 섞지 않는다.
  */
 
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
-import { VIEW } from '../ui/UITheme.js';
+import { VIEW, ANIM } from '../ui/UITheme.js';
 import enemiesData from '../../data/enemies.json';
 import EnemyPool from '../game/EnemyPool.js';
 import PathSystem from '../game/PathSystem.js';
@@ -32,8 +37,12 @@ export class EnemyView {
     this.freeList = [];
     this.byId = new Map(); // id → token
 
-    this.onUpdate = (time, delta) => this.tick(delta / 1000);
+    this.onUpdate = (time, delta) => this.tick(time, delta / 1000);
     scene.events.on(Phaser.Scenes.Events.UPDATE, this.onUpdate, this);
+
+    // 피격 리액션은 폴링/보간 어느 경로든 동일 — enemyDamaged는 실제 코어·Mock 둘 다 쏜다
+    this.onDamaged = payload => this.handleHit(payload);
+    EventBus.on(EV.enemyDamaged, this.onDamaged, this);
 
     if (!this.usePoolPolling) {
       // Mock 전용: 이벤트로 토큰 생성/회수 + 자체 보간
@@ -56,10 +65,18 @@ export class EnemyView {
     }
     token.id = id;
     token.type = type;
+    token.archetype = enemiesData[type]?.archetype ?? 'swarm';
     token.distance = 0;
     token.speed = enemiesData[type]?.speed ?? 100;
     token.prevX = undefined; // 재사용된 풀 토큰의 이전 위치를 지운다 — 안 지우면 죽은 자리에서
     token.prevY = undefined; // 새로 스폰된 자리로 순간이동한 것처럼 계산돼 첫 프레임에 헛도는 회전이 나온다
+    token.heading = 0;
+    token.phase = Math.random() * Math.PI * 2; // 개체마다 다른 박자 — 안 그러면 전부 기계적으로 보인다
+    token.hitStart = -Infinity;
+    token.hitFreezeUntil = -Infinity;
+    token.hitStrength = 1;
+    token.frozenX = 0;
+    token.frozenY = 0;
     this.draw(token);
     this.byId.set(id, token);
     return token;
@@ -133,38 +150,98 @@ export class EnemyView {
     }
   }
 
+  // ────────────────────────────────────────── 피격 리액션 (히트스톱 + 넉백 + 스케일 펀치)
+  /** enemyDamaged 페이로드의 x/y를 그대로 "정지 위치"로 쓴다 — Combat.js가 보내는 적중 순간 좌표라 정확하다. */
+  handleHit({ id, x, y, isEffective, isCrit }) {
+    const token = this.byId.get(id);
+    if (!token) return; // 아직 화면에 없는 개체(생성 타이밍 차) — 조용히 무시
+    const now = this.scene.time.now;
+    const mul = (isEffective ? ANIM.effectiveHitMul : 1) * (isCrit ? ANIM.critHitMul : 1);
+    token.hitStart = now;
+    token.hitStrength = mul;
+    token.hitFreezeUntil = now + ANIM.hitstopMs * mul;
+    token.frozenX = x;
+    token.frozenY = y;
+  }
+
   /**
-   * 위치뿐 아니라 진행 방향으로 회전도 맞춘다 — 나중에 실제 사진을 씌워도 도로 진행방향을
-   * 자연스럽게 바라보게 하려는 목적(오늘 mapView.js에 넣은 도로 화살표와 같은 방향 감각).
-   * 실제 코어(폴링)든 Mock(자체 보간)이든 결국 매 프레임 이 함수 하나로 좌표가 갱신되니
-   * 여기 한 곳에서만 처리하면 두 경로 다 자동으로 적용된다.
+   * 논리 좌표만 기록한다(절대 제약 — enemy.x/y를 그대로 옮겨 적을 뿐 렌더에 쓰지 않는다).
+   * 진행방향(heading)도 여기서 갱신 — renderToken()의 회전·넉백 방향 계산이 이 값을 쓴다.
    */
-  setPos(token, x, y) {
+  setLogicPos(token, x, y) {
     if (token.prevX !== undefined && (x !== token.prevX || y !== token.prevY)) {
-      const angle = Math.atan2(y - token.prevY, x - token.prevX);
-      token.gfx.setRotation(angle);
-      token.sprite.setRotation(angle);
+      token.heading = Math.atan2(y - token.prevY, x - token.prevX);
     }
     token.prevX = x;
     token.prevY = y;
-    token.gfx.setPosition(x, y);
-    token.sprite.setPosition(x, y);
+    token.logicX = x;
+    token.logicY = y;
+  }
+
+  /**
+   * 실제 화면 좌표/회전/스케일을 계산해서 반영한다 — 유일하게 gfx/sprite에 값을 쓰는 곳.
+   * renderX = logicX(또는 히트스톱 중이면 frozenX) + 절차적 오프셋 + 넉백 오프셋.
+   */
+  renderToken(token, now) {
+    const frozen = now < token.hitFreezeUntil;
+    const baseX = frozen ? token.frozenX : token.logicX;
+    const baseY = frozen ? token.frozenY : token.logicY;
+
+    let offX = 0, offY = 0, rotation = token.heading, scale = 1;
+
+    switch (token.archetype) {
+      case 'swarm':
+        offX += ANIM.dustJitterAmp * Math.sin(now * ANIM.dustJitterFreq + token.phase * 3.1);
+        offY += ANIM.dustJitterAmp * Math.cos(now * ANIM.dustJitterFreq * 1.3 + token.phase * 2.3)
+              + ANIM.dustFloatAmp * Math.sin(now * ANIM.dustFloatFreq + token.phase);
+        break;
+      case 'fast':
+        rotation += ANIM.carTilt;
+        break;
+      case 'tank':
+        offY += ANIM.tankBobAmp * Math.sin(now * ANIM.tankBobFreq + token.phase);
+        break;
+      case 'boss':
+        rotation = now * ANIM.bossSpinFreq + token.phase; // 진행방향 대신 자체 회전으로 완전히 대체
+        break;
+    }
+
+    // 넉백 — 히트스톱이 끝나는 시점부터 시작해서 진행 반대 방향으로 밀렸다가 감쇠 복귀
+    const knockElapsed = now - token.hitFreezeUntil;
+    if (knockElapsed >= 0 && knockElapsed < ANIM.knockbackMs) {
+      const k = 1 - knockElapsed / ANIM.knockbackMs;
+      const dist = ANIM.knockbackDist * token.hitStrength * k * k;
+      offX += -Math.cos(token.heading) * dist;
+      offY += -Math.sin(token.heading) * dist;
+    }
+
+    // 스케일 펀치 — hitStart 기준(히트스톱 동안에도 같이 재생돼서 "맞았다"는 느낌이 즉시 온다)
+    const punchElapsed = now - token.hitStart;
+    if (punchElapsed >= 0 && punchElapsed < ANIM.scalePunchMs) {
+      const p = punchElapsed / ANIM.scalePunchMs;
+      scale = 1 + ANIM.scalePunchAmt * token.hitStrength * Math.sin(p * Math.PI);
+    }
+
+    const rx = baseX + offX, ry = baseY + offY;
+    token.gfx.setPosition(rx, ry).setRotation(rotation).setScale(scale);
+    token.sprite.setPosition(rx, ry).setRotation(rotation).setScale(scale);
   }
 
   // ────────────────────────────────────────── Mock 전용 — 자체 보간
   spawnMockToken({ id, type, x, y }) {
     const token = this.acquire(id, type);
-    this.setPos(token, x, y);
+    this.setLogicPos(token, x, y);
+    this.renderToken(token, this.scene.time.now);
   }
 
   // ────────────────────────────────────────── 프레임 루프
-  tick(dt) {
-    if (this.usePoolPolling) this.tickPoll();
-    else this.tickInterpolated(dt);
+  tick(time, dt) {
+    if (this.usePoolPolling) this.tickPoll(time);
+    else this.tickInterpolated(time, dt);
   }
 
   /** 실제 코어: EnemyPool.getActive()를 그대로 읽는다. 새로 보이면 만들고, 안 보이면 회수한다 */
-  tickPoll() {
+  tickPoll(time) {
     const active = EnemyPool.getActive();
     const seen = new Set();
     for (let i = 0; i < active.length; i++) {
@@ -172,7 +249,8 @@ export class EnemyView {
       seen.add(e.id);
       let token = this.byId.get(e.id);
       if (!token) token = this.acquire(e.id, e.type);
-      this.setPos(token, e.x, e.y);
+      this.setLogicPos(token, e.x, e.y);
+      this.renderToken(token, time);
     }
     for (const id of [...this.byId.keys()]) {
       if (!seen.has(id)) this.release(id);
@@ -180,17 +258,19 @@ export class EnemyView {
   }
 
   /** Mock: 거리를 직접 누적해 PathSystem으로 좌표 변환. 끝에 도달하면(관통 시뮬) 자동 회수 */
-  tickInterpolated(dt) {
+  tickInterpolated(time, dt) {
     for (const token of [...this.byId.values()]) {
       token.distance += token.speed * dt;
       if (token.distance >= PathSystem.totalLength) { this.release(token.id); continue; }
       const p = PathSystem.getPointAtDistance(token.distance);
-      this.setPos(token, p.x, p.y);
+      this.setLogicPos(token, p.x, p.y);
+      this.renderToken(token, time);
     }
   }
 
   destroy() {
     this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.onUpdate, this);
+    EventBus.off(EV.enemyDamaged, this.onDamaged, this);
     if (!this.usePoolPolling) {
       EventBus.off(EV.enemySpawned, this.onSpawned, this);
       EventBus.off(EV.enemyKilled, this.onKilled, this);

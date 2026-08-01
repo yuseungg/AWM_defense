@@ -152,6 +152,43 @@ export const CARD = {
   hoverLift:  10,
 };
 
+/**
+ * 애니메이션 — 에셋 없이 코드만으로 타격감·생동감을 만든다. 전부 순수 렌더 오프셋/회전/스케일이고,
+ * 논리 좌표(enemy.x/y, PathSystem 소유)는 절대 건드리지 않는다(EnemyView.js §절대 제약).
+ * 개체마다 tween을 만들지 않는다 — update(time, delta)에서 시간 기반으로 직접 계산한다
+ * (DamageNumber.js와 동일한 이유: 웨이브 40+에서 100개 이상이 동시에 움직인다).
+ */
+export const ANIM = {
+  // 피격 리액션(enemyDamaged) — 히트스톱이 타격감의 대부분을 만든다
+  hitstopMs:       50,    // 피격 순간 렌더 정지 시간(ms). ↑ 올리면 더 묵직하게 "멈칫"한다(40~60 권장)
+  knockbackDist:   4,     // 넉백 최대 거리(px, 진행 반대 방향). ↑ 올리면 더 크게 밀린다(3~5 권장)
+  knockbackMs:     150,   // 넉백이 히트스톱 종료 시점부터 원위치로 돌아오는 데 걸리는 시간
+  scalePunchAmt:   0.15,  // 1.0 → 1+이값 → 1.0
+  scalePunchMs:    100,
+  effectiveHitMul: 1.5,   // isEffective(특효)면 위 세 값(시간·거리·스케일)에 곱하는 배율
+  critHitMul:      1.5,   // isCrit면 곱하는 배율 — 특효+크리 동시면 곱연산(1.5×1.5=2.25배)
+
+  // 절차적 이동 애니메이션 — archetype별 순수 시간 함수(Math.sin/cos). 개체마다 phase(0~2π 랜덤)를
+  // 물고 있어야 전부 같은 박자로 안 움직인다(EnemyView.js acquire()에서 매 스폰마다 새로 뽑음).
+  dustJitterAmp:  1.2,     // 미세먼지 떨림 폭(px). ↑ 올리면 더 부산해 보인다
+  dustJitterFreq: 0.011,   // rad/ms
+  dustFloatAmp:   3,       // 위아래 부유 폭(px)
+  dustFloatFreq:  0.0022,  // rad/ms — 떨림보다 느린 큰 파동
+
+  carTilt: 0.16,  // 과속차량 진행방향 고정 기울임(rad) — 기존 실루엣의 잔상 삼각형과 합쳐져 속도감을 낸다
+
+  tankBobAmp:  3.5,     // 쓰레기더미 상하 bob 폭(px) — "무겁게"라 dust보다 폭은 크고 주기는 느리다
+  tankBobFreq: 0.0014,  // rad/ms
+
+  bossSpinFreq: 0.0006, // rad/ms — 보스는 진행방향 대신 이 값으로 회전을 완전히 대체한다(천천히 회전)
+
+  // 타워 발사 반동 — EventBus에 towerFired가 아직 없어서(HANDOFF.md §5), TowerView가
+  // Tower.cooldownRemaining이 리셋되는 순간을 스스로 감지한다(실제 코어에서만 동작).
+  towerRecoilDist:       2,
+  towerRecoilMs:         90,
+  towerRecoilScalePunch: 0.06,
+};
+
 export const SHAKE = {
   bossSpawn:  0.004,
   bossLeaked: 0.012,  // 보스 코어 도달. ↑ 올리면 임팩트가 커진다

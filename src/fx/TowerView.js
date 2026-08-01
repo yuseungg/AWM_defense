@@ -16,11 +16,24 @@
  *
  * 에셋이 없는 지금은 실루엣 도형 플레이스홀더를 쓴다(docs/ASSET_GUIDE.md와 동일한
  * 실루엣 규칙 — 윤곽만으로 식별 가능해야 한다는 원칙을 코드에도 그대로 반영).
+ *
+ * ── 발사 반동(recoil) ──────────────────────────────────────────────
+ * EventBus에 `towerFired` 같은 이벤트가 없어서(HANDOFF.md §5에 기록) A의 파일을 고치지 않고는
+ * "지금 쐈다"는 신호를 직접 받을 방법이 없다. 대신 `GameCore.getState().towers`가 돌려주는
+ * 배열이 WaveManager 내부 배열의 "참조"라는 점(GameCore.js:231 `getTowers()`가 복사 없이
+ * 그대로 반환)을 이용해 씬 진입 시 1회만(D18 준수) 이 배열 참조를 들고, 매 프레임
+ * `tower.cooldownRemaining`이 감소하다 갑자기 튀어오르는 순간(=Tower.update()가 쿨다운을
+ * `attackSpeed`로 리셋한 순간, 곧 발사 순간)을 렌더러가 스스로 감지한다. `tower.findTarget()`은
+ * 순수 조회 메서드(부작용 없음)라 반동 방향(=조준 방향의 반대)을 구하는 데 그대로 쓴다.
+ * 전부 읽기 전용이고 논리 상태는 절대 건드리지 않는다 — 그래도 A의 내부 구현(배열이 참조로
+ * 온다는 점)에 기대는 만큼 이상적인 방법은 아니다. A가 `towerFired` 이벤트를 추가해주면
+ * 이 블록은 그걸로 교체한다. Mock은 cooldownRemaining이 없는 더미 객체라 아예 동작 안 함
+ * (다른 Mock 한계와 동일 원칙 — HANDOFF.md §0).
  */
 
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
-import { VIEW, EASE } from '../ui/UITheme.js';
+import { VIEW, EASE, ANIM } from '../ui/UITheme.js';
 import towersData from '../../data/towers.json';
 import supportsData from '../../data/supports.json';
 import obstaclesData from '../../data/obstacles.json';
@@ -95,6 +108,11 @@ export class TowerView {
     this.core = core;
     this.byInstance = new Map();
 
+    // 발사 반동 — 실제 코어에서만(§ 위 주석). Mock의 tower 객체엔 cooldownRemaining이 없어서
+    // prevCooldown이 항상 undefined로 남아 자연히 아무 반동도 안 걸린다(에러도 안 남).
+    this.trackRecoil = !core.__isMock;
+    this.liveTowers = this.trackRecoil ? core.getState().towers : null; // 씬 진입 시 1회만(D18)
+
     this.onBuilt = payload => this.create(payload);
     this.onChanged = ({ instanceId, action, level }) => {
       if (action === 'upgraded') this.applyLevel(instanceId, level);
@@ -102,6 +120,9 @@ export class TowerView {
     };
     EventBus.on(EV.objectBuilt, this.onBuilt, this);
     EventBus.on(EV.objectChanged, this.onChanged, this);
+
+    this.onUpdate = (time) => this.tickRecoil(time);
+    scene.events.on(Phaser.Scenes.Events.UPDATE, this.onUpdate, this);
 
     scene.events.once('shutdown', () => this.destroy());
   }
@@ -114,21 +135,31 @@ export class TowerView {
     const sprite = this.scene.add.image(x, y, '__DEFAULT').setVisible(false);
     gfx.setPosition(x, y);
 
-    const entry = { gfx, sprite, kind, objId: id };
+    const entry = {
+      gfx, sprite, kind, objId: id,
+      baseX: x, baseY: y, baseScale: 1, squashing: false,
+      dirX: 1, dirY: 0, recoilStart: -Infinity, prevCooldown: undefined,
+    };
     this.byInstance.set(instanceId, entry);
     this.redraw(entry, 0);
     this.playBuildSquash(entry);
   }
 
-  /** 배치 "쿵" — redraw()가 세팅한 자연 스케일을 목표값으로 삼아 찌그러진 상태에서 튕겨 돌아온다. */
+  /**
+   * 배치 "쿵" — redraw()가 세팅한 자연 스케일을 목표값으로 삼아 찌그러진 상태에서 튕겨 돌아온다.
+   * 이 튠 도중엔 tickRecoil()이 매 프레임 scale을 건드리면 안 된다(둘 다 같은 scaleX/Y를
+   * 놓고 싸우면 squash가 그대로 씹힌다) — entry.squashing으로 그 창을 표시해서 tickRecoil이 넘어가게 한다.
+   */
   playBuildSquash(entry) {
     const targetX = entry.gfx.scaleX, targetY = entry.gfx.scaleY;
+    entry.squashing = true;
     entry.gfx.setScale(targetX * 1.4, targetY * 0.4);
     entry.sprite.setScale(targetX * 1.4, targetY * 0.4);
     this.scene.tweens.add({
       targets: [entry.gfx, entry.sprite],
       scaleX: targetX, scaleY: targetY,
       duration: VIEW.buildSquashMs, ease: EASE.pop,
+      onComplete: () => { entry.squashing = false; },
     });
   }
 
@@ -149,6 +180,8 @@ export class TowerView {
     const state = this.core.getState();
     const obj = [...state.towers, ...state.supports].find(o => o.instanceId === instanceId);
     if (!obj) return;
+    entry.baseX = obj.x;
+    entry.baseY = obj.y;
     entry.gfx.setPosition(obj.x, obj.y);
     entry.sprite.setPosition(obj.x, obj.y);
   }
@@ -175,6 +208,8 @@ export class TowerView {
     }
     const size = kind === 'tower' ? VIEW.towerSize : kind === 'support' ? VIEW.supportSize : VIEW.obstacleSize;
 
+    entry.baseScale = scale; // 발사 반동의 스케일 펀치가 여기 곱해진다(tickRecoil)
+
     const key = ASSET_KEY(kind, objId);
     if (this.scene.textures.exists(key)) {
       entry.gfx.setVisible(false);
@@ -195,9 +230,50 @@ export class TowerView {
     else entry.gfx.fillRect(-size / 2, -size / 2, size, size);
   }
 
+  // ────────────────────────────────────────── 발사 반동 (§ 상단 주석 참고)
+  /**
+   * tower.cooldownRemaining이 감소하다 갑자기 커지면 방금 리셋된 것 — 즉 발사 순간이다.
+   * 타워 수가 유니크 룰상 최대 8개뿐이라(§ 상단) 매 프레임 전부 순회해도 비용이 무시할 만하다
+   * (EnemyView처럼 100+개를 오브젝트 풀로 관리해야 하는 경우와는 스케일이 다르다).
+   */
+  tickRecoil(time) {
+    if (!this.trackRecoil || !this.liveTowers) return;
+
+    for (const tower of this.liveTowers) {
+      const entry = this.byInstance.get(tower.instanceId);
+      if (!entry || entry.squashing) continue; // objectBuilt가 아직 안 왔거나, 배치 "쿵" 튠이 scale을 쥐고 있는 동안
+
+      if (entry.prevCooldown !== undefined && tower.cooldownRemaining > entry.prevCooldown + 1e-6) {
+        const target = tower.findTarget(); // 순수 조회 — 방금 실제로 쐈을 그 대상과 사실상 동일
+        if (target) {
+          const dx = target.x - tower.x, dy = target.y - tower.y;
+          const dist = Math.hypot(dx, dy) || 1;
+          entry.dirX = dx / dist;
+          entry.dirY = dy / dist;
+        }
+        entry.recoilStart = time;
+      }
+      entry.prevCooldown = tower.cooldownRemaining;
+
+      let k = 0, scaleMul = 1;
+      const elapsed = time - entry.recoilStart;
+      if (elapsed >= 0 && elapsed < ANIM.towerRecoilMs) {
+        const p = elapsed / ANIM.towerRecoilMs;
+        k = (1 - p) ** 2;
+        scaleMul = 1 + ANIM.towerRecoilScalePunch * Math.sin(p * Math.PI);
+      }
+      const dist = ANIM.towerRecoilDist * k;
+      const rx = entry.baseX - entry.dirX * dist, ry = entry.baseY - entry.dirY * dist;
+      const rs = entry.baseScale * scaleMul;
+      entry.gfx.setPosition(rx, ry).setScale(rs);
+      entry.sprite.setPosition(rx, ry).setScale(rs);
+    }
+  }
+
   destroy() {
     EventBus.off(EV.objectBuilt, this.onBuilt, this);
     EventBus.off(EV.objectChanged, this.onChanged, this);
+    this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.onUpdate, this);
     this.byInstance.forEach(({ gfx, sprite }) => { gfx.destroy(); sprite.destroy(); });
   }
 }
