@@ -215,8 +215,16 @@ export class UpgradeUI {
       cy += UPGRADE.buttonHeight + UPGRADE.buttonGap;
     }
 
-    this.makeButton(x + w / 2, cy + UPGRADE.buttonHeight / 2, UPGRADE.buttonWidth, '재배치', true, () => this.startRelocate());
-    cy += UPGRADE.buttonHeight;
+    // N서울타워는 map.json 고정 좌표의 상시 지형물이다 — buildTower()를 안 거치고 GameCore
+    // 모듈 로드 시 자동 배치돼서(ensureNSeoulTower) objectBuilt가 안 뜬다. TowerView는 그 이벤트로만
+    // 스프라이트를 만들기 때문에 N서울타워는 화면에 그려진 실체가 없다 — SeoulTowerLight가 같은
+    // 좌표에 그리는 조명 원이 그 자리를 대신할 뿐이다. 재배치를 허용하면 좌표만 옮겨가고 조명 원은
+    // 그대로 남아 "그림은 그대로인데 반경만 옮겨간" 것처럼 보이는 버그가 난다 — 그래서 막는다
+    // (BuildUI가 애초에 N서울타워를 건설 바에서 빼놓은 것과 같은 이유).
+    if (obj.id !== 'nseoulTower') {
+      this.makeButton(x + w / 2, cy + UPGRADE.buttonHeight / 2, UPGRADE.buttonWidth, '재배치', true, () => this.startRelocate());
+      cy += UPGRADE.buttonHeight;
+    }
 
     const panelH = cy - UPGRADE.panelY + UPGRADE.padding;
     const bg = this.scene.add.rectangle(x + w / 2, UPGRADE.panelY + panelH / 2, w, panelH, COLOR.slot, 0.95)
