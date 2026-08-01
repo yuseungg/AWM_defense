@@ -17,6 +17,7 @@ import { W, H } from './ui/mapView.js';
 import { GameScene } from './ui/GameScene.js';
 import { MockScene } from './ui/MockScene.js';
 import { VerifyScene } from './ui/VerifyScene.js';
+import './game/Debug.js'; // ?debug=1 자체 확인 후 활성화(CLAUDE.md §7). 씬과 무관하게 window keydown으로 동작
 
 const params = new URLSearchParams(location.search);
 const MOCK = params.get('mock') === '1';

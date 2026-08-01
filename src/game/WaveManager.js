@@ -55,6 +55,7 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
   let elapsedInWave = 0;
   let waveRecord = { total: 0, resolved: 0, hadLeak: false };
   let currentBoss = null;
+  let invincible = false; // Debug.js(H) 전용
 
   EnemyPool.setOnEnemyDeath(onEnemyDeath);
   EnemyPool.setOnEnemyReachCore(onEnemyReachCore);
@@ -292,6 +293,7 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
 
   function damageCity(n) {
     if (state.gameOver) return;
+    if (invincible) return; // 코어 도달 자체(웨이브 집계 등)는 그대로, 조명 차감만 억제
     state.cityLight = Math.max(0, state.cityLight - n);
     if (state.cityLight <= 0) {
       EventBus.emit(EV.cityDamaged, { level: 0 });
@@ -346,6 +348,21 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
   function setPaused(paused) { state.paused = !!paused; }
   function setSpeed(n) { state.speedMul = n; }
 
+  // ── Debug.js(?debug=1) 전용
+  /** 진행 중이던 웨이브를 버리고 n으로 강제 점프한다. 이미 화면에 있는 적은 안 건드림(K가 담당). */
+  function jumpToWave(n) {
+    spawnQueue = [];
+    startWave(n);
+  }
+
+  /** 활성 적 전부를 정상 처치 경로(takeDamage)로 죽인다 — 보상·XP·집계가 평소처럼 반영된다. */
+  function killAllEnemies() {
+    [...EnemyPool.getActive()].forEach(e => e.takeDamage(e.hp));
+  }
+
+  function setInvincible(v) { invincible = !!v; }
+  function isInvincible() { return invincible; }
+
   /**
    * 지금 활성인 정책은 풀에서 뺀다 — 서포터(DraftSystem)와 달리 영구 제외가 아니라
    * "켜져 있는 동안만" 제외다. 임시 정책(예: 차량 2부제)은 만료되면 다시 뽑힐 수 있다.
@@ -380,6 +397,10 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
     setPaused,
     setSpeed,
     getState: () => state,
+    jumpToWave,
+    killAllEnemies,
+    setInvincible,
+    isInvincible,
   };
 }
 
