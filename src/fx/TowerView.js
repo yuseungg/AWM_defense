@@ -90,13 +90,15 @@ const SILHOUETTES = {
 };
 
 export class TowerView {
-  constructor(scene) {
+  constructor(scene, core) {
     this.scene = scene;
+    this.core = core;
     this.byInstance = new Map();
 
     this.onBuilt = payload => this.create(payload);
     this.onChanged = ({ instanceId, action, level }) => {
       if (action === 'upgraded') this.applyLevel(instanceId, level);
+      else if (action === 'relocated') this.applyRelocate(instanceId);
     };
     EventBus.on(EV.objectBuilt, this.onBuilt, this);
     EventBus.on(EV.objectChanged, this.onChanged, this);
@@ -121,6 +123,21 @@ export class TowerView {
     const entry = this.byInstance.get(instanceId);
     if (!entry) return; // 이론상 objectBuilt가 항상 먼저 오므로 안 걸리지만 방어적으로 둠
     this.redraw(entry, level);
+  }
+
+  /**
+   * objectChanged 페이로드엔 좌표가 없다(EventBus.js 계약상 {instanceId, action, level}뿐) —
+   * 재배치는 드문 이벤트라 이때만 getState()로 1회 재조회한다(BuildUI의 오라 추적과 동일한 D18 예외).
+   * UpgradeUI 재배치 UI가 생기면서 더 이상 "발생하지 않는" 경로가 아니게 됐다(HANDOFF.md §5 갱신 필요).
+   */
+  applyRelocate(instanceId) {
+    const entry = this.byInstance.get(instanceId);
+    if (!entry || !this.core) return;
+    const state = this.core.getState();
+    const obj = [...state.towers, ...state.supports].find(o => o.instanceId === instanceId);
+    if (!obj) return;
+    entry.gfx.setPosition(obj.x, obj.y);
+    entry.sprite.setPosition(obj.x, obj.y);
   }
 
   /**

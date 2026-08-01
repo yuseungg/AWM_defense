@@ -186,6 +186,11 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 | 적 색이 구분 안 된다 | `VIEW.enemyColors` (타입별 hex) |
 | 타워가 셀 안에 너무 작다/꽉 차 보인다 | `VIEW.towerSize` (40px 셀 기준, 사거리와 무관) |
 | 타워 테두리가 안 보인다 | `VIEW.towerStrokeColor`, `VIEW.towerStrokeAlpha` ↑ |
+| 강화 패널이 다른 UI(HUD·Controls·건설 바)와 겹친다 | `UPGRADE.panelX`/`panelY` — 패널 높이는 내용에 따라 자동(`panelHeight`는 초기 추정값일 뿐) |
+| 강화 패널 글자가 작다/잘린다 | `UPGRADE.statFontSize` ↑, `UPGRADE.panelWidth` ↑ |
+| 골드 부족 표시가 안 눈에 띈다 | `UPGRADE.costShortColor` |
+| 강화/재배치 버튼이 작다 | `UPGRADE.buttonWidth`/`buttonHeight`/`buttonFontSize` |
+| 재배치 안내 문구 색이 배치 미리보기와 안 맞는다 | `UPGRADE.relocateHintColor` (기본은 `BUILD.rangeColor`와 동일 계열) |
 
 ---
 
@@ -238,9 +243,11 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
   `objectBuilt`(kind:'support') 이벤트만으로 자동으로 그리게 만들어놨으니, 배치 UI만 생기면
   추가 작업 없이 바로 뜬다(`?fxtest=1`의 `C` 키로 반경/색/형태는 이미 독립 검증함).
 - **✅ 적/타워 렌더러는 이제 있다(D4, `EnemyView.js`/`TowerView.js`, D4에 실루엣도 개선).** 남은 갭:
-  - **`TowerView`는 `relocate`(재배치) 시 위치를 못 옮긴다.** `objectChanged` 페이로드에 좌표가 없어서다
-    (EventBus.js 계약상 `{instanceId, action, level}`뿐 — `BuildUI`의 오라 추적과 동일한 gap).
-    실질 영향 없음 — 드래그 재배치 UI 자체가 아직 없어서 이 경로가 발생하지 않는다.
+  - **✅ D5에 해결: `TowerView`가 `relocate`(재배치) 시 위치를 못 옮기던 gap을 고쳤다.** `UpgradeUI`의
+    재배치 UI가 생기면서 이 경로가 실제로 발생하게 됐다 — `objectChanged` 페이로드엔 여전히 좌표가 없어서
+    (`{instanceId, action, level}`뿐) `TowerView.applyRelocate()`가 재배치 시점에만 `core.getState()`로
+    1회 재조회한다(`BuildUI`의 오라 추적과 동일한 D18 예외 패턴). `TowerView` 생성자가 이제 `core`도 받는다
+    (`new TowerView(scene, core)`) — `GameScene.js`에서 시그니처 바뀐 거 주의.
   - **`EnemyView`의 Mock 경로(자체 보간)는 슬로우/스턴/DoT를 반영하지 않는다.** `enemies.json`의 고정
     `speed`로만 전진한다 — 실제 코어(폴링 경로)는 100% 정확하다. Mock은 연출 검증용이라 허용 범위.
   - **적/타워는 전부 방향·회전 없는 정면 실루엣이다.** 에셋이 들어오면 자연스럽게 나아짐.
@@ -251,7 +258,14 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 - **실제 PNG 에셋은 아직 0장이다.** 파이프라인·스타일 가이드(`/docs/ASSET_GUIDE.md`)·플레이스홀더
   실루엣은 전부 준비됐다(§6) — 남은 건 실제로 그리는 것뿐. D6~D7에 B가 폰으로 채운다.
 - **`Particles.js`/`StatusFx.js`/`SkyTint.js`/`BossAlert.js` 파일 자체가 없다.** `UITheme.js`의 `PARTICLE`/`SHAKE` 상수는 존재하지만 아무 코드도 이걸 읽지 않는다(§3에 표시해둠)
-- **`TitleScene.js`/`UpgradeUI.js`/`CodexUI.js` 미착수** (`Controls.js`/`GameOverScene.js`/`BuildUI.js`는 완료 — §0 참고)
+- **`TitleScene.js`/`CodexUI.js` 미착수** (`Controls.js`/`GameOverScene.js`/`BuildUI.js`/`UpgradeUI.js`는 완료 — §0 참고)
+- **⭐ ESC 우선순위(D5 확정): 드래프트가 열려 있으면(`scene.draft.current`) 항상 우선이다.**
+  `UpgradeUI.handleEsc()`는 자기 로직을 실행하기 전에 `if (this.scene.draft?.current) return;`으로
+  먼저 확인한다 — DraftOverlay 쪽에서 "소비"하는 게 아니라 UpgradeUI가 DraftOverlay의 상태를 먼저
+  들여다보고 양보하는 방식이다(별도 이벤트 채널 없이 `scene.draft` 참조 하나로 해결). 앞으로 ESC를
+  쓰는 새 오버레이가 추가되면 같은 패턴(자기보다 우선순위 높은 컴포넌트의 `current`를 먼저 체크)을
+  따라야 한다 — 그렇지 않으면 여러 오버레이가 동시에 열려 있을 때 ESC 한 번에 전부 닫히거나 뜬금없는
+  게 닫히는 사고가 난다.
 - **A 쪽 나머지 미완성: `pickPolicy`(보스 정책 효과 적용)·장애물 강화**(`Obstacle`이 아직 `upgrade`
   대상이 아님 — `GameCore.findBuildable`이 타워/서포터만 찾는다). `Debug.js`도 여전히 없음(§8 참고).
   둘 다 절대 사수엔 영향 없어서, D5에 A가 여유 있으면 이어서 하고 아니면 그대로 제출해도 된다

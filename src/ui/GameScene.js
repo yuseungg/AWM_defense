@@ -20,6 +20,7 @@ import { DraftOverlay } from './DraftOverlay.js';
 import { Controls } from './Controls.js';
 import { GameOverScene } from './GameOverScene.js';
 import { BuildUI } from './BuildUI.js';
+import { UpgradeUI } from './UpgradeUI.js';
 import { drawMap, H } from './mapView.js';
 import { COLOR, DMG, HUD as HUDT } from './UITheme.js';
 import perksData from '../../data/perks.json';
@@ -100,8 +101,11 @@ export class GameScene extends Phaser.Scene {
     // 건물 선택 바 + 배치 미리보기 + 사거리/오라 원 — 절대 사수
     this.buildUI = new BuildUI(this, this.core);
 
+    // 건물 클릭 → 강화/재배치 패널. DraftOverlay가 이걸 잠가야 해서 그보다 먼저 만든다
+    this.upgradeUI = new UpgradeUI(this, this.core);
+
     // 타워/적 화면 표시 — EnemyView는 core.__isMock으로 좌표 갱신 방식을 한 번만 정한다
-    this.towerView = new TowerView(this);
+    this.towerView = new TowerView(this, this.core);
     this.enemyView = new EnemyView(this, this.core);
 
     // 데미지 숫자 — enemyDamaged를 알아서 구독한다. 타워/적 도형 위에 떠야 하므로 그 다음에 만든다

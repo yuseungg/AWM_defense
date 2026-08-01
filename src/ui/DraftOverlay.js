@@ -54,6 +54,7 @@ export class DraftOverlay {
       // 지워버린다. Controls의 값을 다시 읽어 복원하고, 잠갔던 버튼도 같이 풀어준다.
       this.scene.controls?.setInputEnabled(true);
       this.scene.buildUI?.setInputEnabled(true);
+      this.scene.upgradeUI?.setInputEnabled(true);
       this.core.setPaused(this.scene.controls?.isUserPaused ?? false);
     }
   }
@@ -73,6 +74,7 @@ export class DraftOverlay {
     this.core.setPaused(true);
     this.scene.controls?.setInputEnabled(false); // 카드가 떠 있는 동안 Controls 버튼을 아예 못 누르게
     this.scene.buildUI?.setInputEnabled(false);  // 카드가 떠 있는 동안 배치도 잠근다(같은 이유)
+    this.scene.upgradeUI?.setInputEnabled(false); // 강화 패널도 동일 — ESC 우선순위도 이 컴포넌트가 기준(HANDOFF §5)
     this.current = { type };
     this.render(type, payload, cards);
   }
@@ -157,6 +159,7 @@ export class DraftOverlay {
     this.core.setPaused(false);
     this.scene.controls?.setInputEnabled(true);
     this.scene.buildUI?.setInputEnabled(true);
+    this.scene.upgradeUI?.setInputEnabled(true);
   }
 
   destroy() {
@@ -165,5 +168,6 @@ export class DraftOverlay {
     this.closeCurrent();
     this.core.setPaused(false); // ★ 무조건 unpause 안전판 — 오버레이가 열린 채로 씬이 죽어도 게임이 안 멈춘다
     this.scene.buildUI?.setInputEnabled(true);
+    this.scene.upgradeUI?.setInputEnabled(true);
   }
 }

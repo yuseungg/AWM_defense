@@ -185,3 +185,31 @@ export const GAMEOVER = {
   buttonHeight:    56,
   buttonFontSize:  22,
 };
+
+/**
+ * 강화 패널 — 맵의 건물(타워·서포터)을 클릭하면 뜨는 인스펙터.
+ * HUD(좌상단) 바로 아래 고정 위치 — Controls·건설 바·N서울타워/코어 라벨과 안 겹치는 유일한 빈 공간.
+ */
+export const UPGRADE = {
+  panelX:      16,
+  panelY:      140,
+  panelWidth:  260,
+  panelHeight: 300,   // ↑ 올리면 하단 여백이 늘어난다(내용은 항상 위에서부터 채움)
+  padding:     14,
+
+  titleFontSize: 16,
+  statFontSize:  13,   // ↑ 올리면 스탯 줄이 더 잘 읽힌다
+  lineHeight:    20,   // 스탯 줄 사이 간격
+
+  buttonWidth:  232,
+  buttonHeight: 34,
+  buttonGap:    8,     // 강화 버튼과 재배치 버튼 사이 간격
+  buttonFontSize: 14,
+
+  costShortColor: '#e53935',  // 골드 부족 시 "80G / 보유 45G" 강조색 (COLOR.ng와 동일 계열)
+  maxLevelColor:  '#8a919e',  // "최대 강화" 문구색 (HUD 보조 텍스트와 동일)
+
+  relocateHintColor: '#3fa7d6', // "이동할 위치를 고르세요" 안내문 색 (BUILD.rangeColor와 동일 — 배치 계열 신호)
+
+  rejectToastMs: 1400,  // 강화/재배치 실패 문구 유지 시간. BUILD.rejectToastMs와 동일 값
+};
