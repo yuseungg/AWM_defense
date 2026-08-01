@@ -58,6 +58,8 @@ export class EnemyView {
     token.type = type;
     token.distance = 0;
     token.speed = enemiesData[type]?.speed ?? 100;
+    token.prevX = undefined; // 재사용된 풀 토큰의 이전 위치를 지운다 — 안 지우면 죽은 자리에서
+    token.prevY = undefined; // 새로 스폰된 자리로 순간이동한 것처럼 계산돼 첫 프레임에 헛도는 회전이 나온다
     this.draw(token);
     this.byId.set(id, token);
     return token;
@@ -131,7 +133,20 @@ export class EnemyView {
     }
   }
 
+  /**
+   * 위치뿐 아니라 진행 방향으로 회전도 맞춘다 — 나중에 실제 사진을 씌워도 도로 진행방향을
+   * 자연스럽게 바라보게 하려는 목적(오늘 mapView.js에 넣은 도로 화살표와 같은 방향 감각).
+   * 실제 코어(폴링)든 Mock(자체 보간)이든 결국 매 프레임 이 함수 하나로 좌표가 갱신되니
+   * 여기 한 곳에서만 처리하면 두 경로 다 자동으로 적용된다.
+   */
   setPos(token, x, y) {
+    if (token.prevX !== undefined && (x !== token.prevX || y !== token.prevY)) {
+      const angle = Math.atan2(y - token.prevY, x - token.prevX);
+      token.gfx.setRotation(angle);
+      token.sprite.setRotation(angle);
+    }
+    token.prevX = x;
+    token.prevY = y;
     token.gfx.setPosition(x, y);
     token.sprite.setPosition(x, y);
   }
