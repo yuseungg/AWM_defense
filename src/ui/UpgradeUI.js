@@ -18,7 +18,7 @@
 
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
-import { COLOR, BUILD, UPGRADE } from './UITheme.js';
+import { COLOR, BUILD, UPGRADE, EASE } from './UITheme.js';
 import { CELL, W, H } from './mapView.js';
 import GridSystem from '../game/GridSystem.js';
 import towersData from '../../data/towers.json';
@@ -223,6 +223,10 @@ export class UpgradeUI {
       .setStrokeStyle(2, COLOR.accent, 0.8).setDepth(59);
     this.panelGroup.unshift(bg);
     this.panelBounds = { x, y: UPGRADE.panelY, w, h: panelH };
+
+    // 열림/갱신마다 살짝 페이드인 — 매번 새로 만들고 지우는 패널이라 EASE.ui로 딱딱함을 덜어낸다
+    this.panelGroup.forEach(o => { o.alpha = 0; });
+    this.scene.tweens.add({ targets: this.panelGroup, alpha: 1, duration: 160, ease: EASE.ui });
 
     this.drawRangeCircle(obj, kind);
   }

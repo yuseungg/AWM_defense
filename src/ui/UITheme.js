@@ -172,6 +172,8 @@ export const VIEW = {
     log:          0x7a5230,
     disinfectant: 0x4fc3c7,
   },
+
+  buildSquashMs: 220,   // 배치 "쿵" 스쿼시 지속시간. ↓ 낮추면 더 통통 튀어 보인다
 };
 
 /**

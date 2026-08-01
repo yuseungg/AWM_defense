@@ -20,7 +20,7 @@
 
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
-import { VIEW } from '../ui/UITheme.js';
+import { VIEW, EASE } from '../ui/UITheme.js';
 import towersData from '../../data/towers.json';
 import supportsData from '../../data/supports.json';
 import obstaclesData from '../../data/obstacles.json';
@@ -117,6 +117,19 @@ export class TowerView {
     const entry = { gfx, sprite, kind, objId: id };
     this.byInstance.set(instanceId, entry);
     this.redraw(entry, 0);
+    this.playBuildSquash(entry);
+  }
+
+  /** 배치 "쿵" — redraw()가 세팅한 자연 스케일을 목표값으로 삼아 찌그러진 상태에서 튕겨 돌아온다. */
+  playBuildSquash(entry) {
+    const targetX = entry.gfx.scaleX, targetY = entry.gfx.scaleY;
+    entry.gfx.setScale(targetX * 1.4, targetY * 0.4);
+    entry.sprite.setScale(targetX * 1.4, targetY * 0.4);
+    this.scene.tweens.add({
+      targets: [entry.gfx, entry.sprite],
+      scaleX: targetX, scaleY: targetY,
+      duration: VIEW.buildSquashMs, ease: EASE.pop,
+    });
   }
 
   applyLevel(instanceId, level) {
