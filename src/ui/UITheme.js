@@ -18,6 +18,24 @@ export const COLOR = {
   textDim:   0x8a919e,
 };
 
+/**
+ * 도로 표식 — 컨셉이 "적이 서울 도로를 타고 온다"라서 경로를 실제 차선/화살표가 있는
+ * 도로처럼 그린다(mapView.js). 흰색 계열로 통일한다 — 한국 도로에서 진행방향 화살표·차로
+ * 구분선은 보통 흰색이고, 노란색은 반대 차선 분리(양방향 도로) 전용이라 여긴 안 맞는다.
+ */
+export const ROAD = {
+  laneColor: 0xf2f4f8,
+  laneAlpha: 0.35,   // ↑ 올리면 차선이 더 또렷해진다(과하면 그 위 적/타워가 묻힌다)
+  laneWidth: 2,
+  dashLen:   14,      // 점선 한 칸 길이
+  gapLen:    10,      // 점선 사이 간격
+
+  arrowColor:   0xf2f4f8,
+  arrowAlpha:   0.3,
+  arrowSize:    8,    // ↑ 올리면 화살표가 커진다
+  arrowSpacing: 70,   // 화살표 사이 간격(px). ↓ 낮추면 더 촘촘해진다
+};
+
 /** N서울타워 조명 = 체력바. 단계 4→1 */
 export const LIGHT = {
   colors:        [0xe53935, 0xfdd835, 0x4caf50, 0x2196f3], // index 0 = 단계1(빨강) … 3 = 단계4(파랑)
