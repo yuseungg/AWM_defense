@@ -9,9 +9,14 @@
  * strongAgainst 키는 종(species) id다("dust","trash"). Enemy.js에서 이 값은
  * enemy.type에 들어있고(enemy.id는 스폰마다 고유한 인스턴스 id), 그래서 실제 구현은
  * def.strongAgainst?.[enemy.type]로 상성을 찾는다.
+ *
+ * PolicySystem은 perks와 달리 직접 import한다 — perks는 "당시 PerkSystem이 없어서"
+ * 파라미터로 주입한 임시 조치였지만, PolicySystem은 이미 확정된 모듈이라 Tower.js가
+ * GridSystem을 직접 import하는 것과 같은 방식으로 둔다(살수차: 청계천 슬로우 +50%).
  */
 
 import { EventBus, EV } from '../EventBus.js';
+import PolicySystem from './PolicySystem.js';
 
 /** perks가 없거나 일부만 와도(PerkSystem 붙기 전) 안전하게 0으로 채운다. */
 function normalizePerks(perks) {
@@ -64,11 +69,14 @@ function applyHit(tower, enemy, perks) {
   // 킬샷이면 죽은 대상에 상태이상을 걸 필요가 없다
   if (enemy.alive) {
     def.effects?.forEach(effect => {
-      enemy.applyEffect(effect);
+      const scaled = effect.type === 'slow'
+        ? { ...effect, amount: effect.amount * PolicySystem.getMul('slowEffectMul', tower.id) }
+        : effect;
+      enemy.applyEffect(scaled);
       EventBus.emit(EV.statusApplied, {
         enemyId: enemy.id,
-        type: effect.type,
-        duration: effect.duration,
+        type: scaled.type,
+        duration: scaled.duration,
       });
     });
   }

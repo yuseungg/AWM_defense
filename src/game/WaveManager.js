@@ -8,8 +8,8 @@
  * 웨이브는 겹치지 않는다: "즉시 웨이브"는 현재 웨이브가 다 정리된 뒤의 대기시간(prep phase)을
  * 건너뛰는 것이지, 진행 중인 웨이브에 끼어드는 게 아니다(MockGameCore.js의 isPrepPhase와 동일 모델).
  *
- * PerkSystem(P3)·LevelSystem(P2)이 아직 없어서 perksProvider/getLevel을 선택적으로 주입받는다.
- * 기본값은 안전하게 0(퍼크 없음)/1(레벨 1)로 동작한다.
+ * getLevel/perksProvider는 LevelSystem/PerkSystem이 생겼으니 기본 싱글턴 생성 시 바로 연결한다.
+ * 그래도 인자 자체는 계속 선택적으로 남겨둔다(단위 테스트 등에서 다른 값을 주입할 수 있게).
  */
 
 import wavesData from '../../data/waves.json';
@@ -20,15 +20,22 @@ import EnemyPool from './EnemyPool.js';
 import ProjectilePool from './Projectile.js';
 import applyHits from './Combat.js';
 import Economy from './Economy.js';
+import LevelSystem from './LevelSystem.js';
+import PerkSystem from './PerkSystem.js';
+import PolicySystem from './PolicySystem.js';
+import GridSystem from './GridSystem.js';
 
 const ENEMY_TYPES = ['dust', 'car', 'trash'];
 const SEASON_CYCLE_LENGTH = 40; // seasons 배열이 덮는 웨이브 범위(1~40)
+const OBSTACLE_HIT_RADIUS = GridSystem.cell / 2;
 
 export function createWaveManager({ perksProvider, getLevel } = {}) {
   const getPerks = perksProvider ?? (() => ({ globalDamage: 0, globalCrit: 0, globalPierce: 0 }));
   const readLevel = getLevel ?? (() => 1);
 
   const towers = [];
+  const supports = [];
+  const obstacles = [];
   let enemySeq = 0;
 
   const state = {
@@ -48,17 +55,61 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
   let elapsedInWave = 0;
   let waveRecord = { total: 0, resolved: 0, hadLeak: false };
   let currentBoss = null;
+  let invincible = false; // Debug.js(H) 전용
 
   EnemyPool.setOnEnemyDeath(onEnemyDeath);
   EnemyPool.setOnEnemyReachCore(onEnemyReachCore);
 
-  // ── 타워 레지스트리
+  // ── 타워·서포터·장애물 레지스트리
   function addTower(tower) { towers.push(tower); }
   function removeTower(tower) {
     const idx = towers.indexOf(tower);
     if (idx !== -1) towers.splice(idx, 1);
   }
   function getTowers() { return towers; }
+
+  function addSupport(support) { supports.push(support); }
+  function removeSupport(support) {
+    const idx = supports.indexOf(support);
+    if (idx !== -1) supports.splice(idx, 1);
+  }
+  function getSupports() { return supports; }
+
+  function addObstacle(obstacle) { obstacles.push(obstacle); }
+  function removeObstacle(obstacle) {
+    const idx = obstacles.indexOf(obstacle);
+    if (idx !== -1) obstacles.splice(idx, 1);
+  }
+  function getObstacles() { return obstacles; }
+
+  /**
+   * 오라 재계산 (CLAUDE.md §5-2, 이벤트 기반 — 매 프레임 거리 계산 금지).
+   * 호출 시점: 타워/서포터 건설·재배치·강화(GameCore가 호출).
+   */
+  function recalculateBuffs() {
+    towers.forEach(t => t.resetToBase());
+
+    supports
+      .filter(s => s.def.effect.type.startsWith('aura'))
+      .forEach(support => {
+        towers
+          .filter(t => Math.hypot(t.x - support.x, t.y - support.y) <= support.def.effect.radius)
+          .forEach(t => t.applyBuff({ type: support.def.effect.type, value: support.effectiveValue }));
+      });
+
+    applyGlobalEffects();
+    EventBus.emit(EV.buffsRecalculated, { towerStats: towers });
+  }
+
+  /** 퍼크는 Combat.js가 매 히트 PerkSystem.get()을 직접 읽어서 캐싱이 필요 없다. */
+  function applyGlobalEffects() {
+    const cityHall = supports.find(s => s.def.effect.type === 'globalGold');
+    Economy.setGoldMul(cityHall ? 1 + cityHall.effectiveValue : 1);
+
+    // 도심 녹지(towerRangeMul)는 "반경 무제한 오라"와 수학적으로 같아서 기존 applyBuff를 재사용한다.
+    const rangeMul = PolicySystem.getMul('towerRangeMul', 'all');
+    if (rangeMul !== 1) towers.forEach(t => t.applyBuff({ type: 'auraRange', value: rangeMul - 1 }));
+  }
 
   // ── 계절 결정. wave>40이면 seasonLoopFrom 기준 40주기로 순환(난이도 스케일은 원래 wave로 계속 오름)
   function resolveSeason(wave) {
@@ -82,9 +133,11 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
 
       const base = enemiesData[type];
       const [min, max] = base.spawnCount;
-      const count = Math.floor(min + Math.random() * (max - min + 1)) + extra;
+      const rawCount = Math.floor(min + Math.random() * (max - min + 1)) + extra;
+      const count = Math.round(rawCount * PolicySystem.getMul('enemySpawnMul', type));
       const interval = wavesData.spawn.intervalByType[type] ?? 0.3;
-      const scaledDef = { ...base, baseHp: Math.round(base.baseHp * hpMul) };
+      const hpPolicyMul = PolicySystem.getMul('enemyHpMul', type);
+      const scaledDef = { ...base, baseHp: Math.round(base.baseHp * hpMul * hpPolicyMul) };
 
       for (let i = 0; i < count; i++) entries.push({ t: i * interval, type, def: scaledDef });
     });
@@ -147,12 +200,42 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
     const enemies = EnemyPool.getActive();
     for (let i = enemies.length - 1; i >= 0; i--) enemies[i].update(scaledDt);
 
+    updateObstacles(scaledDt, enemies);
+
     // 스폰/발사는 prep phase엔 멈추지만, 이미 날아가던 투사체는 계속 처리해서
     // 이전 웨이브의 유탄이 prep phase 내내 허공에 멈춰있지 않게 한다.
     if (!state.isPrepPhase) towers.forEach(tower => fireTower(tower, scaledDt));
 
     const projectiles = ProjectilePool.getActive();
     for (let i = projectiles.length - 1; i >= 0; i--) projectiles[i].update(scaledDt);
+  }
+
+  /**
+   * 쿨다운이 찬 장애물마다 반경 내 "전부"의 적에게 효과를 적용한다(스웜 대응).
+   * 반경(칸 절반)·쿨다운으로 이미 제한되므로 밸런스는 P4에서 obstacles.json 수치만 조정하면 된다.
+   */
+  function updateObstacles(dt, enemies) {
+    obstacles.forEach(obstacle => {
+      obstacle.cooldownRemaining = Math.max(0, obstacle.cooldownRemaining - dt);
+      if (obstacle.cooldownRemaining > 0) return;
+
+      const targets = enemies.filter(
+        e => e.alive && Math.hypot(e.x - obstacle.x, e.y - obstacle.y) <= OBSTACLE_HIT_RADIUS
+      );
+      if (!targets.length) return;
+
+      const payload = obstacle.effectivePayload;
+      targets.forEach(enemy => {
+        enemy.applyEffect(payload);
+        EventBus.emit(EV.statusApplied, { enemyId: enemy.id, type: payload.type, duration: payload.duration });
+      });
+
+      obstacle.cooldownRemaining = obstacle.def.effect.cooldown;
+      EventBus.emit(EV.obstacleTriggered, {
+        instanceId: obstacle.instanceId, type: obstacle.id, x: obstacle.x, y: obstacle.y,
+        cooldown: obstacle.def.effect.cooldown,
+      });
+    });
   }
 
   function fireTower(tower, dt) {
@@ -179,6 +262,7 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
   // ── EnemyPool 콜백: 죽음/코어도달
   function onEnemyDeath(enemy) {
     Economy.addKillReward(enemy);
+    LevelSystem.addKillXp(enemy);
     state.kills++;
     EventBus.emit(EV.enemyKilled, {
       id: enemy.id, type: enemy.type, reward: enemy.reward, xp: enemy.xp, x: enemy.x, y: enemy.y,
@@ -209,6 +293,7 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
 
   function damageCity(n) {
     if (state.gameOver) return;
+    if (invincible) return; // 코어 도달 자체(웨이브 집계 등)는 그대로, 조명 차감만 억제
     state.cityLight = Math.max(0, state.cityLight - n);
     if (state.cityLight <= 0) {
       EventBus.emit(EV.cityDamaged, { level: 0 });
@@ -242,6 +327,13 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
 
     Economy.addWaveClearBonus(state.wave);
 
+    const policyGold = PolicySystem.getSum('goldPerWave', 'all');
+    if (policyGold > 0) Economy.add(policyGold);
+
+    // 임시 정책 만료 처리. towerRangeMul류가 방금 풀렸을 수 있어 즉시 재계산한다(사용자 요청).
+    PolicySystem.onWaveCleared();
+    recalculateBuffs();
+
     state.isPrepPhase = true;
     prepTimer = wavesData.spawn.prepSeconds;
   }
@@ -256,11 +348,29 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
   function setPaused(paused) { state.paused = !!paused; }
   function setSpeed(n) { state.speedMul = n; }
 
-  /** 소유(pickPolicy) 기반 제외는 PolicySystem(P3) 몫. 지금은 전체 풀에서 매번 3장 뽑는다. */
+  // ── Debug.js(?debug=1) 전용
+  /** 진행 중이던 웨이브를 버리고 n으로 강제 점프한다. 이미 화면에 있는 적은 안 건드림(K가 담당). */
+  function jumpToWave(n) {
+    spawnQueue = [];
+    startWave(n);
+  }
+
+  /** 활성 적 전부를 정상 처치 경로(takeDamage)로 죽인다 — 보상·XP·집계가 평소처럼 반영된다. */
+  function killAllEnemies() {
+    [...EnemyPool.getActive()].forEach(e => e.takeDamage(e.hp));
+  }
+
+  function setInvincible(v) { invincible = !!v; }
+  function isInvincible() { return invincible; }
+
+  /**
+   * 지금 활성인 정책은 풀에서 뺀다 — 서포터(DraftSystem)와 달리 영구 제외가 아니라
+   * "켜져 있는 동안만" 제외다. 임시 정책(예: 차량 2부제)은 만료되면 다시 뽑힐 수 있다.
+   */
   function drawPolicies() {
-    const pool = Object.values(policiesData).map(p => (
-      { cardId: p.id, kind: 'policy', name: p.name, desc: p.desc }
-    ));
+    const pool = Object.values(policiesData)
+      .filter(p => !PolicySystem.isActive(p.id))
+      .map(p => ({ cardId: p.id, kind: 'policy', name: p.name, desc: p.desc }));
     return sample(pool, wavesData.policyCardCount);
   }
 
@@ -275,14 +385,28 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
     addTower,
     removeTower,
     getTowers,
+    addSupport,
+    removeSupport,
+    getSupports,
+    addObstacle,
+    removeObstacle,
+    getObstacles,
+    recalculateBuffs,
     update,
     startNextWave,
     setPaused,
     setSpeed,
     getState: () => state,
+    jumpToWave,
+    killAllEnemies,
+    setInvincible,
+    isInvincible,
   };
 }
 
-export const WaveManager = createWaveManager();
+export const WaveManager = createWaveManager({
+  getLevel: () => LevelSystem.getLevel(),
+  perksProvider: () => PerkSystem.get(),
+});
 
 export default WaveManager;
