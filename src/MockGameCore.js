@@ -12,6 +12,7 @@
  */
 
 import { EventBus, EV, REJECT } from './EventBus.js';
+import GridSystem from './game/GridSystem.js';
 import waves from '../data/waves.json';
 import towersData from '../data/towers.json';
 import enemiesData from '../data/enemies.json';
@@ -55,7 +56,8 @@ class Mock {
     this.enemySeq = 0;
     this.paused = false;
     this.speed = 1;
-    this.obstaclePicks = 0;
+    this.ownedSupportIds = new Set();     // 드래프트로 얻었지만 아직 안 지은 서포터(유니크, id당 1개)
+    this.obstaclePicksById = new Map();   // 드래프트로 얻었지만 아직 안 지은 장애물 설치 횟수(id별)
     this.timers = [];
     this.started = false;
   }
@@ -241,7 +243,7 @@ class Mock {
   // ────────────────────────────────────────── 드래프트 추첨
   /** 풀 = 서포터(유니크, 획득 시 제거) + 장애물(반복) + 퍼크(누적). 3장 제시 [가정] */
   drawDraft() {
-    const owned = this.state.supports.map(s => s.id);
+    const owned = [...this.ownedSupportIds]; // 픽한 순간 풀에서 빠진다(배치 여부와 무관 — 유니크는 "한 번만 뽑힘")
     const pool = [
       ...Object.values(supportsData).filter(s => !owned.includes(s.id))
         .map(s => ({ cardId: s.id, kind: 'support', name: s.name, desc: s.desc })),
@@ -275,6 +277,13 @@ const mock = new Mock();
 // 반환 규약: { ok, reason?, instanceId? }   좌표 규약: cellX/cellY = 셀 인덱스  [가정]
 const CELL = 40;
 
+/** kind별 배치 격자 규칙(CLAUDE.md §5-3): tower/support = 경로 밖 슬롯 / obstacle = 경로 위. GridSystem 재사용. */
+function checkGrid(kind, cellX, cellY) {
+  const onPath = GridSystem.isPathCell(cellX, cellY);
+  if (kind === 'obstacle') return onPath ? { ok: true } : { ok: false, reason: 'notOnPath' };
+  return onPath ? { ok: false, reason: 'onPath' } : { ok: true };
+}
+
 function place(kind, dataset, id, cellX, cellY) {
   const s = mock.state;
   const list = kind === 'tower' ? s.towers : kind === 'support' ? s.supports : s.obstacles;
@@ -282,7 +291,13 @@ function place(kind, dataset, id, cellX, cellY) {
   if (!def) return reject('build', 'locked');
 
   if (kind === 'tower' && !s.unlockedTowers.includes(id)) return reject('build', 'locked');
+  if (kind === 'support' && !mock.ownedSupportIds.has(id)) return reject('build', 'noPick');
   if (kind === 'support' && s.supports.some(o => o.id === id)) return reject('build', 'unique');
+  if (kind === 'obstacle' && !(mock.obstaclePicksById.get(id) > 0)) return reject('build', 'noPick');
+
+  const gridCheck = checkGrid(kind, cellX, cellY);
+  if (!gridCheck.ok) return reject('build', gridCheck.reason);
+
   if ([...s.towers, ...s.supports, ...s.obstacles].some(o => o.cellX === cellX && o.cellY === cellY))
     return reject('build', 'occupied');
 
@@ -290,6 +305,10 @@ function place(kind, dataset, id, cellX, cellY) {
   const x = cellX * CELL + CELL / 2;
   const y = cellY * CELL + CELL / 2;
   list.push({ instanceId, id, kind, cellX, cellY, x, y, level: 0 });
+
+  if (kind === 'obstacle') {
+    mock.obstaclePicksById.set(id, mock.obstaclePicksById.get(id) - 1);
+  }
 
   EventBus.emit(EV.objectBuilt, { kind, id, instanceId, cellX, cellY, x, y });
   mock.addXp(waves.buildXp[kind] ?? 2);
@@ -345,9 +364,11 @@ export const GameCore = {
       const e = perksData[cardId].effect;
       s.perks[e.type] = Math.min(e.cap ?? Infinity, (s.perks[e.type] || 0) + e.value);
     } else if (supportsData[cardId]) {
-      s.supports.push({ instanceId: `${cardId}#pending`, id: cardId, kind: 'support', level: 0 });
+      // 여기서 s.supports에 미리 넣지 않는다 — place()의 유니크 검사가 자기 자신의 pending
+      // 마커에 걸려 실제 배치를 영원히 거부하는 사고가 났었다(BuildUI 배치 흐름 구현 중 발견).
+      mock.ownedSupportIds.add(cardId);
     } else if (obstaclesData[cardId]) {
-      mock.obstaclePicks++;
+      mock.obstaclePicksById.set(cardId, (mock.obstaclePicksById.get(cardId) || 0) + 1);
     }
     EventBus.emit(EV.cardPicked, { cardId });
     EventBus.emit(EV.buffsRecalculated, { towerStats: s.towers });
@@ -372,8 +393,14 @@ export const GameCore = {
   /** boolean 아님 — UI가 실패 이유를 표시할 수 있어야 한다 [가정] */
   canBuild(id, cellX, cellY) {
     const s = mock.state;
-    if (towersData[id] && !s.unlockedTowers.includes(id)) return { ok: false, reason: 'locked' };
-    if (supportsData[id] && s.supports.some(o => o.id === id)) return { ok: false, reason: 'unique' };
+    const kind = towersData[id] ? 'tower' : supportsData[id] ? 'support' : obstaclesData[id] ? 'obstacle' : null;
+    if (!kind) return { ok: false, reason: 'locked' };
+    if (kind === 'tower' && !s.unlockedTowers.includes(id)) return { ok: false, reason: 'locked' };
+    if (kind === 'support' && !mock.ownedSupportIds.has(id)) return { ok: false, reason: 'noPick' };
+    if (kind === 'support' && s.supports.some(o => o.id === id)) return { ok: false, reason: 'unique' };
+    if (kind === 'obstacle' && !(mock.obstaclePicksById.get(id) > 0)) return { ok: false, reason: 'noPick' };
+    const gridCheck = checkGrid(kind, cellX, cellY);
+    if (!gridCheck.ok) return gridCheck;
     if ([...s.towers, ...s.supports, ...s.obstacles].some(o => o.cellX === cellX && o.cellY === cellY))
       return { ok: false, reason: 'occupied' };
     return { ok: true, reason: null };
