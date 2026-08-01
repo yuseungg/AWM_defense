@@ -11,6 +11,7 @@ import towersData from '../data/towers.json';
 import perksData from '../data/perks.json';
 import supportsData from '../data/supports.json';
 import obstaclesData from '../data/obstacles.json';
+import policiesData from '../data/policies.json';
 import GridSystem from './game/GridSystem.js';
 import Tower from './game/Tower.js';
 import Supporter from './game/Supporter.js';
@@ -20,6 +21,7 @@ import Economy from './game/Economy.js';
 import LevelSystem from './game/LevelSystem.js';
 import DraftSystem from './game/DraftSystem.js';
 import PerkSystem from './game/PerkSystem.js';
+import PolicySystem from './game/PolicySystem.js';
 import { EventBus, EV, REJECT } from './EventBus.js';
 
 const seqByType = {};
@@ -186,6 +188,16 @@ function pickDraftCard(cardId) {
   return { ok: true };
 }
 
+function pickPolicy(policyId) {
+  if (!policiesData[policyId]) return { ok: false, reason: 'locked' };
+
+  PolicySystem.pickPolicy(policyId);
+  // towerRangeMul류는 즉시 반영/해제돼야 하니 여기서도 재계산한다(사용자 요청).
+  WaveManager.recalculateBuffs();
+  EventBus.emit(EV.cardPicked, { cardId: policyId });
+  return { ok: true };
+}
+
 function getState() {
   const wm = WaveManager.getState();
   return {
@@ -200,7 +212,7 @@ function getState() {
     supports: WaveManager.getSupports(),
     obstacles: WaveManager.getObstacles(),
     perks: PerkSystem.get(),
-    policies: [],
+    policies: PolicySystem.getActivePolicies(),
     unlockedTowers: LevelSystem.getUnlockedTowers(),
     kills: wm.kills,
     bestWave: wm.bestWave,
@@ -221,15 +233,13 @@ export const GameCore = {
   upgrade,
   relocate,
   pickDraftCard,
+  pickPolicy,
 
   startNextWave: () => WaveManager.startNextWave(),
   setSpeed: n => WaveManager.setSpeed(n),
   setPaused: b => WaveManager.setPaused(b),
 
   getState,
-
-  // 스텁 — PolicySystem(P3) 붙으면 구현
-  pickPolicy: () => ({ ok: false, reason: 'notImplemented' }),
 };
 
 export default GameCore;

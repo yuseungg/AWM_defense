@@ -22,6 +22,7 @@ import applyHits from './Combat.js';
 import Economy from './Economy.js';
 import LevelSystem from './LevelSystem.js';
 import PerkSystem from './PerkSystem.js';
+import PolicySystem from './PolicySystem.js';
 import GridSystem from './GridSystem.js';
 
 const ENEMY_TYPES = ['dust', 'car', 'trash'];
@@ -99,10 +100,14 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
     EventBus.emit(EV.buffsRecalculated, { towerStats: towers });
   }
 
-  /** 퍼크는 Combat.js가 매 히트 PerkSystem.get()을 직접 읽어서 캐싱이 필요 없다. 정책은 P3 미구현. */
+  /** 퍼크는 Combat.js가 매 히트 PerkSystem.get()을 직접 읽어서 캐싱이 필요 없다. */
   function applyGlobalEffects() {
     const cityHall = supports.find(s => s.def.effect.type === 'globalGold');
     Economy.setGoldMul(cityHall ? 1 + cityHall.effectiveValue : 1);
+
+    // 도심 녹지(towerRangeMul)는 "반경 무제한 오라"와 수학적으로 같아서 기존 applyBuff를 재사용한다.
+    const rangeMul = PolicySystem.getMul('towerRangeMul', 'all');
+    if (rangeMul !== 1) towers.forEach(t => t.applyBuff({ type: 'auraRange', value: rangeMul - 1 }));
   }
 
   // ── 계절 결정. wave>40이면 seasonLoopFrom 기준 40주기로 순환(난이도 스케일은 원래 wave로 계속 오름)
@@ -127,9 +132,11 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
 
       const base = enemiesData[type];
       const [min, max] = base.spawnCount;
-      const count = Math.floor(min + Math.random() * (max - min + 1)) + extra;
+      const rawCount = Math.floor(min + Math.random() * (max - min + 1)) + extra;
+      const count = Math.round(rawCount * PolicySystem.getMul('enemySpawnMul', type));
       const interval = wavesData.spawn.intervalByType[type] ?? 0.3;
-      const scaledDef = { ...base, baseHp: Math.round(base.baseHp * hpMul) };
+      const hpPolicyMul = PolicySystem.getMul('enemyHpMul', type);
+      const scaledDef = { ...base, baseHp: Math.round(base.baseHp * hpMul * hpPolicyMul) };
 
       for (let i = 0; i < count; i++) entries.push({ t: i * interval, type, def: scaledDef });
     });
@@ -318,6 +325,13 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
 
     Economy.addWaveClearBonus(state.wave);
 
+    const policyGold = PolicySystem.getSum('goldPerWave', 'all');
+    if (policyGold > 0) Economy.add(policyGold);
+
+    // 임시 정책 만료 처리. towerRangeMul류가 방금 풀렸을 수 있어 즉시 재계산한다(사용자 요청).
+    PolicySystem.onWaveCleared();
+    recalculateBuffs();
+
     state.isPrepPhase = true;
     prepTimer = wavesData.spawn.prepSeconds;
   }
@@ -332,11 +346,14 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
   function setPaused(paused) { state.paused = !!paused; }
   function setSpeed(n) { state.speedMul = n; }
 
-  /** 소유(pickPolicy) 기반 제외는 PolicySystem(P3) 몫. 지금은 전체 풀에서 매번 3장 뽑는다. */
+  /**
+   * 지금 활성인 정책은 풀에서 뺀다 — 서포터(DraftSystem)와 달리 영구 제외가 아니라
+   * "켜져 있는 동안만" 제외다. 임시 정책(예: 차량 2부제)은 만료되면 다시 뽑힐 수 있다.
+   */
   function drawPolicies() {
-    const pool = Object.values(policiesData).map(p => (
-      { cardId: p.id, kind: 'policy', name: p.name, desc: p.desc }
-    ));
+    const pool = Object.values(policiesData)
+      .filter(p => !PolicySystem.isActive(p.id))
+      .map(p => ({ cardId: p.id, kind: 'policy', name: p.name, desc: p.desc }));
     return sample(pool, wavesData.policyCardCount);
   }
 
