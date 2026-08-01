@@ -298,13 +298,40 @@ export const VIEW = {
  * barY 등은 1280×720 고정 해상도(CLAUDE.md §2) 기준 절대값이다. mapView.js의 H를 참조하지
  * 않는 이유는 UITheme.js가 상수 전용 파일이라 mapView.js를 import하면 순환 참조가 생기기 때문.
  */
+/**
+ * 건설 바 — 화면 하단 중앙에 뜨는 44×44 "이미지 프레임" 슬롯의 묶음.
+ * 슬롯 = drawPanel(외곽 테두리, 상태별 색) + 4px 안쪽 이미지 영역(텍스처 있으면 이미지,
+ * 없으면 실루엣) + 우하단 뱃지(건설됨=✓ / 잠김=레벨·드래프트 / 장애물=남은 개수).
+ * 슬롯 하나 = Container(중심이 원점) — scale은 container 하나만 조작하면 되게 만들어서
+ * "선택중 살짝 확대"를 개별 오브젝트가 아니라 슬롯 전체가 한 덩어리로 팝 하게 한다.
+ */
 export const BUILD = {
-  barY:        660,  // 하단 선택 바 중심 Y (H=720 기준, 여백 60px). Controls(우상단)·HUD(좌상단)와 안 겹침
-  barHeight:   64,
-  buttonWidth: 96,
-  buttonGap:   10,
-  fontSize:    13,
-  builtAlpha:  0.35,  // 이미 지어진 유니크 타워 버튼(재클릭 불가). ↓ 낮추면 "다 지었다"는 느낌이 더 강해진다
+  barY:      660,  // 하단 선택 바 중심 Y (H=720 기준). Controls(우상단)·HUD(좌상단)와 안 겹침
+  barHeight: 88,   // 패널 전체 높이(슬롯+라벨+여백). UpgradeUI가 "건설 바 영역" 판정에 이 값을 그대로 쓴다
+
+  slotSize:    44,
+  slotGap:     10,   // 슬롯 사이 간격
+  slotInset:   4,    // 외곽 테두리 안쪽 이미지 영역 여백
+  slotTopPad:  12,   // 패널 상단 ~ 슬롯 상단
+  slotChamfer: 6,
+  groupGap:    24,   // 타워 그룹 ↔ 서포터/장애물 그룹 사이 여백(그 중앙에 구분선)
+  dividerAlpha: 0.25,
+
+  labelFontSize: 10,
+  labelGap:      4,   // 슬롯 하단 ~ 이름 라벨
+
+  slotBorderSelectable: 0x2b6f8a,  // 흐린 청록 — 선택 가능
+  slotBorderSelected:   0x3fa7d6,  // 밝은 청록(액센트) — 선택중
+  slotBorderBuilt:      0x3fa7d6,  // 청록 — 건설됨
+  slotBorderLocked:     0x33383f,  // 어둡게 — 잠김
+  slotSelectedScale:    1.08,      // 선택중 살짝 확대
+
+  builtAlpha:  0.45,  // 이미 지어진 유니크 타워 슬롯(재클릭 불가). ↓ 낮추면 "다 지었다"는 느낌이 더 강해진다
+  lockedAlpha: 0.5,   // ↓ 낮추면 더 안 보인다
+
+  checkColor:    '#4caf50',
+  badgeColor:    '#8a919e',   // "Lv.3"/"드래프트"/"x3" 뱃지 색
+  lockIconColor: 0x8a919e,    // 자물쇠 아이콘 색 (HUD 보조 텍스트와 동일)
 
   previewAlpha: 0.35,  // 배치 미리보기 실루엣. ↑ 올리면 배치 가능/불가 색이 더 잘 보인다
 
@@ -317,16 +344,10 @@ export const BUILD = {
   auraLineWidth:  2,
   auraLineAlpha:  0.6,
 
-  selectedBorderColor: 0xffd54f,  // 선택된 버튼 강조. 특효 노랑과 동일 계열("지금 이걸 들고 있다" 신호)
-
   rejectToastMs:       1400,  // 실패 문구 유지 시간(페이드 시작까지). ↑ 올리면 더 오래 보인다
   rejectToastOffsetY:  16,    // 선택 바 바로 위 얼마나 띄울지
 
-  // 미해금 슬롯 — "앞으로 뭐가 나올지 보여야 레벨업 동기가 생긴다"는 원칙(로그라이트 성장)
-  lockedAlpha:     0.35,   // ↓ 낮추면 더 안 보인다(건설됨과 동일 알파를 공유 — 둘 다 "지금은 못 누른다"는 신호)
-  lockIconColor:   0x8a919e,  // 자물쇠 아이콘 색 (HUD 보조 텍스트와 동일)
-  lockBadgeColor:  '#8a919e', // "Lv.3"/"드래프트" 뱃지 색
-  unlockFlashMs:   260,    // 해금 순간 스케일 팝 지속시간. ↓ 낮추면 더 튕기듯 보인다
+  unlockFlashMs:    260,   // 해금 순간 스케일 팝 지속시간. ↓ 낮추면 더 튕기듯 보인다
   unlockScalePunch: 1.3,   // 해금 순간 최대 확대 배율. ↑ 올리면 더 두드러진다
 };
 

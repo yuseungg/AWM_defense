@@ -192,9 +192,13 @@ CSS `'0.18em'` 같은 문자열을 그대로 넣으면 파싱이 깨져서 그 T
 | 배치 미리보기가 잘 안 보인다 | `BUILD.previewAlpha` ↑ |
 | 사거리 원과 오라 원이 헷갈린다 | 색이 아니라 **형태**로 구분돼 있다(사거리=테두리만, 오라=채움) — 그래도 헷갈리면 `BUILD.auraFillAlpha` ↑ 또는 `BUILD.rangeLineWidth` ↑ |
 | 오라 원이 밑에 있는 타워/경로를 가린다 | `BUILD.auraFillAlpha` ↓ |
-| 선택 바 버튼이 작다/이름이 잘린다 | `BUILD.buttonWidth` ↑, `BUILD.fontSize` |
+| 건설 바 슬롯이 작다/이름이 잘린다 | `BUILD.slotSize` ↑(사거리 미리보기 등 다른 계산과는 무관, 순수 표시 크기), `BUILD.labelFontSize` |
+| 건설 바 슬롯 상태(선택가능/선택중/건설됨/잠김) 테두리 색 구분이 안 된다 | `BUILD.slotBorder*`(4종) |
+| 선택중인 슬롯이 확대되는 게 안 보인다 | `BUILD.slotSelectedScale` ↑ |
+| 타워↔서포터/장애물 그룹 구분선이 안 보인다/간격이 좁다 | `BUILD.groupGap` ↑, `BUILD.dividerAlpha` ↑ |
+| 슬롯 우하단 뱃지(✓·Lv·x개수)가 안 읽힌다 | `BUILD.badgeColor`, `BUILD.checkColor` |
 | 배치 실패 문구가 안 보인다/너무 빨리 사라진다 | `BUILD.rejectToastMs` ↑ |
-| 이미 지은 유니크 타워 버튼이 안 흐려 보인다 | `BUILD.builtAlpha` ↓ |
+| 이미 지은 유니크 타워 슬롯이 안 흐려 보인다 | `BUILD.builtAlpha` ↓ |
 | 적이 안 보인다/너무 작다 | `VIEW.swarmRadius`/`VIEW.fastSize`/`VIEW.tankSize`/`VIEW.bossRadius` ↑ |
 | 적 색이 구분 안 된다 | `VIEW.enemyColors` (타입별 hex) |
 | 타워가 셀 안에 너무 작다/꽉 차 보인다 | `VIEW.towerSize` (40px 셀 기준, 사거리와 무관) |

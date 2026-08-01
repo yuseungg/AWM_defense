@@ -10,12 +10,16 @@
  *
  * N서울타워는 목록에서 제외한다 — map.json에 고정 좌표로 존재하는 상시 지형물이지
  * 플레이어가 격자에 배치하는 대상이 아니다(SeoulTowerLight가 이미 그 위치에 항상 그린다).
+ *
+ * 슬롯은 Panel.js의 drawPanel만 쓴다(직접 rectangle을 그리지 않는다) — 44×44 슬롯 하나가
+ * Container 하나(원점=슬롯 중심)라서, 선택중 확대는 container.setScale() 한 줄로 끝난다.
  */
 
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
-import { COLOR, BUILD, CONTROLS, VIEW } from './UITheme.js';
+import { COLOR, BUILD, CONTROLS, VIEW, PANEL } from './UITheme.js';
 import { CELL, W, H } from './mapView.js';
+import { drawPanel } from './Panel.js';
 import towersData from '../../data/towers.json';
 import supportsData from '../../data/supports.json';
 import obstaclesData from '../../data/obstacles.json';
@@ -54,6 +58,8 @@ export class BuildUI {
     this.builtSupportIds = new Set((initial.supports || []).map(s => s.id));
     (initial.supports || []).forEach(s => this.trackAuraSupport(s));
 
+    this.panel = null;
+    this.dividers = [];
     this.barButtons = [];
     this.buildBar();
     this.refreshAuraLayer();
@@ -99,7 +105,7 @@ export class BuildUI {
         const locked = !this.forceUnlockAll && def.unlockLevel > this.currentLevel;
         return {
           id, kind: 'tower', name: def.name, count: null, locked,
-          lockLabel: `Lv.${def.unlockLevel}`, lockMessage: `레벨 ${def.unlockLevel}에 해금됩니다`,
+          lockLabel: `L${def.unlockLevel}`, lockMessage: `레벨 ${def.unlockLevel}에 해금됩니다`,
         };
       });
 
@@ -120,69 +126,114 @@ export class BuildUI {
   }
 
   buildBar() {
-    this.barButtons.forEach(b => b.group.forEach(o => o.destroy()));
+    this.barButtons.forEach(b => b.container.destroy());
     this.barButtons = [];
+    this.dividers.forEach(d => d.destroy());
+    this.dividers = [];
+    this.panel?.destroy();
 
     const items = this.buildItems();
-    const totalW = items.length * BUILD.buttonWidth + Math.max(0, items.length - 1) * BUILD.buttonGap;
-    let x = W / 2 - totalW / 2;
-    const y = BUILD.barY;
+    if (items.length === 0) { this.panel = null; return; }
 
-    items.forEach(({ id, kind, name, count, locked, lockLabel, lockMessage }) => {
-      const cx = x + BUILD.buttonWidth / 2;
-      const built = kind === 'tower' && this.builtIds.has(id);
-      const selected = id === this.selectedId && kind === this.selectedKind;
-      const disabled = built || locked || this.locked;
+    // 슬롯 사이 간격 — 타워 그룹 → 서포터/장애물 그룹으로 넘어가는 지점만 groupGap, 나머지는 slotGap
+    const gaps = items.map((item, i) => {
+      if (i === items.length - 1) return 0;
+      return item.kind === 'tower' && items[i + 1].kind !== 'tower' ? BUILD.groupGap : BUILD.slotGap;
+    });
+    const contentW = items.length * BUILD.slotSize + gaps.reduce((a, b) => a + b, 0);
+    const panelW = contentW + BUILD.slotGap * 2;
+    const panelX = W / 2 - panelW / 2;
+    const panelY = BUILD.barY - BUILD.barHeight / 2;
 
-      const rect = this.scene.add.rectangle(cx, y, BUILD.buttonWidth, BUILD.barHeight, COLOR.slot)
-        .setStrokeStyle(2, selected ? BUILD.selectedBorderColor : COLOR.accent, 0.7);
+    this.panel = drawPanel(this.scene, panelX, panelY, panelW, BUILD.barHeight, {});
 
-      const group = [rect];
+    let x = panelX + BUILD.slotGap;
+    items.forEach((item, i) => {
+      this.barButtons.push({ id: item.id, kind: item.kind, container: this.buildSlot(x, panelY, item) });
+      if (gaps[i] === BUILD.groupGap) {
+        const dx = x + BUILD.slotSize + BUILD.groupGap / 2;
+        this.dividers.push(
+          this.scene.add.line(0, 0, dx, panelY + 10, dx, panelY + BUILD.barHeight - 10, PANEL.borderColor, BUILD.dividerAlpha)
+            .setOrigin(0, 0).setLineWidth(1),
+        );
+      }
+      x += BUILD.slotSize + gaps[i];
+    });
+  }
 
-      if (locked) {
-        group.push(this.drawLockIcon(cx, y - 12));
-        group.push(this.scene.add.text(cx, y + 1, lockLabel, {
-          fontSize: '10px', color: BUILD.lockBadgeColor,
-        }).setOrigin(0.5));
+  /**
+   * 44×44 슬롯 하나 = Container(원점이 슬롯 중심, 자식은 전부 로컬 좌표). drawPanel(테두리) +
+   * 4px 안쪽 이미지 영역(텍스처 있으면 이미지, 없으면 실루엣) + 우하단 뱃지 + 아래쪽 이름 라벨.
+   */
+  buildSlot(x, panelY, item) {
+    const { id, kind, name, count, locked, lockLabel, lockMessage } = item;
+    const built = kind === 'tower' && this.builtIds.has(id);
+    const selected = id === this.selectedId && kind === this.selectedKind;
+    const disabled = built || locked || this.locked;
+    const half = BUILD.slotSize / 2;
+
+    const cx = x + half;
+    const cy = panelY + BUILD.slotTopPad + half;
+    const container = this.scene.add.container(cx, cy);
+
+    const borderColor = locked ? BUILD.slotBorderLocked
+      : selected ? BUILD.slotBorderSelected
+      : built ? BUILD.slotBorderBuilt
+      : BUILD.slotBorderSelectable;
+
+    const frame = drawPanel(this.scene, -half, -half, BUILD.slotSize, BUILD.slotSize, {
+      corners: ['tl', 'br'], chamfer: BUILD.slotChamfer,
+      borderColor, borderWidth: selected ? 2 : 1.5,
+    });
+    container.add(frame);
+
+    // 4px 안쪽 이미지 영역 — 텍스처 있으면 이미지, 없으면 실루엣(색 스와치). 잠김이면 자물쇠로 대체.
+    const innerSize = BUILD.slotSize - BUILD.slotInset * 2;
+    if (locked) {
+      container.add(this.drawLockIcon(0, -2));
+    } else {
+      const texKey = `${kind}_${id}`;
+      if (this.scene.textures.exists(texKey)) {
+        container.add(this.scene.add.image(0, 0, texKey).setDisplaySize(innerSize, innerSize));
       } else {
         const swatchColor = kind === 'tower'
           ? Phaser.Display.Color.HexStringToColor(towersData[id].levels[0].tint).color
           : (VIEW.objectColor[id] ?? COLOR.accent);
-        group.push(this.scene.add.rectangle(cx, y - 12, 16, 16, swatchColor));
+        container.add(this.scene.add.rectangle(0, 0, innerSize, innerSize, swatchColor));
       }
+    }
 
-      const labelText = count != null ? `${name} x${count}` : name;
-      group.push(this.scene.add.text(cx, y + 14, labelText, {
-        fontSize: `${BUILD.fontSize}px`, color: '#f2f4f8',
-      }).setOrigin(0.5));
+    // 우하단 뱃지 — 건설됨(✓) / 잠김(레벨·드래프트) / 장애물 남은 개수. 셋은 서로 배타적이다.
+    if (built) {
+      container.add(this.scene.add.text(half - 2, half - 2, '✓', { fontSize: '13px', color: BUILD.checkColor }).setOrigin(1));
+    } else if (locked) {
+      container.add(this.scene.add.text(half - 2, half - 2, lockLabel, { fontSize: '9px', color: BUILD.badgeColor }).setOrigin(1));
+    } else if (count != null) {
+      container.add(this.scene.add.text(half - 2, half - 2, `x${count}`, { fontSize: '9px', color: BUILD.badgeColor }).setOrigin(1));
+    }
 
-      if (built) {
-        group.push(this.scene.add.text(cx, y - 12, '✓', { fontSize: '14px', color: '#4caf50' }).setOrigin(0.5));
-      }
+    container.add(this.scene.add.text(0, half + BUILD.labelGap, name, {
+      fontSize: `${BUILD.labelFontSize}px`, color: '#f2f4f8',
+    }).setOrigin(0.5, 0));
 
-      if (disabled) {
-        group.forEach(o => o.setAlpha(built ? BUILD.builtAlpha : locked ? BUILD.lockedAlpha : CONTROLS.disabledAlpha));
-      }
+    if (disabled) container.setAlpha(built ? BUILD.builtAlpha : locked ? BUILD.lockedAlpha : CONTROLS.disabledAlpha);
+    if (selected) container.setScale(BUILD.slotSelectedScale);
 
-      if (built || this.locked) {
-        // 클릭 불가 — 핸들러 없음
-      } else if (locked) {
-        rect.setInteractive({ useHandCursor: true });
-        rect.on('pointerdown', (_p, _lx, _ly, event) => {
-          event.stopPropagation();
-          this.showToast(lockMessage);
-        });
+    if (built || this.locked) {
+      // 클릭 불가 — 핸들러 없음
+    } else {
+      container.setSize(BUILD.slotSize, BUILD.slotSize);
+      container.setInteractive(
+        new Phaser.Geom.Rectangle(-half, -half, BUILD.slotSize, BUILD.slotSize), Phaser.Geom.Rectangle.Contains,
+      );
+      if (locked) {
+        container.on('pointerdown', (_p, _lx, _ly, event) => { event.stopPropagation(); this.showToast(lockMessage); });
       } else {
-        rect.setInteractive({ useHandCursor: true });
-        rect.on('pointerdown', (_p, _lx, _ly, event) => {
-          event.stopPropagation();
-          this.select(id, kind);
-        });
+        container.on('pointerdown', (_p, _lx, _ly, event) => { event.stopPropagation(); this.select(id, kind); });
       }
+    }
 
-      this.barButtons.push({ id, kind, group });
-      x += BUILD.buttonWidth + BUILD.buttonGap;
-    });
+    return container;
   }
 
   /** 원점(cx,cy) 기준 자물쇠 실루엣 — 이미지 없이 몸통(사각)+고리(반원 호)만으로 표현한다. */
@@ -202,7 +253,7 @@ export class BuildUI {
     const entry = this.barButtons.find(b => b.id === id && b.kind === kind);
     if (!entry) return;
     this.scene.tweens.add({
-      targets: entry.group,
+      targets: entry.container,
       scaleX: { from: 1, to: BUILD.unlockScalePunch },
       scaleY: { from: 1, to: BUILD.unlockScalePunch },
       yoyo: true,
@@ -437,7 +488,9 @@ export class BuildUI {
     this.previewGfx.destroy();
     this.auraGfx.destroy();
     this.toast.destroy();
-    this.barButtons.forEach(b => b.group.forEach(o => o.destroy()));
+    this.panel?.destroy();
+    this.dividers.forEach(d => d.destroy());
+    this.barButtons.forEach(b => b.container.destroy());
     this.fxAuraGfx?.destroy();
     this.rangeAllGfx?.destroy();
   }
