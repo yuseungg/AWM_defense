@@ -164,11 +164,72 @@ export const EASE = {
   fade:   'Sine.easeInOut',
 };
 
+/**
+ * 공용 패널 언어 — HUD/Controls/BuildUI가 각자 사각형+반투명 검정을 그리던 걸 하나로
+ * 통일한다(Panel.js). 미래도시 컨셉이라 직사각형 대신 모서리를 자른 다각형을 쓴다.
+ */
+export const PANEL = {
+  chamfer:      12,     // 코너 잘림 기본 크기(px). ↑ 올리면 더 각져 보인다
+  bgColor:      0x0e1520,
+  bgAlpha:      0.92,   // 불투명에 가깝게 — 데이터가 배경 지도에 묻히면 안 된다
+  borderColor:  0x3fa7d6,
+  borderAlpha:  0.5,
+  borderWidth:  1,
+
+  // 세그먼트 바(XP·조명 등) — 채운 칸/빈 칸 색만 다르고 형태는 동일
+  segGap:          2,
+  segWidth:        18,
+  segHeight:       8,
+  segFilledColor:  0x3fa7d6,
+  segFilledAlpha:  1,
+  segEmptyColor:   0x1c2230,
+  segEmptyAlpha:   0.7,
+};
+
+/**
+ * 폰트 — Pretendard(assets/fonts/에 B가 나중에 파일을 넣는다). 파일이 없으면 시스템 폰트로
+ * 자동 폴백된다(브라우저가 @font-face 로드 실패 시 알아서 처리 — 코드에서 존재 여부를 검사할
+ * 필요가 없다). 숫자/라벨을 분리하는 이유: 숫자는 자간을 좁혀 조밀하게, 라벨은 넓혀 작게 —
+ * 미래도시 HUD 특유의 위계.
+ */
+export const FONT = {
+  ui:     '"Pretendard", "Malgun Gothic", sans-serif',
+  number: '"Pretendard", "Malgun Gothic", sans-serif',
+  label:  '"Pretendard", "Malgun Gothic", sans-serif',
+
+  // em 배율(숫자). Phaser Text의 letterSpacing은 px 숫자만 받는다(CSS 'em' 문자열 불가 —
+  // 넘기면 그 Text 오브젝트가 통째로 안 그려진다). 호출부에서 `배율 * fontSize`로 변환해 쓴다.
+  numberLetterSpacingEm: 0.05,
+  labelLetterSpacingEm:  0.18,
+  labelSize:             9,
+  labelColor:            '#8a919e',
+};
+
+/**
+ * HUD — 좌상단 화면 가장자리에 붙는 패널(Panel.js drawPanel, corners:['br']만 잘림).
+ * 골드(금색) | 웨이브·계절(무채색) 두 열 + 그 아래 XP 세그먼트 바.
+ */
 export const HUD = {
-  fontSize:   16,
-  margin:     16,
-  xpBarWidth: 240,
-  xpBarHeight: 10,
+  x: 0,
+  y: 0,
+  width:  300,
+  height: 92,
+  padding: 16,      // 좌측 여백(골드 열)
+
+  numberFontSize: 19,   // 골드 숫자
+  waveFontSize:   13,   // 웨이브·계절 텍스트
+  goldColor:      '#f0c674',
+  neutralColor:   '#f2f4f8',
+
+  dividerX:     100,   // 골드 열과 웨이브 열 사이 세로 구분선(패널 기준 x)
+  dividerAlpha: 0.25,
+
+  rowGoldY:  12,   // 골드 숫자 / 웨이브 텍스트 y
+  rowLabelY: 36,   // "골드" / "진행" 라벨 y
+  rowXpY:    58,   // "LV n" + 세그먼트 바 y
+
+  xpSegCount: 8,
+  xpSegX:     44,   // "LV n" 라벨 옆 세그먼트 바 시작 x(padding 기준 상대값)
 };
 
 /** 배속/일시정지/즉시웨이브 — 화면 우상단, HUD(좌상단)와 안 겹치게 고정 */

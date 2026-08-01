@@ -150,6 +150,11 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 
 **원칙: 로직 파일을 열기 전에 여기부터 본다.** 대부분의 "이상해 보이는" 문제는 숫자 하나로 끝난다.
 
+**⚠️ `letterSpacing`은 em 배수로 저장한다(`FONT.numberLetterSpacingEm`/`labelLetterSpacingEm`), 사용
+시 `em * fontSize`로 변환해서 넘긴다.** Phaser Text의 `letterSpacing` 스타일은 px 숫자만 받는다 —
+CSS `'0.18em'` 같은 문자열을 그대로 넣으면 파싱이 깨져서 그 Text 오브젝트가 통째로 안 그려진다
+(빈 문자열이 아니라 완전히 사라짐 — 자리 차지도 안 함). PanelPreview 스와치에서 실제로 겪은 버그.
+
 | 증상 | 고칠 상수 |
 |---|---|
 | 조명 전환이 안 띈다 | `LIGHT.flashAlphaPerLevel` ↑ |
@@ -172,8 +177,9 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 | 드래프트 카드가 화면 밖으로 나간다 | `CARD.width` ↓ 또는 `CARD.gap` ↓ (`CARD.count`는 **절대 건드리지 말 것** — 3장은 D14 계약, `TASKS`/드래프트 풀 설계와 묶여있음) |
 | 카드 등장/호버가 뻣뻣하다 | `CARD.slideInMs`, `CARD.hoverLift` |
 | 보스 관통 임팩트가 약하다 | `LIGHT.flashAlphaPerLevel[2]` ↑ — **`SHAKE.bossLeaked`는 아직 아무 데도 안 쓰임(`BossAlert.js` 없음, §5)** |
-| HUD 글자가 작다/화면 끝에 붙어있다 | `HUD.fontSize` ↑, `HUD.margin` ↑ |
-| XP바가 안 보인다 | `HUD.xpBarWidth` ↑, `HUD.xpBarHeight` ↑ |
+| HUD 패널이 작다/글자가 작다 | `HUD.width`/`HUD.height` ↑, `HUD.numberFontSize`/`HUD.waveFontSize` ↑ |
+| HUD 골드/웨이브 열 사이 구분선이 안 보인다/위치가 안 맞는다 | `HUD.dividerX`, `HUD.dividerAlpha` ↑ |
+| XP 세그먼트 바가 안 보인다/칸이 작다 | `PANEL.segWidth`/`segHeight` ↑ (HUD 전용 세그먼트 개수는 `HUD.xpSegCount`) |
 | Controls 버튼이 HUD랑 겹친다 | `CONTROLS.margin` ↑ (우상단 여백을 더 준다) |
 | Controls 버튼 글자/폭이 안 맞는다 | `CONTROLS.buttonWidth`(배속·일시정지) / `CONTROLS.waveButtonWidth`(즉시 웨이브) / `CONTROLS.muteButtonWidth`(음소거) / `CONTROLS.fontSize` |
 | 오버레이 열렸을 때 Controls가 너무 안 흐려 보인다(또는 너무 안 보인다) | `CONTROLS.disabledAlpha` |

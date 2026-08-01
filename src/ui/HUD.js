@@ -1,30 +1,52 @@
 /**
- * HUD.js — 골드 · 웨이브/계절 · 레벨/XP바
+ * HUD.js — 골드 · 웨이브/계절 · 레벨/XP 세그먼트 바
  *
  * ❌ 도시 체력 숫자바는 만들지 않는다 — 조명(SeoulTowerLight)이 체력바다 (CLAUDE.md §8).
  * goldChanged/xpChanged/waveStarted/seasonChanged만 구독한다. 실시간 갱신은 전부
  * 이벤트로 받고, 씬 진입 시 최초 1회만 getState()로 초기값을 채운다 (CLAUDE.md D18).
+ *
+ * 패널은 Panel.js의 drawPanel/drawSegmentBar만 쓴다 — 직접 rectangle을 그리지 않는다
+ * (미래도시 패널 언어를 HUD/Controls/BuildUI가 공유하기 위한 규칙, HANDOFF.md §3 참고).
  */
 
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
-import { COLOR, HUD as HUDT } from './UITheme.js';
-
-const ROW_GAP = HUDT.fontSize + 6;
+import { HUD as HUDT, FONT, PANEL } from './UITheme.js';
+import { drawPanel, drawSegmentBar } from './Panel.js';
 
 export class HUD {
   constructor(scene) {
     this.scene = scene;
-    const m = HUDT.margin;
+    const p = HUDT.padding;
+    const wx = HUDT.dividerX + 16;
 
-    const style = { fontSize: `${HUDT.fontSize}px`, color: '#f2f4f8' };
-    this.goldText = scene.add.text(m, m, '', style);
-    this.waveText = scene.add.text(m, m + ROW_GAP, '', style);
-    this.levelText = scene.add.text(m, m + ROW_GAP * 2, '', style);
+    this.panel = drawPanel(scene, HUDT.x, HUDT.y, HUDT.width, HUDT.height, { corners: ['br'] });
 
-    const barY = m + ROW_GAP * 2 + HUDT.fontSize + 4;
-    this.xpBarBg = scene.add.rectangle(m, barY, HUDT.xpBarWidth, HUDT.xpBarHeight, 0x2a3040).setOrigin(0, 0);
-    this.xpBarFill = scene.add.rectangle(m, barY, 0, HUDT.xpBarHeight, COLOR.accent).setOrigin(0, 0);
+    this.goldText = scene.add.text(p, HUDT.rowGoldY, '', {
+      fontFamily: FONT.number, fontSize: `${HUDT.numberFontSize}px`, color: HUDT.goldColor,
+      letterSpacing: FONT.numberLetterSpacingEm * HUDT.numberFontSize,
+    });
+    this.goldLabel = scene.add.text(p, HUDT.rowLabelY, '골드', {
+      fontFamily: FONT.label, fontSize: `${FONT.labelSize}px`, color: FONT.labelColor,
+      letterSpacing: FONT.labelLetterSpacingEm * FONT.labelSize,
+    });
+
+    this.divider = scene.add.line(0, 0, HUDT.dividerX, 10, HUDT.dividerX, HUDT.height - 10, PANEL.borderColor, HUDT.dividerAlpha)
+      .setOrigin(0, 0).setLineWidth(1);
+
+    this.waveText = scene.add.text(wx, HUDT.rowGoldY, '', {
+      fontFamily: FONT.ui, fontSize: `${HUDT.waveFontSize}px`, color: HUDT.neutralColor,
+    });
+    this.waveLabel = scene.add.text(wx, HUDT.rowLabelY, '진행', {
+      fontFamily: FONT.label, fontSize: `${FONT.labelSize}px`, color: FONT.labelColor,
+      letterSpacing: FONT.labelLetterSpacingEm * FONT.labelSize,
+    });
+
+    this.levelText = scene.add.text(p, HUDT.rowXpY, '', {
+      fontFamily: FONT.label, fontSize: `${FONT.labelSize}px`, color: FONT.labelColor,
+      letterSpacing: FONT.labelLetterSpacingEm * FONT.labelSize,
+    });
+    this.xpSegs = null; // drawSegmentBar는 매번 새 Graphics를 만들어서 renderXp()에서 destroy 후 재생성한다
 
     this.gold = 0;
     this.wave = 0;
@@ -61,7 +83,7 @@ export class HUD {
   }
 
   renderGold() {
-    this.goldText.setText(`골드 ${this.gold}`);
+    this.goldText.setText(`${this.gold}`);
   }
 
   renderWave() {
@@ -69,9 +91,14 @@ export class HUD {
   }
 
   renderXp() {
-    this.levelText.setText(`Lv.${this.level}   XP ${this.xp}/${this.xpToNext}`);
+    this.levelText.setText(`LV ${this.level}`);
     const ratio = this.xpToNext > 0 ? Phaser.Math.Clamp(this.xp / this.xpToNext, 0, 1) : 0;
-    this.xpBarFill.width = HUDT.xpBarWidth * ratio;
+    const filled = Math.round(ratio * HUDT.xpSegCount);
+
+    this.xpSegs?.destroy();
+    this.xpSegs = drawSegmentBar(
+      this.scene, HUDT.padding + HUDT.xpSegX, HUDT.rowXpY, HUDT.xpSegCount, filled, {},
+    );
   }
 
   destroy() {
@@ -79,10 +106,13 @@ export class HUD {
     EventBus.off(EV.xpChanged, this.onXp, this);
     EventBus.off(EV.waveStarted, this.onWave, this);
     EventBus.off(EV.seasonChanged, this.onSeason, this);
+    this.panel.destroy();
     this.goldText.destroy();
+    this.goldLabel.destroy();
+    this.divider.destroy();
     this.waveText.destroy();
+    this.waveLabel.destroy();
     this.levelText.destroy();
-    this.xpBarBg.destroy();
-    this.xpBarFill.destroy();
+    this.xpSegs?.destroy();
   }
 }
