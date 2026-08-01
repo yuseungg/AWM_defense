@@ -25,6 +25,10 @@ export class Controls {
     this.isUserPaused = false;
     this.overlayLocked = false; // DraftOverlay가 열려 있는 동안 true — 버튼 입력을 아예 막는다
 
+    // 음소거는 Phaser 내장 scene.sound.mute를 그대로 쓴다(SoundManager는 별도 상태를 안 가짐).
+    // localStorage에 기억해서 다음 방문에도 유지 — 매번 다시 끄는 건 짜증난다.
+    scene.sound.mute = localStorage.getItem('muted') === '1';
+
     const initial = core.getState(); // 씬 진입 시 1회만 — CLAUDE.md D18
     this.isPrepPhase = !!initial.isPrepPhase;
 
@@ -41,7 +45,7 @@ export class Controls {
   }
 
   buildUI() {
-    const widths = [CONTROLS.buttonWidth, CONTROLS.buttonWidth, CONTROLS.waveButtonWidth];
+    const widths = [CONTROLS.buttonWidth, CONTROLS.buttonWidth, CONTROLS.waveButtonWidth, CONTROLS.muteButtonWidth];
     const totalW = widths.reduce((a, b) => a + b, 0) + CONTROLS.gap * (widths.length - 1);
     let x = W - CONTROLS.margin - totalW;
     const y = CONTROLS.margin;
@@ -56,6 +60,10 @@ export class Controls {
 
     this.nextWaveBtn = this.makeButton(x + widths[2] / 2, y + CONTROLS.buttonHeight / 2, widths[2],
       `즉시 웨이브 (+${wavesData.instantWaveBonusGold}G)`, () => this.fireNextWave());
+    x += widths[2] + CONTROLS.gap;
+
+    this.muteBtn = this.makeButton(x + widths[3] / 2, y + CONTROLS.buttonHeight / 2, widths[3],
+      this.scene.sound.mute ? '소리켜기' : '음소거', () => this.toggleMute());
   }
 
   makeButton(cx, cy, width, label, onClick) {
@@ -101,6 +109,13 @@ export class Controls {
   fireNextWave() {
     if (!this.isPrepPhase) return; // 버튼이 비활성이라 보통 여기 안 옴 — WaveManager도 {ok:false}로 막아준다
     this.core.startNextWave();
+  }
+
+  toggleMute() {
+    const muted = !this.scene.sound.mute;
+    this.scene.sound.mute = muted;
+    localStorage.setItem('muted', muted ? '1' : '0');
+    this.muteBtn.text.setText(muted ? '소리켜기' : '음소거');
   }
 
   /** DraftOverlay가 열리고 닫힐 때 호출한다. false = 버튼 전부 잠금+흐리게 */

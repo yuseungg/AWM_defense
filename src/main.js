@@ -25,6 +25,14 @@ import { VerifyScene } from './ui/VerifyScene.js';
 // 여기서는 모듈을 로드만 시켜준다(부수효과 목적 import). CLAUDE.md §7.
 import './game/Debug.js';
 
+// 사운드 파일이 아직 없을 때(SoundManager.js §5)의 개발 서버 전용 함정: 이미지는 없으면 서버가
+// 깔끔하게 404를 줘서 Phaser의 loaderror로 조용히 잡히는데, vite dev 서버는 없는 sounds/*.mp3
+// 요청에 SPA 폴백으로 index.html(200)을 돌려준다 — Phaser가 그 HTML을 오디오로 디코드하려다
+// 캐치 안 되는 rejection을 던진다(GitHub Pages 배포본은 진짜 404라 이 문제가 없다, 개발 전용).
+window.addEventListener('unhandledrejection', (e) => {
+  if (String(e.reason).includes('decode audio data')) e.preventDefault();
+});
+
 const params = new URLSearchParams(location.search);
 const MOCK = params.get('mock') === '1';
 const VERIFY = params.get('verify') === '1';

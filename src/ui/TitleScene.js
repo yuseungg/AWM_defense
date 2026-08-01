@@ -53,7 +53,9 @@ export class TitleScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     const start = () => {
-      // ══ 사운드 해금 지점 ══ (5번에서 여기에 AudioContext resume을 넣는다)
+      // ══ 사운드 해금 지점 ══ 브라우저는 사용자 제스처 없이 오디오를 못 튼다 —
+      // 이 클릭이 이 세션에서 유일하게 보장된 제스처라 여기서 직접 resume한다.
+      if (this.sound?.context?.state === 'suspended') this.sound.context.resume();
       this.scene.start('Game');
     };
     btn.on('pointerdown', start);

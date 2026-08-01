@@ -17,6 +17,7 @@ import { EnemyView } from '../fx/EnemyView.js';
 import { TowerView } from '../fx/TowerView.js';
 import { BossAlert } from '../fx/BossAlert.js';
 import { FxLayer } from '../fx/FxLayer.js';
+import { SoundManager } from '../fx/SoundManager.js';
 import { HUD } from './HUD.js';
 import { DraftOverlay } from './DraftOverlay.js';
 import { Controls } from './Controls.js';
@@ -66,6 +67,10 @@ export class GameScene extends Phaser.Scene {
     // 나중에 렌더러가 생기면 preload() 수정 없이 바로 쓸 수 있게 한다.
     Object.keys(supportsData).forEach(id => this.load.image(`support_${id}`, `supports/${id}.png`));
     Object.keys(obstaclesData).forEach(id => this.load.image(`obstacle_${id}`, `obstacles/${id}.png`));
+
+    // 사운드도 같은 폴백 원칙 — 음원 파일이 아직 없다(/docs/CREDITS.md 참고). loaderror만 조용히
+    // 나고 SoundManager.play()가 scene.cache.audio.exists()로 확인 후 재생하니 파일만 나중에 넣으면 된다.
+    ['fire', 'kill', 'warning', 'levelup', 'gameover', 'bgm'].forEach(key => this.load.audio(key, `sounds/${key}.mp3`));
   }
 
   async create() {
@@ -118,6 +123,9 @@ export class GameScene extends Phaser.Scene {
 
     // 보스 등장/체력/코어 도달 연출 — bossSpawned·bossHpChanged·bossLeaked·bossKilled를 알아서 구독한다
     this.bossAlert = new BossAlert(this);
+
+    // 사운드 — this.sound는 Phaser 내장 SoundManager 프로퍼티라 이름이 겹치면 안 된다(this.sfx로 둠)
+    this.sfx = new SoundManager(this);
 
     // 레벨업 드래프트 3장 / 보스 정책 3장 — levelUp·bossKilled를 알아서 구독한다. GameCore.setPaused를
     // 직접 호출하므로 core가 준비된 뒤에 만든다.

@@ -175,7 +175,7 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 | HUD 글자가 작다/화면 끝에 붙어있다 | `HUD.fontSize` ↑, `HUD.margin` ↑ |
 | XP바가 안 보인다 | `HUD.xpBarWidth` ↑, `HUD.xpBarHeight` ↑ |
 | Controls 버튼이 HUD랑 겹친다 | `CONTROLS.margin` ↑ (우상단 여백을 더 준다) |
-| Controls 버튼 글자/폭이 안 맞는다 | `CONTROLS.buttonWidth`(배속·일시정지) / `CONTROLS.waveButtonWidth`(즉시 웨이브) / `CONTROLS.fontSize` |
+| Controls 버튼 글자/폭이 안 맞는다 | `CONTROLS.buttonWidth`(배속·일시정지) / `CONTROLS.waveButtonWidth`(즉시 웨이브) / `CONTROLS.muteButtonWidth`(음소거) / `CONTROLS.fontSize` |
 | 오버레이 열렸을 때 Controls가 너무 안 흐려 보인다(또는 너무 안 보인다) | `CONTROLS.disabledAlpha` |
 | 게임오버 화면에서 웨이브 숫자가 눈에 안 띈다 | `GAMEOVER.waveFontSize` ↑ |
 | 게임오버 전환이 뚝 끊기거나 너무 느리다 | `GAMEOVER.fadeInMs` (**300ms 넘기지 말 것** — §7 사수 조건) |

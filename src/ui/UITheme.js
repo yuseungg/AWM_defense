@@ -134,6 +134,7 @@ export const CONTROLS = {
   buttonHeight:   32,
   buttonWidth:    84,   // 배속·일시정지 버튼 폭
   waveButtonWidth: 132, // 즉시 웨이브 버튼 폭 — 보너스 골드 텍스트 때문에 더 넓다
+  muteButtonWidth: 84,  // 음소거 버튼 폭 — "소리켜기"(4글자)까지 안 잘리게
   gap:            8,    // 버튼 사이 간격. ↑ 올리면 더 벌어진다
   fontSize:       14,
   disabledAlpha:  0.35, // 드래프트 오버레이가 열렸을 때 흐려지는 정도. ↓ 낮추면 더 흐릿해진다
