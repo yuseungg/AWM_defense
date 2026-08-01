@@ -17,6 +17,7 @@
 import Phaser from 'phaser';
 import { COLOR } from './ui/UITheme.js';
 import { W, H } from './ui/mapView.js';
+import { TitleScene } from './ui/TitleScene.js';
 import { GameScene } from './ui/GameScene.js';
 import { MockScene } from './ui/MockScene.js';
 import { VerifyScene } from './ui/VerifyScene.js';
@@ -27,8 +28,17 @@ import './game/Debug.js';
 const params = new URLSearchParams(location.search);
 const MOCK = params.get('mock') === '1';
 const VERIFY = params.get('verify') === '1';
+const DEBUG = params.get('debug') === '1';
+const FXTEST = params.get('fxtest') === '1';
 
-const activeScene = MOCK ? MockScene : VERIFY ? VerifyScene : GameScene;
+// 검증 중엔 타이틀 클릭이 매번 낭비다 — ?debug=1/?fxtest=1이면 타이틀을 건너뛰고 바로 GameScene으로 들어간다.
+const SKIP_TITLE = DEBUG || FXTEST;
+
+let scenes;
+if (MOCK) scenes = [MockScene];
+else if (VERIFY) scenes = [VerifyScene];
+else if (SKIP_TITLE) scenes = [GameScene];
+else scenes = [TitleScene, GameScene]; // Phaser는 배열의 첫 씬을 자동 시작한다 — Title에서 scene.start('Game')으로 전환
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -37,5 +47,5 @@ new Phaser.Game({
   parent: 'game',
   backgroundColor: COLOR.bg,
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [activeScene],
+  scene: scenes,
 });

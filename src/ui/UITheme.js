@@ -220,3 +220,49 @@ export const UPGRADE = {
 
   rejectToastMs: 1400,  // 강화/재배치 실패 문구 유지 시간. BUILD.rejectToastMs와 동일 값
 };
+
+/** 타이틀 화면 — 심사자가 보는 첫 화면. 3초 안에 시작 가능해야 한다(멋 부리지 않는다). */
+export const TITLE = {
+  titleFontSize: 56,
+  titleY:        180,
+  dateFontSize:  20,
+  dateY:         250,
+  descFontSize:  16,
+  descY:         290,
+  descColor:     '#8a919e',
+  bestFontSize:  16,
+  bestY:         340,
+  bestColor:     '#ffd54f',   // 최고 기록 강조색(특효 노랑과 동일 계열)
+
+  buttonWidth:    200,
+  buttonHeight:   56,
+  buttonY:        440,
+  buttonFontSize: 22,
+
+  hintFontSize: 13,
+  hintY:        500,
+  hintColor:    '#8a919e',
+};
+
+/**
+ * 보스 연출 — CLAUDE.md §8 금지 조항("숫자 체력바 금지")은 도시(N서울타워 조명)에만 적용된다.
+ * 보스 체력바는 별개라 숫자/바 형태로 보여줘도 된다.
+ */
+export const BOSS = {
+  bannerFontSize: 24,
+  bannerY:        60,
+  bannerColor:    '#e53935',   // 경고색 — 조명 1단계(빨강)와 동일 계열
+  bannerMs:       1400,        // 배너 노출 시간
+
+  skyDarkenAlpha: 0.35,        // 등장 시 하늘이 어두워지는 정도. ↑ 올리면 더 어두워진다
+  skyDarkenMs:    600,
+
+  hpBarWidth:  360,
+  hpBarHeight: 18,
+  hpBarY:      90,
+  hpBarColor:      0xe53935,
+  hpBarBgColor:    0x33383f,
+
+  leakSquashScale: 0.6,   // bossLeaked 소멸 시 찌그러지는 정도. ↓ 낮추면 더 납작해진다
+  leakFadeMs:      280,
+};
