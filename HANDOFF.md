@@ -162,7 +162,12 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 | 데미지 숫자가 너무 안 움직인다 | `DMG.riseDistance` ↑ |
 | 라벨("효과가 굉장했다!")이 HUD와 겹친다 | `DMG.labelY` 조정 (값을 올리면 아래로) |
 | 라벨이 너무 자주/안 뜬다 | `DMG.labelCooldownMs` |
-| 화면이 정신없다 | `PARTICLE.hitCount` ↓ — **단, `Particles.js`가 아직 없어서 지금은 아무 효과 없음(§5)** |
+| 화면이 정신없다 | `PARTICLE.hitCount`/`killCount` ↓, `PARTICLE.maxOnScreen` ↓ |
+| 피격/처치 파편이 안 보인다/너무 작다 | `PARTICLE.particleRadius` ↑, `PARTICLE.hitSpeed`/`killSpeed` ↑ |
+| 처치 골드/XP 팝업이 안 읽힌다 | `PARTICLE.goldPopMs` ↑, `PARTICLE.goldPopRise` ↑ |
+| 상태이상 아이콘(별/점/삼각)이 안 보인다 | `STATUS_FX.stunSize`/`slowSize` ↑, `STATUS_FX.offsetY` 조정(적과 겹치면 더 위로) |
+| DoT 점멸이 너무 빠르다/느리다 | `STATUS_FX.dotBlinkMs` |
+| 장애물 쿨다운 게이지가 안 보인다/작다 | `OBSTACLE_FX.gaugeRadius` ↑, `OBSTACLE_FX.gaugeOffsetY` 조정 |
 | 드래프트 카드가 안 읽힌다 | `CARD.fontSize` ↑, `CARD.reasonSize` ↑ |
 | 드래프트 카드가 화면 밖으로 나간다 | `CARD.width` ↓ 또는 `CARD.gap` ↓ (`CARD.count`는 **절대 건드리지 말 것** — 3장은 D14 계약, `TASKS`/드래프트 풀 설계와 묶여있음) |
 | 카드 등장/호버가 뻣뻣하다 | `CARD.slideInMs`, `CARD.hoverLift` |

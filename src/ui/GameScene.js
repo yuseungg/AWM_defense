@@ -16,6 +16,7 @@ import { DamageNumber } from '../fx/DamageNumber.js';
 import { EnemyView } from '../fx/EnemyView.js';
 import { TowerView } from '../fx/TowerView.js';
 import { BossAlert } from '../fx/BossAlert.js';
+import { FxLayer } from '../fx/FxLayer.js';
 import { HUD } from './HUD.js';
 import { DraftOverlay } from './DraftOverlay.js';
 import { Controls } from './Controls.js';
@@ -111,6 +112,9 @@ export class GameScene extends Phaser.Scene {
 
     // 데미지 숫자 — enemyDamaged를 알아서 구독한다. 타워/적 도형 위에 떠야 하므로 그 다음에 만든다
     this.dmg = new DamageNumber(this);
+
+    // 피격/처치 파편·팝업 + 상태이상 마커 + 장애물 발동/쿨다운 게이지 (Particles+StatusFx 통합)
+    this.fx = new FxLayer(this, this.core);
 
     // 보스 등장/체력/코어 도달 연출 — bossSpawned·bossHpChanged·bossLeaked·bossKilled를 알아서 구독한다
     this.bossAlert = new BossAlert(this);

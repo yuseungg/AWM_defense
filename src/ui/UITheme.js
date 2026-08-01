@@ -54,10 +54,45 @@ export const DMG = {
 };
 
 export const PARTICLE = {
-  hitCount:    4,    // 피격 반짝임 개수. ↓ 낮추면 화면이 덜 정신없다
-  killCount:   10,
-  goldPopMs:   500,
-  maxOnScreen: 120,  // 성능 안전판
+  hitCount:   4,      // 피격 반짝임 개수. ↓ 낮추면 화면이 덜 정신없다
+  hitSpeed:   60,     // 피격 파편 속도(px/s)
+  hitLifeMs:  200,
+  hitColor:   0xffffff,
+
+  killCount:  10,
+  killSpeed:  90,
+  killLifeMs: 350,
+  killColor:  0xffd54f,   // 특효 노랑과 동일 계열 — "처치했다"는 좋은 신호
+
+  particleRadius: 2.5,
+
+  goldPopMs:    500,
+  goldPopColor: '#ffd54f',
+  goldPopRise:  30,        // ↑ 올리면 더 높이 떠오른다
+
+  maxOnScreen: 120,  // 성능 안전판(히트+처치 파티클 합산 상한, 오래된 것부터 밀어냄)
+};
+
+/** 상태이상 마커 — 적 머리 위 아이콘. 실제 코어에서만 위치 추적한다(EnemyPool 폴링, Mock은 좌표가 없다) */
+export const STATUS_FX = {
+  offsetY: -20,        // 적 중심에서 얼마나 위에 뜨는지
+
+  stunColor: 0xffd54f,
+  stunSize:  7,
+
+  dotColor:   0x4caf50,
+  dotBlinkMs: 300,      // ↓ 낮추면 더 빠르게 깜빡인다
+
+  slowColor: 0x3fa7d6,
+  slowSize:  6,
+};
+
+/** 장애물 발동 이펙트 + 쿨다운 게이지 — 이게 없으면 통나무·소독약이 작동하는지 알 방법이 없다 */
+export const OBSTACLE_FX = {
+  gaugeOffsetY: -18,
+  gaugeRadius:  10,
+  gaugeBgColor: 0x33383f,
+  gaugeFillColor: 0x3fa7d6,
 };
 
 /** 드래프트 오버레이 — 레벨업 3장 / 보스 정책 3장. 장수가 같아 레이아웃 한 벌로 끝난다 */
