@@ -99,7 +99,7 @@ export class Tower {
     const target = this.findTarget();
     if (!target) return null;
 
-    this.cooldownRemaining = 1 / this.def.attackSpeed;
+    this.cooldownRemaining = this.def.attackSpeed;
     return target;
   }
 }

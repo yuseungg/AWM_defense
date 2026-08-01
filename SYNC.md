@@ -1012,6 +1012,7 @@ core 상태를 안 건드림 — 이미 알려진 특성) → `MockGameCore.js`�
 | D17 | 2026-07-28 | `GameCore` 좌표 = **셀 인덱스** · 반환 = **`{ ok, reason?, instanceId? }`** · `canBuild`도 객체 | boolean이면 실패 이유를 UI가 못 쓴다 |
 | D18 | 2026-07-28 | `instanceId` = `"cheonggyecheon#1"` 문자열 · `getState()` **매 프레임 호출 금지** | 로그 가독성 / 웨이브 40+ 성능 조항 |
 | D19 | 2026-07-30 | §5-1 데미지 공식 의사코드 오탈 정정: `tower.strongAgainst?.[enemy.id]` → `def.strongAgainst?.[enemy.type]` | `strongAgainst` 키는 종(species) id인데(`enemies.json`의 `id`), `enemy.id`는 스폰마다 고유한 인스턴스 id라 실제 데이터와 안 맞았다. `Enemy.js`/`Combat.js` 구현 기준으로 정정 |
+| D20 | 2026-08-01 | B가 발견한 버그 2건(§2 N2 · N3 문맥과 별개로 채팅 공유) **실제 적용** — `Tower.js` 쿨다운 `1/attackSpeed` → `attackSpeed`, `enemies.json` `speed` 130/385/80/95(dust/car/trash/boss)로 재조정 | 둘 다 `/src/game/`·`/data/*.json` 수치 필드라 A 소유 영역이라 B는 발견만 하고 A가 반영. `attackSpeed`는 GAME_DESIGN §6-3상 "발사 간격 초"라 그대로 쿨다운이어야 하는데 역수를 써서 빠른 타워가 느리게 쏘고 있었음. speed는 경로가 길어져 사거리 체류시간이 부족해 타워가 못 잡던 걸 정정(밸런스값, P4 재조정 가능) |
 
 > **✅ D9~D18은 2026-07-28 P0 통화에서 A와 합의 완료.** §3의 C1·C2·C3 전부 승인됨.
 
