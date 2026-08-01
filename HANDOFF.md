@@ -182,6 +182,8 @@ CSS `'0.18em'` 같은 문자열을 그대로 넣으면 파싱이 깨져서 그 T
 | XP 세그먼트 바가 안 보인다/칸이 작다 | `PANEL.segWidth`/`segHeight` ↑ (HUD 전용 세그먼트 개수는 `HUD.xpSegCount`) |
 | Controls 버튼이 HUD랑 겹친다 | `CONTROLS.margin` ↑ (우상단 여백을 더 준다) |
 | Controls 버튼 글자/폭이 안 맞는다 | `CONTROLS.buttonWidth`(배속·일시정지) / `CONTROLS.waveButtonWidth`(즉시 웨이브) / `CONTROLS.muteButtonWidth`(음소거) / `CONTROLS.fontSize` |
+| Controls 버튼 활성/기본 상태 색 구분이 안 된다 | `CONTROLS.activeColor`(2x·재생중·음소거중), `CONTROLS.dimColor`(기본) |
+| Controls 버튼 사이 구분선이 안 보인다 | `CONTROLS.dividerAlpha` ↑ |
 | 오버레이 열렸을 때 Controls가 너무 안 흐려 보인다(또는 너무 안 보인다) | `CONTROLS.disabledAlpha` |
 | 게임오버 화면에서 웨이브 숫자가 눈에 안 띈다 | `GAMEOVER.waveFontSize` ↑ |
 | 게임오버 전환이 뚝 끊기거나 너무 느리다 | `GAMEOVER.fadeInMs` (**300ms 넘기지 말 것** — §7 사수 조건) |

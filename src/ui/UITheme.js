@@ -232,16 +232,24 @@ export const HUD = {
   xpSegX:     44,   // "LV n" 라벨 옆 세그먼트 바 시작 x(padding 기준 상대값)
 };
 
-/** 배속/일시정지/즉시웨이브 — 화면 우상단, HUD(좌상단)와 안 겹치게 고정 */
+/**
+ * 배속/일시정지/즉시웨이브/음소거 — 화면 우상단, HUD(좌상단)와 안 겹치게 고정.
+ * 버튼 4개가 간격 없이 붙어 하나의 패널(Panel.js drawPanel, corners:['tl','br'])을 이룬다 —
+ * 첫 버튼 쪽은 좌상단, 마지막 버튼 쪽은 우하단 코너만 잘려서 "하나의 덩어리"로 보인다.
+ * 버튼 사이는 gap 대신 1px 구분선(HUD 골드|웨이브 구분선과 동일 언어).
+ */
 export const CONTROLS = {
-  margin:         16,   // 화면 우상단 여백. ↑ 올리면 더 안쪽으로 들어온다(HUD와 겹치면 줄일 것)
-  buttonHeight:   32,
-  buttonWidth:    84,   // 배속·일시정지 버튼 폭
-  waveButtonWidth: 132, // 즉시 웨이브 버튼 폭 — 보너스 골드 텍스트 때문에 더 넓다
-  muteButtonWidth: 84,  // 음소거 버튼 폭 — "소리켜기"(4글자)까지 안 잘리게
-  gap:            8,    // 버튼 사이 간격. ↑ 올리면 더 벌어진다
-  fontSize:       14,
-  disabledAlpha:  0.35, // 드래프트 오버레이가 열렸을 때 흐려지는 정도. ↓ 낮추면 더 흐릿해진다
+  margin:          16,   // 화면 우상단 여백. ↑ 올리면 더 안쪽으로 들어온다(HUD와 겹치면 줄일 것)
+  height:          32,
+  buttonWidth:     84,   // 배속·일시정지 버튼 폭
+  waveButtonWidth: 132,  // 즉시 웨이브 버튼 폭 — 보너스 골드 텍스트 때문에 더 넓다
+  muteButtonWidth: 84,   // 음소거 버튼 폭 — "소리켜기"(4글자)까지 안 잘리게
+  fontSize:        14,
+  disabledAlpha:   0.35, // 드래프트 오버레이가 열렸을 때 흐려지는 정도. ↓ 낮추면 더 흐릿해진다
+
+  activeColor:   '#3fa7d6',  // 활성 상태(2x·재생·음소거중) — 액센트
+  dimColor:      '#8a919e',  // 기본 상태 — 흐린 회색
+  dividerAlpha:  0.2,
 };
 
 /**
