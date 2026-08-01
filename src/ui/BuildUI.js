@@ -34,6 +34,9 @@ export class BuildUI {
     this.builtIds = new Set();
     this.pendingSupports = new Set();     // 드래프트로 얻었지만 아직 안 지은 서포터 id (유니크 — id당 1개)
     this.pendingObstacles = new Map();    // 드래프트로 얻었지만 아직 안 지은 장애물 설치 가능 횟수 (id별)
+    this.builtSupportIds = new Set();     // 이미 지어진 서포터 — 유니크라 바에서 완전히 사라진다
+    this.currentLevel = 1;
+    this.forceUnlockAll = false;          // ?fxtest=1 L 키 — 잠금 UI QA용
     this.lastCx = null;
     this.lastCy = null;
     this.auraSupports = new Map(); // instanceId → { x, y, radius }
@@ -47,18 +50,18 @@ export class BuildUI {
     }).setOrigin(0.5).setDepth(60).setAlpha(0);
 
     const initial = core.getState(); // 씬 진입 시 1회만 — CLAUDE.md D18
-    this.unlockedTowers = initial.unlockedTowers.filter(id => id !== 'nseoulTower');
+    this.currentLevel = initial.level;
+    this.builtSupportIds = new Set((initial.supports || []).map(s => s.id));
     (initial.supports || []).forEach(s => this.trackAuraSupport(s));
 
     this.barButtons = [];
     this.buildBar();
     this.refreshAuraLayer();
 
-    this.onLevelUp = ({ unlockedTower }) => {
-      if (unlockedTower && unlockedTower !== 'nseoulTower' && !this.unlockedTowers.includes(unlockedTower)) {
-        this.unlockedTowers.push(unlockedTower);
-        this.buildBar();
-      }
+    this.onLevelUp = ({ level, unlockedTower }) => {
+      this.currentLevel = level;
+      this.buildBar();
+      if (unlockedTower && unlockedTower !== 'nseoulTower') this.flashUnlock(unlockedTower, 'tower');
     };
     this.onObjectBuilt = payload => this.handleObjectBuilt(payload);
     this.onObjectChanged = payload => this.handleObjectChanged(payload);
@@ -82,13 +85,37 @@ export class BuildUI {
   }
 
   // ────────────────────────────────────────── 선택 바
-  /** 타워(해금순) + 서포터(드래프트로 얻어 미배치) + 장애물(드래프트로 얻어 남은 설치 횟수)을 한 줄로 합친다. */
+  /**
+   * 타워는 미해금도 전부 보여준다 — "앞으로 뭐가 나올지" 모르면 레벨업 동기가 안 생긴다
+   * (로그라이트 성장의 핵심). 서포터는 규칙이 다르다: 해금이 아니라 드래프트 "획득" 여부라서,
+   * 아직 못 뽑았으면 같은 잠금 스타일이되 "드래프트에서 획득"으로 표시한다(레벨 배지 대신).
+   * 장애물은 기존 그대로 — 픽당 설치권이 있을 때만 등장, 남은 횟수를 뱃지로 보여준다.
+   */
   buildItems() {
-    const items = this.unlockedTowers.map(id => ({ id, kind: 'tower', name: towersData[id].name, count: null }));
-    this.pendingSupports.forEach(id => items.push({ id, kind: 'support', name: supportsData[id].name, count: null }));
-    this.pendingObstacles.forEach((count, id) => {
-      if (count > 0) items.push({ id, kind: 'obstacle', name: obstaclesData[id].name, count });
+    const items = Object.keys(towersData)
+      .filter(id => id !== 'nseoulTower')
+      .map(id => {
+        const def = towersData[id];
+        const locked = !this.forceUnlockAll && def.unlockLevel > this.currentLevel;
+        return {
+          id, kind: 'tower', name: def.name, count: null, locked,
+          lockLabel: `Lv.${def.unlockLevel}`, lockMessage: `레벨 ${def.unlockLevel}에 해금됩니다`,
+        };
+      });
+
+    Object.keys(supportsData).forEach(id => {
+      if (this.builtSupportIds.has(id)) return; // 유니크 — 이미 지었으면 바에서 완전히 사라진다
+      const owned = this.pendingSupports.has(id);
+      items.push({
+        id, kind: 'support', name: supportsData[id].name, count: null, locked: !owned,
+        lockLabel: '드래프트', lockMessage: '레벨업 드래프트에서 먼저 획득해야 합니다',
+      });
     });
+
+    this.pendingObstacles.forEach((count, id) => {
+      if (count > 0) items.push({ id, kind: 'obstacle', name: obstaclesData[id].name, count, locked: false });
+    });
+
     return items;
   }
 
@@ -101,29 +128,50 @@ export class BuildUI {
     let x = W / 2 - totalW / 2;
     const y = BUILD.barY;
 
-    items.forEach(({ id, kind, name, count }) => {
+    items.forEach(({ id, kind, name, count, locked, lockLabel, lockMessage }) => {
       const cx = x + BUILD.buttonWidth / 2;
       const built = kind === 'tower' && this.builtIds.has(id);
       const selected = id === this.selectedId && kind === this.selectedKind;
-      const disabled = built || this.locked;
+      const disabled = built || locked || this.locked;
 
       const rect = this.scene.add.rectangle(cx, y, BUILD.buttonWidth, BUILD.barHeight, COLOR.slot)
         .setStrokeStyle(2, selected ? BUILD.selectedBorderColor : COLOR.accent, 0.7);
-      const swatchColor = kind === 'tower'
-        ? Phaser.Display.Color.HexStringToColor(towersData[id].levels[0].tint).color
-        : (VIEW.objectColor[id] ?? COLOR.accent);
-      const swatch = this.scene.add.rectangle(cx, y - 12, 16, 16, swatchColor);
-      const labelText = count != null ? `${name} x${count}` : name;
-      const label = this.scene.add.text(cx, y + 14, labelText, {
-        fontSize: `${BUILD.fontSize}px`, color: '#f2f4f8',
-      }).setOrigin(0.5);
-      const badge = this.scene.add.text(cx, y - 12, '✓', {
-        fontSize: '14px', color: '#4caf50',
-      }).setOrigin(0.5).setVisible(built);
 
-      const group = [rect, swatch, label, badge];
+      const group = [rect];
+
+      if (locked) {
+        group.push(this.drawLockIcon(cx, y - 12));
+        group.push(this.scene.add.text(cx, y + 1, lockLabel, {
+          fontSize: '10px', color: BUILD.lockBadgeColor,
+        }).setOrigin(0.5));
+      } else {
+        const swatchColor = kind === 'tower'
+          ? Phaser.Display.Color.HexStringToColor(towersData[id].levels[0].tint).color
+          : (VIEW.objectColor[id] ?? COLOR.accent);
+        group.push(this.scene.add.rectangle(cx, y - 12, 16, 16, swatchColor));
+      }
+
+      const labelText = count != null ? `${name} x${count}` : name;
+      group.push(this.scene.add.text(cx, y + 14, labelText, {
+        fontSize: `${BUILD.fontSize}px`, color: '#f2f4f8',
+      }).setOrigin(0.5));
+
+      if (built) {
+        group.push(this.scene.add.text(cx, y - 12, '✓', { fontSize: '14px', color: '#4caf50' }).setOrigin(0.5));
+      }
+
       if (disabled) {
-        group.forEach(o => o.setAlpha(built ? BUILD.builtAlpha : CONTROLS.disabledAlpha));
+        group.forEach(o => o.setAlpha(built ? BUILD.builtAlpha : locked ? BUILD.lockedAlpha : CONTROLS.disabledAlpha));
+      }
+
+      if (built || this.locked) {
+        // 클릭 불가 — 핸들러 없음
+      } else if (locked) {
+        rect.setInteractive({ useHandCursor: true });
+        rect.on('pointerdown', (_p, _lx, _ly, event) => {
+          event.stopPropagation();
+          this.showToast(lockMessage);
+        });
       } else {
         rect.setInteractive({ useHandCursor: true });
         rect.on('pointerdown', (_p, _lx, _ly, event) => {
@@ -134,6 +182,32 @@ export class BuildUI {
 
       this.barButtons.push({ id, kind, group });
       x += BUILD.buttonWidth + BUILD.buttonGap;
+    });
+  }
+
+  /** 원점(cx,cy) 기준 자물쇠 실루엣 — 이미지 없이 몸통(사각)+고리(반원 호)만으로 표현한다. */
+  drawLockIcon(cx, cy) {
+    const g = this.scene.add.graphics();
+    g.fillStyle(BUILD.lockIconColor, 1);
+    g.fillRoundedRect(cx - 7, cy - 1, 14, 10, 2);
+    g.lineStyle(2, BUILD.lockIconColor, 1);
+    g.beginPath();
+    g.arc(cx, cy - 1, 5, Math.PI, 0, false);
+    g.strokePath();
+    return g;
+  }
+
+  /** 해금되는 순간 그 슬롯을 짧게 확대/원복(팝)해서 "지금 여기가 열렸다"는 인과를 보여준다. */
+  flashUnlock(id, kind) {
+    const entry = this.barButtons.find(b => b.id === id && b.kind === kind);
+    if (!entry) return;
+    this.scene.tweens.add({
+      targets: entry.group,
+      scaleX: { from: 1, to: BUILD.unlockScalePunch },
+      scaleY: { from: 1, to: BUILD.unlockScalePunch },
+      yoyo: true,
+      duration: BUILD.unlockFlashMs,
+      ease: 'Back.easeOut',
     });
   }
 
@@ -244,7 +318,8 @@ export class BuildUI {
       if (this.selectedId === id && this.selectedKind === 'tower') this.clearSelection();
       this.buildBar();
     } else if (kind === 'support') {
-      this.pendingSupports.delete(id); // 유니크 — 배치 완료 후엔 건설 바에서 사라진다
+      this.pendingSupports.delete(id);
+      this.builtSupportIds.add(id); // 유니크 — 배치 완료 후엔 건설 바에서 완전히 사라진다
       if (this.selectedId === id && this.selectedKind === 'support') this.clearSelection();
       this.trackAuraSupport({ id, x, y, instanceId });
       this.refreshAuraLayer();
@@ -303,6 +378,7 @@ export class BuildUI {
    *   V: 현재 지어진 모든 타워의 사거리 원을 동시 표시 토글 (여러 랜드마크의 사거리 차이를 한눈에 비교)
    *   C: 세운상가 오라 원을 마우스에 붙여 이동 — 중앙 고정이 아니라 따라다녀야 "어느 타워가
    *      버프 범위 안에 들어오는가"를 실제로 검증할 수 있다(반지름 크기만 보는 것보다 검증 가치가 크다)
+   *   L: 모든 타워 강제 해금 토글 — 잠금 UI(자물쇠/Lv.뱃지)를 실제 레벨업 없이 바로 확인
    */
   setupFxTestKeys() {
     const kb = this.scene.input.keyboard;
@@ -318,8 +394,12 @@ export class BuildUI {
       this.forceAuraFollow = !this.forceAuraFollow;
       if (!this.forceAuraFollow) this.fxAuraGfx.clear();
     });
+    kb.on('keydown-L', () => {
+      this.forceUnlockAll = !this.forceUnlockAll;
+      this.buildBar();
+    });
 
-    this.scene.add.text(20, H - 160, 'BuildUI 검증(?fxtest=1): V=전체 사거리 원 · C=오라 원 마우스 추적', {
+    this.scene.add.text(20, H - 160, 'BuildUI 검증(?fxtest=1): V=전체 사거리 원 · C=오라 원 마우스 추적 · L=전체 강제 해금', {
       fontSize: '12px', color: '#8a919e',
       backgroundColor: 'rgba(0,0,0,0.4)', padding: { x: 8, y: 6 },
     }).setOrigin(0, 1);
