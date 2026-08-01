@@ -15,6 +15,7 @@ import { SeoulTowerLight } from '../fx/SeoulTowerLight.js';
 import { DamageNumber } from '../fx/DamageNumber.js';
 import { EnemyView } from '../fx/EnemyView.js';
 import { TowerView } from '../fx/TowerView.js';
+import { BossAlert } from '../fx/BossAlert.js';
 import { HUD } from './HUD.js';
 import { DraftOverlay } from './DraftOverlay.js';
 import { Controls } from './Controls.js';
@@ -110,6 +111,9 @@ export class GameScene extends Phaser.Scene {
 
     // 데미지 숫자 — enemyDamaged를 알아서 구독한다. 타워/적 도형 위에 떠야 하므로 그 다음에 만든다
     this.dmg = new DamageNumber(this);
+
+    // 보스 등장/체력/코어 도달 연출 — bossSpawned·bossHpChanged·bossLeaked·bossKilled를 알아서 구독한다
+    this.bossAlert = new BossAlert(this);
 
     // 레벨업 드래프트 3장 / 보스 정책 3장 — levelUp·bossKilled를 알아서 구독한다. GameCore.setPaused를
     // 직접 호출하므로 core가 준비된 뒤에 만든다.

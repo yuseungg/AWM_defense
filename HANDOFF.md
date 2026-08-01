@@ -186,6 +186,12 @@ season을 `waves.json`의 첫 시즌으로 잡으면 된다.
 | 적 색이 구분 안 된다 | `VIEW.enemyColors` (타입별 hex) |
 | 타워가 셀 안에 너무 작다/꽉 차 보인다 | `VIEW.towerSize` (40px 셀 기준, 사거리와 무관) |
 | 타워 테두리가 안 보인다 | `VIEW.towerStrokeColor`, `VIEW.towerStrokeAlpha` ↑ |
+| 타이틀 글자가 작다/위치가 안 맞는다 | `TITLE.titleFontSize`/`titleY`, `TITLE.dateY`/`descY`/`bestY`/`buttonY`/`hintY` |
+| 타이틀 시작 버튼이 작다 | `TITLE.buttonWidth`/`buttonHeight`/`buttonFontSize` |
+| 보스 등장 배너가 안 보인다/너무 빨리 사라진다 | `BOSS.bannerFontSize` ↑, `BOSS.bannerMs` ↑ |
+| 보스 등장 시 하늘이 안 어두워진다/너무 어둡다 | `BOSS.skyDarkenAlpha` |
+| 보스 체력바가 작다/위치가 겹친다 | `BOSS.hpBarWidth`/`hpBarHeight`/`hpBarY` |
+| 보스 코어 도달 임팩트가 약하다 | `SHAKE.bossLeaked` ↑, `BOSS.leakSquashScale` ↓ |
 | 강화 패널이 다른 UI(HUD·Controls·건설 바)와 겹친다 | `UPGRADE.panelX`/`panelY` — 패널 높이는 내용에 따라 자동(`panelHeight`는 초기 추정값일 뿐) |
 | 강화 패널 글자가 작다/잘린다 | `UPGRADE.statFontSize` ↑, `UPGRADE.panelWidth` ↑ |
 | 골드 부족 표시가 안 눈에 띈다 | `UPGRADE.costShortColor` |
