@@ -222,14 +222,16 @@ export class BuildUI {
     if (built || this.locked) {
       // 클릭 불가 — 핸들러 없음
     } else {
-      container.setSize(BUILD.slotSize, BUILD.slotSize);
-      container.setInteractive(
-        new Phaser.Geom.Rectangle(-half, -half, BUILD.slotSize, BUILD.slotSize), Phaser.Geom.Rectangle.Contains,
-      );
+      // Controls.js와 동일한 패턴: 시각 요소(스와치·아이콘·라벨)와 분리된 투명 Zone을 클릭판정
+      // 전용으로 맨 위 자식에 얹는다. 커스텀 Rectangle 히트영역보다 이 방식이 이 코드베이스에서
+      // 이미 검증됐고, "가운데를 눌러도 안 먹는다" 부류의 버그를 구조적으로 없앤다 — 시각 요소가
+      // 몇 개든 항상 이 Zone이 맨 위에서 클릭/터치를 가로챈다(마우스·터치 둘 다 Phaser Pointer로 통합).
+      const zone = this.scene.add.zone(0, 0, BUILD.slotSize, BUILD.slotSize).setInteractive({ useHandCursor: true });
+      container.add(zone);
       if (locked) {
-        container.on('pointerdown', (_p, _lx, _ly, event) => { event.stopPropagation(); this.showToast(lockMessage); });
+        zone.on('pointerdown', (_p, _lx, _ly, event) => { event.stopPropagation(); this.showToast(lockMessage); });
       } else {
-        container.on('pointerdown', (_p, _lx, _ly, event) => { event.stopPropagation(); this.select(id, kind); });
+        zone.on('pointerdown', (_p, _lx, _ly, event) => { event.stopPropagation(); this.select(id, kind); });
       }
     }
 
