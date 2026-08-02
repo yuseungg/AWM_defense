@@ -64,4 +64,5 @@ export const REJECT = {
   notOnPath: '장애물은 경로 위에만 놓을 수 있습니다',
   onPath:    '경로 위에는 세울 수 없습니다',
   noPick:    '남은 설치 횟수가 없습니다',
+  outOfBounds: '맵 밖에는 세울 수 없습니다', // 2×2 건물이 격자 가장자리에 걸칠 때
 };

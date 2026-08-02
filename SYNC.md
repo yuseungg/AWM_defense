@@ -15,7 +15,7 @@
 | 항목 | 상태 |
 |---|---|
 | **`main` 빌드** | ✅ 정상 (`npm run build` 확인) |
-| **마지막 갱신** | 2026-08-01 / B |
+| **마지막 갱신** | 2026-08-02 / A (경계 해제 후 UI도 겸임) |
 | **🚨 D5 병합 사고 발견·복구** | A의 `abeb58e`(`Merge branch 'main'`)가 두 갈래(B의 D4 UI 작업 vs A의 구식 `feat/game-core` 사본)를 합치면서 `BuildUI.js`/`TowerView.js`/`UITheme.js`/`MockGameCore.js` 등 B 소유 파일이 **구버전으로 되돌아간 채 `main`에 올라가 있었다**(N1이 경고했던 바로 그 사고, 이번엔 A의 머지에서 재발). `git diff HEAD origin/main`으로 발견 → `feat/ui`에서 `git merge origin/main` 재수행, 충돌 3개(`GameCore.js`/`WaveManager.js`/`main.js`)는 전부 "A의 새 로직 유지 + B 파일은 내 버전 유지"로 해결 → `main`에 fast-forward로 재반영 완료. **현재 `main`은 정상(A+B 전부 반영, 헤드리스 검증·빌드 통과)이지만, 앞으로 `feat/game-core`류 보조 브랜치를 `main`에 직접 머지하는 작업은 반드시 `git diff`로 UI/FX 파일 변화를 먼저 확인하고 진행할 것 — 파일 단위 체리픽이 아니면 이 사고가 또 난다.** |
 | **현재 페이즈** | **P1 코어 로직 완료 (A) + P3(절대 사수) 완료 (B) + 오브젝트 렌더러 완료 (B, D4) — 일정 변경으로 D5까지 추가 작업 진행 중** |
 | **A 진행률** | **P1 완료** + `GameCore.js` 1단계 완료. **D4 하루 만에 N4 권장 순서 ①`LevelSystem` ②`DraftSystem`+`PerkSystem` ③`Supporter`+`Obstacle`(`buildSupport`/`buildObstacle` 실구현, `f8c6585`)까지 백엔드 전부 완료** — `GameCore` 레벨에선 드래프트 카드 7종이 다 살아있다. **아직 이 저장소(`main`/`feat/ui`)엔 없음** — A 브랜치에만 있다, D5에 B가 파일 단위로 가져와 스왑 예정(§2 N7). **단, `BuildUI`(B 소유)가 서포터/장애물 배치 UI를 아직 안 만들어서 플레이어 입장에선 여전히 죽은 카드다 — D5에 B가 먼저 만든다.** 남은 건 `pickPolicy`(보스 정책 효과 적용)와 장애물 강화(`Obstacle`은 `upgrade` 대상이 아직 아님) 뿐. **`GameCore.reset()`은 아직 없음(§3 C5 미해결)** |
@@ -1146,6 +1146,7 @@ core 상태를 안 건드림 — 이미 알려진 특성) → `MockGameCore.js`�
 | D18 | 2026-07-28 | `instanceId` = `"cheonggyecheon#1"` 문자열 · `getState()` **매 프레임 호출 금지** | 로그 가독성 / 웨이브 40+ 성능 조항 |
 | D19 | 2026-07-30 | §5-1 데미지 공식 의사코드 오탈 정정: `tower.strongAgainst?.[enemy.id]` → `def.strongAgainst?.[enemy.type]` | `strongAgainst` 키는 종(species) id인데(`enemies.json`의 `id`), `enemy.id`는 스폰마다 고유한 인스턴스 id라 실제 데이터와 안 맞았다. `Enemy.js`/`Combat.js` 구현 기준으로 정정 |
 | D20 | 2026-08-01 | B가 발견한 버그 2건(§2 N2 · N3 문맥과 별개로 채팅 공유) **실제 적용** — `Tower.js` 쿨다운 `1/attackSpeed` → `attackSpeed`, `enemies.json` `speed` 130/385/80/95(dust/car/trash/boss)로 재조정 | 둘 다 `/src/game/`·`/data/*.json` 수치 필드라 A 소유 영역이라 B는 발견만 하고 A가 반영. `attackSpeed`는 GAME_DESIGN §6-3상 "발사 간격 초"라 그대로 쿨다운이어야 하는데 역수를 써서 빠른 타워가 느리게 쏘고 있었음. speed는 경로가 길어져 사거리 체류시간이 부족해 타워가 못 잡던 걸 정정(밸런스값, P4 재조정 가능) |
+| D21 | 2026-08-02 | **/src/ui/, /src/fx/ 경계 전면 해제 — A가 앞으로 UI/FX도 직접 담당.** 첫 적용 작업: 타워·서포터 배치 크기 1×1 → **2×2**(장애물은 1×1 유지). `GridSystem.js`가 `FOOTPRINT = { tower:2, support:2, obstacle:1 }`를 export, `canPlace`/`occupy`/`release`/`toPixel`이 전부 footprint 인식. `BuildUI.js`/`UpgradeUI.js`/`TowerView.js`도 전부 이 상수 하나만 참조(숫자 하드코딩 없음). `canBuild` 실패 사유에 `outOfBounds` 추가(2×2가 격자 끝에 걸칠 때) — `EventBus.js` REJECT·`CLAUDE.md` §6-2·§5-3 갱신 | 사용자가 두 사람 역할을 겸하게 되면서 SYNC 스펙 요청 없이 A·B 양쪽을 한 세션에서 같이 구현하기로 함(CLAUDE.md §3의 "담당 경계"는 이 프로젝트에 한해 더 이상 적용 안 됨). N서울타워도 동일 규칙 적용 — 앵커는 `toCell(map.json의 nseoulTower)`이라 2×2 블록 중심이 원래 좌표에서 (+20,+20)px 밀린다(1240,480). `SeoulTowerLight`/라벨은 여전히 `mapData.nseoulTower` 원좌표를 그리므로 조명 시각과 실제 판정 중심 사이에 20px 오차가 생기지만, N서울타워는 TowerView로 렌더되는 실체가 없어 육안으로 드러나지 않는다(알려진 사소한 차이, 필요시 후속 정리) |
 
 > **✅ D9~D18은 2026-07-28 P0 통화에서 A와 합의 완료.** §3의 C1·C2·C3 전부 승인됨.
 

@@ -34,6 +34,7 @@
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
 import { VIEW, EASE, ANIM } from '../ui/UITheme.js';
+import { FOOTPRINT } from '../game/GridSystem.js';
 import towersData from '../../data/towers.json';
 import supportsData from '../../data/supports.json';
 import obstaclesData from '../../data/obstacles.json';
@@ -206,7 +207,10 @@ export class TowerView {
       scale = 1 + level * 0.15;
       color = VIEW.objectColor[objId] ?? VIEW.towerStrokeColor;
     }
-    const size = kind === 'tower' ? VIEW.towerSize : kind === 'support' ? VIEW.supportSize : VIEW.obstacleSize;
+    // VIEW.towerSize/supportSize는 1칸(40px) 기준으로 튜닝된 값 — 2×2 블록을 채우도록 FOOTPRINT만큼 키운다.
+    // 장애물은 FOOTPRINT.obstacle이 1이라 곱해도 기존과 동일(×1).
+    const baseSize = kind === 'tower' ? VIEW.towerSize : kind === 'support' ? VIEW.supportSize : VIEW.obstacleSize;
+    const size = baseSize * (FOOTPRINT[kind] ?? 1);
 
     entry.baseScale = scale; // 발사 반동의 스케일 펀치가 여기 곱해진다(tickRecoil)
 

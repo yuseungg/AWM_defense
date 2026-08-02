@@ -20,6 +20,7 @@ import { EventBus, EV } from '../EventBus.js';
 import { COLOR, BUILD, CONTROLS, VIEW, PANEL } from './UITheme.js';
 import { CELL, W, H } from './mapView.js';
 import { drawPanel } from './Panel.js';
+import { FOOTPRINT } from '../game/GridSystem.js';
 import towersData from '../../data/towers.json';
 import supportsData from '../../data/supports.json';
 import obstaclesData from '../../data/obstacles.json';
@@ -27,6 +28,10 @@ import obstaclesData from '../../data/obstacles.json';
 const FXTEST = new URLSearchParams(location.search).get('fxtest') === '1';
 const MAX_CX = W / CELL - 1;
 const MAX_CY = H / CELL - 1;
+// 타워·서포터는 2×2라 앵커(좌상단) 셀이 격자 끝까지 갈 수 없다 — footprint만큼 안쪽으로 클램프한다.
+function maxAnchor(max, kind) {
+  return max - ((FOOTPRINT[kind] ?? 1) - 1);
+}
 
 export class BuildUI {
   constructor(scene, core) {
@@ -311,8 +316,8 @@ export class BuildUI {
       return;
     }
 
-    const cx = Phaser.Math.Clamp(Math.floor(pointer.x / CELL), 0, MAX_CX);
-    const cy = Phaser.Math.Clamp(Math.floor(pointer.y / CELL), 0, MAX_CY);
+    const cx = Phaser.Math.Clamp(Math.floor(pointer.x / CELL), 0, maxAnchor(MAX_CX, this.selectedKind));
+    const cy = Phaser.Math.Clamp(Math.floor(pointer.y / CELL), 0, maxAnchor(MAX_CY, this.selectedKind));
     if (cx === this.lastCx && cy === this.lastCy) return; // ★ 셀이 안 바뀌면 재조회 안 함
     this.lastCx = cx;
     this.lastCy = cy;
@@ -323,13 +328,14 @@ export class BuildUI {
 
   /** 사거리 원(타워, 테두리) / 오라 원(오라형 서포터, 채움) / 셀 하이라이트만(장애물·전역형 서포터) — 형태로 구분(BUILD 절대 사수) */
   drawPreview(cx, cy, ok, kind) {
-    const px = cx * CELL + CELL / 2;
-    const py = cy * CELL + CELL / 2;
+    const size = FOOTPRINT[kind] ?? 1;
+    const px = cx * CELL + (CELL * size) / 2;
+    const py = cy * CELL + (CELL * size) / 2;
     const color = ok ? COLOR.ok : COLOR.ng;
 
     this.previewGfx.clear();
     this.previewGfx.fillStyle(color, BUILD.previewAlpha);
-    this.previewGfx.fillRect(cx * CELL, cy * CELL, CELL, CELL);
+    this.previewGfx.fillRect(cx * CELL, cy * CELL, CELL * size, CELL * size);
 
     if (kind === 'tower') {
       const def = towersData[this.selectedId];

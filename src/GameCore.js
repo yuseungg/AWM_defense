@@ -96,7 +96,7 @@ function buildTower(towerId, cellX, cellY) {
   const instanceId = nextInstanceId(towerId);
   const tower = new Tower(towerId, instanceId, cellX, cellY);
   WaveManager.addTower(tower);
-  GridSystem.occupy(cellX, cellY, { instanceId });
+  GridSystem.occupy(cellX, cellY, { instanceId }, 'tower');
   LevelSystem.addBuildXp('tower');
   WaveManager.recalculateBuffs(); // 기존 서포터 오라 범위 안에 지어졌을 수 있다
 
@@ -114,7 +114,7 @@ function buildSupport(supportId, cellX, cellY) {
   const instanceId = nextInstanceId(supportId);
   const support = new Supporter(supportId, instanceId, cellX, cellY);
   WaveManager.addSupport(support);
-  GridSystem.occupy(cellX, cellY, { instanceId });
+  GridSystem.occupy(cellX, cellY, { instanceId }, 'support');
   LevelSystem.addBuildXp('support');
   WaveManager.recalculateBuffs();
 
@@ -133,7 +133,7 @@ function buildObstacle(obstacleId, cellX, cellY) {
   const instanceId = nextInstanceId(obstacleId);
   const obstacle = new Obstacle(obstacleId, instanceId, cellX, cellY);
   WaveManager.addObstacle(obstacle);
-  GridSystem.occupy(cellX, cellY, { instanceId });
+  GridSystem.occupy(cellX, cellY, { instanceId }, 'obstacle');
   LevelSystem.addBuildXp('obstacle');
 
   EventBus.emit(EV.objectBuilt, {
@@ -164,8 +164,8 @@ function relocate(instanceId, cellX, cellY) {
   const check = GridSystem.canPlace(kind, cellX, cellY);
   if (!check.ok) return reject('relocate', check.reason);
 
-  GridSystem.release(target.cellX, target.cellY);
-  GridSystem.occupy(cellX, cellY, { instanceId });
+  GridSystem.release(target.cellX, target.cellY, kind);
+  GridSystem.occupy(cellX, cellY, { instanceId }, kind);
   target.relocate(cellX, cellY);
   WaveManager.recalculateBuffs();
 
@@ -204,7 +204,7 @@ function ensureNSeoulTower() {
 
   const tower = new Tower('nseoulTower', instanceId, cellX, cellY);
   WaveManager.addTower(tower);
-  GridSystem.occupy(cellX, cellY, { instanceId });
+  GridSystem.occupy(cellX, cellY, { instanceId }, 'tower');
   WaveManager.recalculateBuffs();
 }
 

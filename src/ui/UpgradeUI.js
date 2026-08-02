@@ -20,7 +20,7 @@ import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
 import { COLOR, BUILD, UPGRADE, EASE } from './UITheme.js';
 import { CELL, W, H } from './mapView.js';
-import GridSystem from '../game/GridSystem.js';
+import GridSystem, { FOOTPRINT } from '../game/GridSystem.js';
 import towersData from '../../data/towers.json';
 import supportsData from '../../data/supports.json';
 import enemiesData from '../../data/enemies.json';
@@ -29,7 +29,12 @@ const FXTEST = new URLSearchParams(location.search).get('fxtest') === '1';
 const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
 const MAX_CX = W / CELL - 1;
 const MAX_CY = H / CELL - 1;
-const HIT_RADIUS = 20; // 건물 클릭 판정 반경(VIEW.towerSize 절반보다 살짝 여유를 둠)
+// 타워·서포터는 2×2(80×80) — 건물 절반(40px)보다 살짝 여유를 둔다(기존엔 40px 1×1 기준 20px였음)
+const HIT_RADIUS = (CELL * FOOTPRINT.tower) / 2 + 4;
+// 재배치 대상은 늘 tower/support뿐이라(장애물은 relocate 대상 아님) 클램프는 이 footprint 하나로 충분하다
+function maxAnchor(max) {
+  return max - (FOOTPRINT.tower - 1);
+}
 
 export class UpgradeUI {
   constructor(scene, core) {
@@ -115,16 +120,17 @@ export class UpgradeUI {
     if (!this.relocateMode) return;
     if (pointer.y >= BUILD.barY - BUILD.barHeight / 2) { this.relocateGfx.clear(); return; }
 
-    const cx = Phaser.Math.Clamp(Math.floor(pointer.x / CELL), 0, MAX_CX);
-    const cy = Phaser.Math.Clamp(Math.floor(pointer.y / CELL), 0, MAX_CY);
+    const cx = Phaser.Math.Clamp(Math.floor(pointer.x / CELL), 0, maxAnchor(MAX_CX));
+    const cy = Phaser.Math.Clamp(Math.floor(pointer.y / CELL), 0, maxAnchor(MAX_CY));
     if (cx === this._lastRelocateCx && cy === this._lastRelocateCy) return;
     this._lastRelocateCx = cx;
     this._lastRelocateCy = cy;
 
     const ok = GridSystem.canPlace(this.current.kind, cx, cy).ok;
+    const size = FOOTPRINT[this.current.kind] ?? 1;
     this.relocateGfx.clear();
     this.relocateGfx.fillStyle(ok ? COLOR.ok : COLOR.ng, BUILD.previewAlpha);
-    this.relocateGfx.fillRect(cx * CELL, cy * CELL, CELL, CELL);
+    this.relocateGfx.fillRect(cx * CELL, cy * CELL, CELL * size, CELL * size);
   }
 
   hitTest(x, y) {
@@ -337,8 +343,8 @@ export class UpgradeUI {
 
   attemptRelocateClick(pointer) {
     if (pointer.y >= BUILD.barY - BUILD.barHeight / 2) return; // 건설 바 영역은 무시
-    const cx = Phaser.Math.Clamp(Math.floor(pointer.x / CELL), 0, MAX_CX);
-    const cy = Phaser.Math.Clamp(Math.floor(pointer.y / CELL), 0, MAX_CY);
+    const cx = Phaser.Math.Clamp(Math.floor(pointer.x / CELL), 0, maxAnchor(MAX_CX));
+    const cy = Phaser.Math.Clamp(Math.floor(pointer.y / CELL), 0, maxAnchor(MAX_CY));
     const res = this.core.relocate(this.current.instanceId, cx, cy);
     if (res.ok) {
       this.relocateMode = false;

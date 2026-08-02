@@ -9,7 +9,7 @@
  */
 
 import supportsData from '../../data/supports.json';
-import GridSystem from './GridSystem.js';
+import GridSystem, { FOOTPRINT } from './GridSystem.js';
 
 export class Supporter {
   constructor(supportId, instanceId, cellX, cellY) {
@@ -19,7 +19,7 @@ export class Supporter {
 
     this.cellX = cellX;
     this.cellY = cellY;
-    const p = GridSystem.toPixel(cellX, cellY);
+    const p = GridSystem.toPixel(cellX, cellY, FOOTPRINT.support);
     this.x = p.x;
     this.y = p.y;
 
@@ -29,7 +29,7 @@ export class Supporter {
   relocate(cellX, cellY) {
     this.cellX = cellX;
     this.cellY = cellY;
-    const p = GridSystem.toPixel(cellX, cellY);
+    const p = GridSystem.toPixel(cellX, cellY, FOOTPRINT.support);
     this.x = p.x;
     this.y = p.y;
   }
