@@ -58,6 +58,7 @@ class Mock {
     this.speed = 1;
     this.ownedSupportIds = new Set();     // 드래프트로 얻었지만 아직 안 지은 서포터(유니크, id당 1개)
     this.obstaclePicksById = new Map();   // 드래프트로 얻었지만 아직 안 지은 장애물 설치 횟수(id별)
+    this.clonePicksById = new Map();      // §5-7 복제로 얻었지만 아직 안 지은 설치권(id별)
     this.timers = [];
     this.started = false;
   }
@@ -290,9 +291,11 @@ function place(kind, dataset, id, cellX, cellY) {
   const def = dataset[id];
   if (!def) return reject('build', 'locked');
 
+  // §5-7 복제 — 이미 있어도 복제 설치권이 남아있으면 통과(없으면 기존처럼 unique 거부)
+  const hasClonePick = (mock.clonePicksById.get(id) || 0) > 0;
   if (kind === 'tower' && !s.unlockedTowers.includes(id)) return reject('build', 'locked');
   if (kind === 'support' && !mock.ownedSupportIds.has(id)) return reject('build', 'noPick');
-  if (kind === 'support' && s.supports.some(o => o.id === id)) return reject('build', 'unique');
+  if (kind === 'support' && s.supports.some(o => o.id === id) && !hasClonePick) return reject('build', 'unique');
   if (kind === 'obstacle' && !(mock.obstaclePicksById.get(id) > 0)) return reject('build', 'noPick');
 
   const gridCheck = checkGrid(kind, cellX, cellY);
@@ -308,6 +311,11 @@ function place(kind, dataset, id, cellX, cellY) {
 
   if (kind === 'obstacle') {
     mock.obstaclePicksById.set(id, mock.obstaclePicksById.get(id) - 1);
+  }
+  if (hasClonePick) {
+    const remaining = mock.clonePicksById.get(id) - 1;
+    if (remaining > 0) mock.clonePicksById.set(id, remaining);
+    else mock.clonePicksById.delete(id);
   }
 
   EventBus.emit(EV.objectBuilt, { kind, id, instanceId, cellX, cellY, x, y });
@@ -373,6 +381,34 @@ export const GameCore = {
     return { ok: true };
   },
 
+  /**
+   * §5-7 복제 — 실제 코어와 동일한 인터페이스만 맞춘다. Mock은 instanceIndex별 강화비 스케일까지는
+   * 안 흉내낸다(기존 upgrade()도 80 * 고정배율로 근사하는 것과 같은 수준의 단순화, 범위 밖).
+   */
+  cloneCost(instanceId) {
+    const o = findInstance(instanceId);
+    if (!o || o.id === 'nseoulTower' || o.level < 2) return null;
+    const def = o.kind === 'tower' ? towersData[o.id] : o.kind === 'support' ? supportsData[o.id] : null;
+    if (!def) return null;
+    const list = o.kind === 'tower' ? mock.state.towers : mock.state.supports;
+    const existingCount = list.filter(x => x.id === o.id).length;
+    const scale = waves.cloneScale;
+    return Math.round(def.upgradeBaseCost * scale.cloneBaseCostMul * scale.cloneCostMulPerInstance ** (existingCount - 1));
+  },
+
+  clone(instanceId) {
+    const o = findInstance(instanceId);
+    if (!o) return reject('clone', 'locked');
+    if (o.id === 'nseoulTower') return reject('clone', 'locked');
+    if (o.level < 2) return reject('clone', 'notMaxLevel');
+    const cost = this.cloneCost(instanceId);
+    if (mock.state.gold < cost) return reject('clone', 'noGold');
+    mock.addGold(-cost);
+    mock.clonePicksById.set(o.id, (mock.clonePicksById.get(o.id) || 0) + 1);
+    EventBus.emit(EV.cloneAcquired, { kind: o.kind, id: o.id });
+    return { ok: true };
+  },
+
   pickDraftCard(cardId) {
     const s = mock.state;
     if (perksData[cardId]) {
@@ -410,9 +446,10 @@ export const GameCore = {
     const s = mock.state;
     const kind = towersData[id] ? 'tower' : supportsData[id] ? 'support' : obstaclesData[id] ? 'obstacle' : null;
     if (!kind) return { ok: false, reason: 'locked' };
+    const hasClonePick = (mock.clonePicksById.get(id) || 0) > 0;
     if (kind === 'tower' && !s.unlockedTowers.includes(id)) return { ok: false, reason: 'locked' };
     if (kind === 'support' && !mock.ownedSupportIds.has(id)) return { ok: false, reason: 'noPick' };
-    if (kind === 'support' && s.supports.some(o => o.id === id)) return { ok: false, reason: 'unique' };
+    if (kind === 'support' && s.supports.some(o => o.id === id) && !hasClonePick) return { ok: false, reason: 'unique' };
     if (kind === 'obstacle' && !(mock.obstaclePicksById.get(id) > 0)) return { ok: false, reason: 'noPick' };
     const gridCheck = checkGrid(kind, cellX, cellY);
     if (!gridCheck.ok) return gridCheck;

@@ -77,7 +77,7 @@ export class UpgradeUI {
     }).setOrigin(0.5, 0).setDepth(70).setAlpha(0);
 
     this.onRejected = ({ action, message }) => {
-      if (action === 'upgrade' || action === 'relocate') this.showToast(message);
+      if (action === 'upgrade' || action === 'relocate' || action === 'clone') this.showToast(message);
     };
     this.onBuffsRecalculated = () => this.refreshRangeCircle();
     EventBus.on(EV.actionRejected, this.onRejected, this);
@@ -304,8 +304,20 @@ export class UpgradeUI {
 
     cy += 6;
 
-    if (!obj.canUpgrade()) {
+    if (!obj.canUpgrade() && obj.id === 'nseoulTower') {
+      // N서울타워는 §5-7 복제 대상에서 제외(상시 지형물 — 재배치와 같은 이유, 위 주석 참고)
       addLine('최대 강화 완료', UPGRADE.maxLevelColor);
+    } else if (!obj.canUpgrade()) {
+      // §5-7 복제 — 4번째 강화 단계. 골드로 이 종류의 추가 설치권을 산다(계속 눌러서 더 쌓을 수 있다).
+      const cost = this.core.cloneCost(instanceId);
+      const afford = state.gold >= cost;
+      addLine(
+        afford ? `복제 비용 ${cost}G` : `복제 비용 ${cost}G / 보유 ${state.gold}G`,
+        afford ? '#f2f4f8' : UPGRADE.costShortColor,
+      );
+      cy += 4;
+      this.makeButton(x + w / 2, cy + UPGRADE.buttonHeight / 2, UPGRADE.buttonWidth, '복제', afford, () => this.clone());
+      cy += UPGRADE.buttonHeight + UPGRADE.buttonGap;
     } else {
       const cost = obj.upgradeCost();
       const afford = state.gold >= cost;
@@ -386,6 +398,13 @@ export class UpgradeUI {
     if (!this.current) return;
     this.core.upgrade(this.current.instanceId);
     this.render(); // 성공하면 새 레벨로, 실패하면 actionRejected 토스트가 별도로 뜬다
+  }
+
+  /** §5-7 복제 — 성공해도 이 인스턴스 자체는 안 바뀐다(여전히 최대 레벨). 재렌더하면 다음 복제 비용이 반영된다. */
+  clone() {
+    if (!this.current) return;
+    this.core.clone(this.current.instanceId);
+    this.render();
   }
 
   // ────────────────────────────────────────── 사거리/오라 원

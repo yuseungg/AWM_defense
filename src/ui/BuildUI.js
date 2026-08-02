@@ -11,6 +11,10 @@
  * N서울타워는 목록에서 제외한다 — map.json에 고정 좌표로 존재하는 상시 지형물이지
  * 플레이어가 격자에 배치하는 대상이 아니다(SeoulTowerLight가 이미 그 위치에 항상 그린다).
  *
+ * ★ 복제(§5-7, CLAUDE.md): 최대 레벨 건물을 UpgradeUI에서 "복제"하면 EV.cloneAcquired가
+ *   뜨고, 그 종류가 이미 지어졌어도(✓/바에서 사라짐) 다시 배치 가능해진다 — clonePicks가
+ *   장애물의 pendingObstacles와 같은 역할(id별 대기 설치권 수)을 타워·서포터에도 준다.
+ *
  * 슬롯은 Panel.js의 drawPanel만 쓴다(직접 rectangle을 그리지 않는다) — 44×44 슬롯 하나가
  * Container 하나(원점=슬롯 중심)라서, 선택중 확대는 container.setScale() 한 줄로 끝난다.
  */
@@ -44,6 +48,7 @@ export class BuildUI {
     this.pendingSupports = new Set();     // 드래프트로 얻었지만 아직 안 지은 서포터 id (유니크 — id당 1개)
     this.pendingObstacles = new Map();    // 드래프트로 얻었지만 아직 안 지은 장애물 설치 가능 횟수 (id별)
     this.builtSupportIds = new Set();     // 이미 지어진 서포터 — 유니크라 바에서 완전히 사라진다
+    this.clonePicks = new Map();          // §5-7 복제로 얻은 타워·서포터 추가 설치권 (id별 — 타워/서포터 id는 안 겹친다)
     this.currentLevel = 1;
     this.forceUnlockAll = false;          // ?fxtest=1 L 키 — 잠금 UI QA용
     this.lastCx = null;
@@ -78,12 +83,14 @@ export class BuildUI {
     this.onObjectChanged = payload => this.handleObjectChanged(payload);
     this.onRejected = ({ action, message }) => { if (action === 'build') this.showToast(message); };
     this.onCardPicked = ({ cardId }) => this.handleCardPicked(cardId);
+    this.onCloneAcquired = ({ kind, id }) => this.handleCloneAcquired(kind, id);
 
     EventBus.on(EV.levelUp, this.onLevelUp, this);
     EventBus.on(EV.objectBuilt, this.onObjectBuilt, this);
     EventBus.on(EV.objectChanged, this.onObjectChanged, this);
     EventBus.on(EV.actionRejected, this.onRejected, this);
     EventBus.on(EV.cardPicked, this.onCardPicked, this);
+    EventBus.on(EV.cloneAcquired, this.onCloneAcquired, this);
 
     this.onPointerMove = pointer => this.handlePointerMove(pointer);
     this.onPointerDown = pointer => this.handlePointerDown(pointer);
@@ -108,17 +115,19 @@ export class BuildUI {
       .map(id => {
         const def = towersData[id];
         const locked = !this.forceUnlockAll && def.unlockLevel > this.currentLevel;
+        const picks = this.clonePicks.get(id) || 0;
         return {
-          id, kind: 'tower', name: def.name, count: null, locked,
+          id, kind: 'tower', name: def.name, count: picks > 0 ? picks : null, locked,
           lockLabel: `L${def.unlockLevel}`, lockMessage: `레벨 ${def.unlockLevel}에 해금됩니다`,
         };
       });
 
     Object.keys(supportsData).forEach(id => {
-      if (this.builtSupportIds.has(id)) return; // 유니크 — 이미 지었으면 바에서 완전히 사라진다
-      const owned = this.pendingSupports.has(id);
+      const picks = this.clonePicks.get(id) || 0;
+      if (this.builtSupportIds.has(id) && picks <= 0) return; // 유니크·복제권 없음 — 바에서 완전히 사라진다
+      const owned = this.pendingSupports.has(id) || picks > 0;
       items.push({
-        id, kind: 'support', name: supportsData[id].name, count: null, locked: !owned,
+        id, kind: 'support', name: supportsData[id].name, count: picks > 0 ? picks : null, locked: !owned,
         lockLabel: '드래프트', lockMessage: '레벨업 드래프트에서 먼저 획득해야 합니다',
       });
     });
@@ -172,7 +181,8 @@ export class BuildUI {
    */
   buildSlot(x, panelY, item) {
     const { id, kind, name, count, locked, lockLabel, lockMessage } = item;
-    const built = kind === 'tower' && this.builtIds.has(id);
+    // 복제권이 남아있으면 "지었어도" 다시 선택 가능해야 한다 — ✓ 대신 count 뱃지(x{n})로 보여준다.
+    const built = kind === 'tower' && this.builtIds.has(id) && !(this.clonePicks.get(id) > 0);
     const selected = id === this.selectedId && kind === this.selectedKind;
     const disabled = built || locked || this.locked;
     const half = BUILD.slotSize / 2;
@@ -290,6 +300,20 @@ export class BuildUI {
     }
   }
 
+  /** UpgradeUI의 "복제" 액션(§5-7) 결과 — 이미 지어진 종류라도 다시 선택 가능해진다. */
+  handleCloneAcquired(kind, id) {
+    this.clonePicks.set(id, (this.clonePicks.get(id) || 0) + 1);
+    this.buildBar();
+    this.flashUnlock(id, kind); // 슬롯이 다시 열렸다는 인과를 levelUp 자동해금과 같은 팝으로 보여준다
+  }
+
+  /** 복제권으로 지어진 경우에만 소모한다(첫 건설이면 애초에 없어서 no-op). */
+  consumeClonePick(id) {
+    const remaining = (this.clonePicks.get(id) || 0) - 1;
+    if (remaining > 0) this.clonePicks.set(id, remaining);
+    else this.clonePicks.delete(id);
+  }
+
   /**
    * DraftOverlay가 열리고 닫힐 때 호출한다 (Controls.setInputEnabled와 동일한 패턴 — HANDOFF.md §5).
    * 잠그는 동안 선택은 유지하되(오버레이 닫히면 이어서 배치 가능) 미리보기만 지운다 — 잠긴 사이
@@ -374,11 +398,13 @@ export class BuildUI {
   handleObjectBuilt({ kind, id, x, y, instanceId }) {
     if (kind === 'tower') {
       this.builtIds.add(id);
+      this.consumeClonePick(id);
       if (this.selectedId === id && this.selectedKind === 'tower') this.clearSelection();
       this.buildBar();
     } else if (kind === 'support') {
       this.pendingSupports.delete(id);
       this.builtSupportIds.add(id); // 유니크 — 배치 완료 후엔 건설 바에서 완전히 사라진다
+      this.consumeClonePick(id);
       if (this.selectedId === id && this.selectedKind === 'support') this.clearSelection();
       this.trackAuraSupport({ id, x, y, instanceId });
       this.refreshAuraLayer();
@@ -490,6 +516,7 @@ export class BuildUI {
     EventBus.off(EV.objectChanged, this.onObjectChanged, this);
     EventBus.off(EV.actionRejected, this.onRejected, this);
     EventBus.off(EV.cardPicked, this.onCardPicked, this);
+    EventBus.off(EV.cloneAcquired, this.onCloneAcquired, this);
     this.scene.input.off('pointermove', this.onPointerMove);
     this.scene.input.off('pointerdown', this.onPointerDown);
 

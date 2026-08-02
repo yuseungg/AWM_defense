@@ -10,17 +10,23 @@
  *
  * 격자 점유(GridSystem.occupy/release)는 여기서 호출하지 않는다 — 타워·서포터·장애물을
  * 아우르는 전역 점유 상태 조율은 GameCore.js 몫이고, Tower는 자기 좌표만 안다.
+ *
+ * instanceIndex(§5-7 복제 시스템) — 같은 id로 이 인스턴스보다 먼저 지어진 개수(0부터).
+ * 판매가 없어 나중에 재계산할 일이 없으므로 생성 시점에 고정한다. 강화 비용에만 영향을
+ * 주고(upgradeCost), 스탯·레벨 진행 자체는 인스턴스마다 완전히 독립이다.
  */
 
 import towersData from '../../data/towers.json';
+import wavesData from '../../data/waves.json';
 import GridSystem, { FOOTPRINT } from './GridSystem.js';
 import EnemyPool from './EnemyPool.js';
 
 export class Tower {
-  constructor(towerId, instanceId, cellX, cellY) {
+  constructor(towerId, instanceId, cellX, cellY, instanceIndex = 0) {
     this.id = towerId;
     this.instanceId = instanceId;
     this.def = towersData[towerId];
+    this.instanceIndex = instanceIndex;
 
     this.cellX = cellX;
     this.cellY = cellY;
@@ -51,7 +57,9 @@ export class Tower {
 
   upgradeCost() {
     if (!this.canUpgrade()) return null;
-    return Math.round(this.def.upgradeBaseCost * this.def.levels[this.level + 1].costMul);
+    const base = this.def.upgradeBaseCost * this.def.levels[this.level + 1].costMul;
+    const perInstanceMul = wavesData.cloneScale?.upgradeCostMulPerInstance ?? 1;
+    return Math.round(base * perInstanceMul ** this.instanceIndex);
   }
 
   /** 골드 차감은 Economy.js 몫. 성공 여부만 돌려준다. */

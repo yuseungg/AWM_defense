@@ -13,6 +13,7 @@ import supportsData from '../data/supports.json';
 import obstaclesData from '../data/obstacles.json';
 import policiesData from '../data/policies.json';
 import mapData from '../data/map.json';
+import wavesData from '../data/waves.json';
 import GridSystem from './game/GridSystem.js';
 import Tower from './game/Tower.js';
 import Supporter from './game/Supporter.js';
@@ -30,6 +31,11 @@ const seqByType = {};
 // 드래프트로 획득한 서포터·장애물 설치권.
 let obstaclePicks = 0;
 const supportsOwned = new Set();
+// §5-7 복제 시스템 — 최대 레벨 건물을 골드로 복제하면 여기 쌓인다. id당 카운트라 kind
+// 구분이 없다(타워 id·서포터 id는 겹치지 않는다). obstaclePicks와 달리 종류별로 따로 센다 —
+// 장애물은 카드가 반복 등장해서 "그 카드를 뽑은 횟수"라 전역 총량이면 충분했지만, 복제는
+// "어느 종류를 복제했는지"가 canBuild의 유니크 예외 판정에 그대로 필요하다.
+const clonePicksById = new Map();
 
 function nextInstanceId(id) {
   seqByType[id] = (seqByType[id] ?? 0) + 1;
@@ -55,6 +61,11 @@ function canBuild(id, cellX, cellY) {
   return { ok: false, reason: 'locked' };
 }
 
+/** 이미 1개 이상 있어도 그 id의 복제 설치권이 남아있으면 통과 — §5-7. */
+function hasCloneRoom(id, existingCount) {
+  return existingCount === 0 || (clonePicksById.get(id) || 0) > 0;
+}
+
 function canBuildTower(id, cellX, cellY) {
   const def = towersData[id];
   const gridResult = GridSystem.canPlace('tower', cellX, cellY);
@@ -62,8 +73,8 @@ function canBuildTower(id, cellX, cellY) {
 
   if (def.unlockLevel > LevelSystem.getLevel()) return { ok: false, reason: 'locked' };
 
-  const alreadyBuilt = WaveManager.getTowers().some(t => t.id === id);
-  if (alreadyBuilt) return { ok: false, reason: 'unique' };
+  const existingCount = WaveManager.getTowers().filter(t => t.id === id).length;
+  if (!hasCloneRoom(id, existingCount)) return { ok: false, reason: 'unique' };
 
   return { ok: true };
 }
@@ -74,8 +85,8 @@ function canBuildSupport(id, cellX, cellY) {
 
   if (!supportsOwned.has(id)) return { ok: false, reason: 'locked' };
 
-  const alreadyBuilt = WaveManager.getSupports().some(s => s.id === id);
-  if (alreadyBuilt) return { ok: false, reason: 'unique' };
+  const existingCount = WaveManager.getSupports().filter(s => s.id === id).length;
+  if (!hasCloneRoom(id, existingCount)) return { ok: false, reason: 'unique' };
 
   return { ok: true };
 }
@@ -89,12 +100,23 @@ function canBuildObstacle(id, cellX, cellY) {
   return { ok: true };
 }
 
+/** 이미 있던 개수만큼 복제 설치권을 소모한다(existingCount>0이면 canBuild가 이미 재고 있음을 확인했다). */
+function consumeClonePick(id, existingCount) {
+  if (existingCount === 0) return;
+  const remaining = (clonePicksById.get(id) || 0) - 1;
+  if (remaining > 0) clonePicksById.set(id, remaining);
+  else clonePicksById.delete(id);
+}
+
 function buildTower(towerId, cellX, cellY) {
   const check = canBuild(towerId, cellX, cellY);
   if (!check.ok) return reject('build', check.reason);
 
+  const existingCount = WaveManager.getTowers().filter(t => t.id === towerId).length;
+  consumeClonePick(towerId, existingCount);
+
   const instanceId = nextInstanceId(towerId);
-  const tower = new Tower(towerId, instanceId, cellX, cellY);
+  const tower = new Tower(towerId, instanceId, cellX, cellY, existingCount);
   WaveManager.addTower(tower);
   GridSystem.occupy(cellX, cellY, { instanceId }, 'tower');
   LevelSystem.addBuildXp('tower');
@@ -111,8 +133,11 @@ function buildSupport(supportId, cellX, cellY) {
   const check = canBuild(supportId, cellX, cellY);
   if (!check.ok) return reject('build', check.reason);
 
+  const existingCount = WaveManager.getSupports().filter(s => s.id === supportId).length;
+  consumeClonePick(supportId, existingCount);
+
   const instanceId = nextInstanceId(supportId);
-  const support = new Supporter(supportId, instanceId, cellX, cellY);
+  const support = new Supporter(supportId, instanceId, cellX, cellY, existingCount);
   WaveManager.addSupport(support);
   GridSystem.occupy(cellX, cellY, { instanceId }, 'support');
   LevelSystem.addBuildXp('support');
@@ -186,6 +211,40 @@ function relocate(instanceId, cellX, cellY) {
   WaveManager.recalculateBuffs();
 
   EventBus.emit(EV.objectChanged, { instanceId, action: 'relocated', level: target.level });
+  return { ok: true };
+}
+
+/**
+ * §5-7 복제 시스템 — 최대 레벨 건물을 지으면 그 종류의 추가 설치권을 파는 4번째 강화 단계.
+ * N서울타워는 대상에서 뺀다(재배치와 같은 이유 — 상시 지형물이라 복제되면 "조명=체력바" 가정이
+ * 깨진다). 비용은 그 건물의 upgradeBaseCost에 waves.json의 cloneScale을 곱해서 구한다 —
+ * existingCount(현재 그 종류 인스턴스 수)가 늘수록 다음 복제가 기하급수로 비싸진다.
+ */
+function cloneCost(instanceId) {
+  const target = findBuildable(instanceId);
+  if (!target || target.id === 'nseoulTower' || target.canUpgrade()) return null;
+
+  const kind = targetKind(target);
+  const def = kind === 'tower' ? towersData[target.id] : supportsData[target.id];
+  const existingCount = (kind === 'tower' ? WaveManager.getTowers() : WaveManager.getSupports())
+    .filter(o => o.id === target.id).length;
+  const scale = wavesData.cloneScale;
+  return Math.round(def.upgradeBaseCost * scale.cloneBaseCostMul * scale.cloneCostMulPerInstance ** (existingCount - 1));
+}
+
+function clone(instanceId) {
+  const target = findBuildable(instanceId);
+  if (!target) return reject('clone', 'locked');
+  if (target.id === 'nseoulTower') return reject('clone', 'locked');
+  if (target.canUpgrade()) return reject('clone', 'notMaxLevel');
+
+  const cost = cloneCost(instanceId);
+  const spend = Economy.trySpend(cost);
+  if (!spend.ok) return reject('clone', spend.reason);
+
+  const id = target.id;
+  clonePicksById.set(id, (clonePicksById.get(id) || 0) + 1);
+  EventBus.emit(EV.cloneAcquired, { kind: targetKind(target), id });
   return { ok: true };
 }
 
@@ -271,6 +330,8 @@ export const GameCore = {
   upgrade,
   relocate,
   canRelocate,
+  cloneCost,
+  clone,
   pickDraftCard,
   pickPolicy,
 

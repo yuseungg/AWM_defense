@@ -15,7 +15,8 @@
 ### 절대 규칙 6가지 (이 게임의 정체성)
 
 1. **N서울타워 조명 = 체력바.** 숫자 체력바를 만들지 않는다. 4단계(파랑4→초록3→노랑2→빨강1).
-2. **유니크 룰.** 랜드마크 타워·서포터 건물은 **종류당 1개**만. 장애물만 무제한.
+2. **유니크 룰(복제로만 완화).** 랜드마크 타워·서포터 건물은 기본 **종류당 1개**만. 장애물만 무제한.
+   단, 최대 레벨(Lv3) 건물을 골드로 **복제**하면 그 종류의 추가 설치권을 얻어 더 지을 수 있다(§5-7).
 3. **타워 공격 = 그 건물의 실제 기능 = 그 도시문제의 실제 해법.** 상성 특효 + 피드백 필수.
 4. **성장 3채널을 절대 섞지 않는다.** 드래프트 = 수평 다양성 / 골드 = 수직 파워 / 보스 정책 = 스윙.
 5. **건설은 무료. 골드는 강화 전용.** 판매 없음, 재배치 무료.
@@ -138,8 +139,11 @@
  "seasons":[{"from":1,"to":10,"name":"봄","mix":{"dust":0.8,"car":0.2,"trash":0.0}}],
  "boss":{"everyWaves":5,"baseHp":400,"hpMulPerBoss":1.15},
  "xp":{"levelBase":20,"levelGrowth":1.3},
- "buildXp":{"tower":3,"support":2,"obstacle":2}}
+ "buildXp":{"tower":3,"support":2,"obstacle":2},
+ "cloneScale":{"upgradeCostMulPerInstance":1.5,"cloneBaseCostMul":3.0,"cloneCostMulPerInstance":2.0}}
 ```
+`cloneScale` = §5-7 복제 시스템 전용 전역 배율. 타워·서포터마다 따로 안 두고 여기 하나로 통일한다
+(6종+2종에 숫자를 반복해서 두면 P4 조정이 8곳을 동시에 건드려야 해서).
 
 ### supports.json
 ```json
@@ -270,6 +274,29 @@ recalculateBuffs() {
 | 4 | 롯데월드타워 | 쓰레기더미 특효. 탱커 등장 시점과 맞춤 |
 | 5 | 서울숲 | 오라형. 배치 이해도가 필요해서 마지막 |
 
+### 5-7. 복제 시스템 (4단계 강화 = 유니크 룰의 유일한 예외) [2026-08-02]
+
+랜드마크 타워·서포터가 **최대 레벨(Lv3)에 도달하면**, 강화 대신 **복제**를 살 수 있다. 복제는
+그 종류의 **추가 설치권 1개**를 준다 — 골드만 쓰고 그 자리에서 뭔가 짓지는 않는다(건설 자체는
+CLAUDE.md §1-5대로 여전히 무료, 건설 바에서 다시 배치). 새로 지어진 복제는 **Lv1(강화 안 한
+상태)에서 시작**해서 독립적으로 Lv1~3을 다시 강화한다. N서울타워는 대상에서 제외(§1 규칙2,
+상시 지형물이라 복제되면 안 된다 — §6-1 `objectBuilt`가 안 뜨는 특수 개체라 재배치와 같은 이유).
+
+**인스턴스 랭크**: 같은 id로 이 인스턴스보다 먼저 지어진 개수를 `instanceIndex`(0부터)로 건설
+시점에 고정한다(판매가 없어 재계산할 필요가 없다). 스탯·레벨 진행 자체엔 영향 없고, **강화
+비용에만** 곱해진다.
+
+```js
+// 강화 비용 (Tower.js/Supporter.js upgradeCost()) — instanceIndex=0(최초 1개)이면 기존 공식 그대로
+upgradeCost = round(upgradeBaseCost * levels[lv].costMul * cloneScale.upgradeCostMulPerInstance ** instanceIndex);
+
+// 복제 비용 (GameCore.cloneCost) — existingCount = 지금 그 종류가 몇 개 있는가
+cloneCost = round(upgradeBaseCost * cloneScale.cloneBaseCostMul * cloneScale.cloneCostMulPerInstance ** (existingCount - 1));
+```
+
+`canBuild`의 유니크 판정 예외: 이미 1개 이상 있어도, 그 id의 복제 설치권(`clonePicksById`,
+GameCore 내부)이 있으면 통과한다(없으면 기존처럼 `unique`). 설치 성공 시 설치권 1개 소모.
+
 ---
 
 ## 6. 인터페이스 (A ↔ B 유일한 통신)
@@ -308,6 +335,7 @@ export const EventBus = new Phaser.Events.EventEmitter();
 | `actionRejected` | `{ action, reason, message }` ⭐ — **없으면 실패가 "클릭이 씹힌 것"처럼 보인다** |
 | `obstacleTriggered` | `{ instanceId, type, x, y, cooldown }` ⭐ — 통나무 발동 + 쿨다운 게이지 |
 | `towerFired` | `{ instanceId, towerId, x, y, targetX, targetY }` ⭐ — 타워 발사 반동 애니메이션용 (`SYNC.md` §3 C8) |
+| `cloneAcquired` | `{ kind: 'tower'\|'support', id }` — §5-7 복제 성공. 그 종류가 건설 바에서 다시 선택 가능해진다 |
 
 ⭐ = **[✅ A 승인 2026-07-28]** `SYNC.md` §3 C3. 이벤트 이름은 `EventBus.js`의 `EV` 상수를 쓴다 (리터럴 문자열 금지).
 
@@ -320,8 +348,9 @@ export const EventBus = new Phaser.Events.EventEmitter();
 1. **좌표 단위 = 셀 인덱스.** `cellX = Math.floor(px / 40)`. 픽셀→셀 변환 책임은 **B**에게 있다.
 2. **반환값 = `{ ok, reason?, instanceId? }`.** `canBuild`도 boolean이 아니다 —
    boolean만 오면 UI가 **"왜 안 되는지"를 표시할 수 없다.**
-   `reason` 목록: `'occupied'` `'unique'` `'locked'` `'noGold'` `'notOnPath'` `'onPath'` `'noPick'` `'outOfBounds'`
-   (`outOfBounds`는 타워·서포터가 2×2로 커지면서 추가됨 — 앵커 셀 기준 footprint가 격자 밖으로 나가는 경우)
+   `reason` 목록: `'occupied'` `'unique'` `'locked'` `'noGold'` `'notOnPath'` `'onPath'` `'noPick'` `'outOfBounds'` `'notMaxLevel'`
+   (`outOfBounds`는 타워·서포터가 2×2로 커지면서 추가됨 — 앵커 셀 기준 footprint가 격자 밖으로 나가는 경우.
+   `notMaxLevel`은 §5-7 복제를 최대 레벨 전에 시도할 때)
 3. **`getState()`는 매 프레임 호출 금지.** 씬 진입 · 오버레이 열 때 · `?debug=1` 에서만.
    실시간 갱신은 전부 이벤트로 한다 (§2 성능 조항).
    `instanceId` 형식은 `"cheonggyecheon#1"` (id + `#` + 순번).
@@ -341,6 +370,8 @@ export const GameCore = {
   canRelocate(instanceId, cellX, cellY) {},    // → { ok, reason } — canBuild와 다름: 옮기는 자기 자신은
                                                 //   점유 충돌로 안 침(GridSystem.canPlace의 excludeInstanceId).
                                                 //   드래그 재배치 미리보기(초록/빨강)가 매 셀마다 이걸로 판정한다.
+  cloneCost(instanceId) {},                    // → number | null — §5-7. 최대 레벨 아니거나 N서울타워면 null
+  clone(instanceId) {},                        // 골드 소모, 그 종류 추가 설치권 +1(cloneAcquired 발행). §5-7
   getState() {}   // { gold, xp, level, xpToNext, wave, season, cityLight,
                   //   towers[], supports[], obstacles[], perks{}, policies[],
                   //   unlockedTowers[], kills, bestWave, isPrepPhase }

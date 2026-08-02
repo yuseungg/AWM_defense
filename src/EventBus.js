@@ -49,6 +49,7 @@ export const EV = {
   objectChanged:  'objectChanged',   // { instanceId, action: 'upgraded'|'relocated', level }
   actionRejected: 'actionRejected',  // { action, reason }
   obstacleTriggered: 'obstacleTriggered', // { instanceId, type, x, y, cooldown }
+  cloneAcquired:  'cloneAcquired',   // { kind: 'tower'|'support', id } — 최대 레벨 건물 복제로 그 종류 추가 설치권 획득
 
   // ── 버프 · 종료
   buffsRecalculated: 'buffsRecalculated', // { towerStats[] }
@@ -65,4 +66,5 @@ export const REJECT = {
   onPath:    '경로 위에는 세울 수 없습니다',
   noPick:    '남은 설치 횟수가 없습니다',
   outOfBounds: '맵 밖에는 세울 수 없습니다', // 2×2 건물이 격자 가장자리에 걸칠 때
+  notMaxLevel: '최대 레벨에 도달해야 복제할 수 있습니다',
 };

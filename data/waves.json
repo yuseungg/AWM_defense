@@ -62,6 +62,11 @@
   },
   "startGold": 200,
   "instantWaveBonusGold": 25,
+  "cloneScale": {
+    "upgradeCostMulPerInstance": 1.5,
+    "cloneBaseCostMul": 3.0,
+    "cloneCostMulPerInstance": 2.0
+  },
   "spawn": {
     "intervalByType": {
       "dust": 0.1,
