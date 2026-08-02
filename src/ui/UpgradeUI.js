@@ -1,14 +1,30 @@
 /**
- * UpgradeUI.js — 건물 클릭 → 강화 패널 (골드 = 수직 파워 채널의 유일한 출구, CLAUDE.md §1-4)
+ * UpgradeUI.js — 건물 클릭 → 강화 패널 / 건물 드래그 → 재배치 (골드 = 수직 파워 채널의 유일한 출구, CLAUDE.md §1-4)
  *
  * 맵의 타워·서포터를 클릭하면 좌상단 HUD 아래 고정 패널이 뜬다. BuildUI가 배치 모드 중이면
  * (selectedId 존재) 이 컴포넌트는 관여하지 않는다 — 클릭은 그대로 배치 시도로 간다.
  *
- * ★ 재배치는 드래그가 아니라 "선택→셀 클릭"이다. GameCore.relocate()·GridSystem.canPlace()를
- *   그대로 재사용해서 새 UI를 안 만든다 — 모바일 터치에서도 드래그보다 훨씬 안정적이다(무료, CLAUDE.md §1-5).
+ * ★ 재배치는 드래그다(판매 없음, 무료 유지 — CLAUDE.md §1-5). pointerdown이 건물에 맞아도
+ *   바로 패널을 열거나 드래그를 시작하지 않는다 — pointerdown~pointerup 사이 이동 거리가
+ *   DRAG_THRESHOLD를 넘기면 드래그, 안 넘기면 클릭(패널 열기)으로 판정한다. 이 구분이 없으면
+ *   패널을 열려는 클릭이 전부 "제자리 드래그"로 오인되거나, 반대로 드래그 시작이 클릭으로
+ *   씹힌다. 드래그 중엔 `GameCore.canRelocate()`(자기 자신 제외 판정 — canBuild와 다름, 아래
+ *   참고)로 매 셀마다 초록/빨강을 계산하고, `TowerView`의 고스트가 커서를 따라간다. 드롭 시
+ *   `GameCore.relocate()`를 호출 — 실패해도 안전하다(고스트가 원위치로 자동 복귀, TowerView
+ *   참고). 터치도 Phaser Pointer가 마우스와 동일 이벤트로 통합돼서 별도 분기가 필요 없다.
+ *
+ * ★ canRelocate ≠ canBuild: canBuild의 점유 검사는 "옮기는 그 건물 자신"이 서 있던 칸도 여전히
+ *   점유된 것으로 본다 — 그래서 옛 자리와 조금이라도 겹치는 칸으로 옮기면 자기 자신과 충돌한
+ *   걸로 오판해 항상 실패한다. GameCore.canRelocate/relocate는 GridSystem.canPlace에
+ *   excludeInstanceId를 넘겨 이 오판을 막는다(GameCore.js 참고).
+ *
+ * ★ N서울타워는 드래그 대상에서 제외한다(`hitTest`) — map.json 고정 좌표의 상시 지형물이라
+ *   `buildTower()`를 안 거치고 자동 배치돼서 TowerView에 그려진 실체(고스트로 옮길 스프라이트)가
+ *   없다. 옮기면 좌표만 바뀌고 SeoulTowerLight가 그리는 조명 원은 원래 자리에 그대로 남는다.
  *
  * ★ ESC 우선순위: DraftOverlay가 열려 있으면(this.scene.draft.current) 이 컴포넌트는 ESC에
- *   반응하지 않는다 — 드래프트가 항상 우선이다(HANDOFF.md §5에 근거 기록).
+ *   반응하지 않는다 — 드래프트가 항상 우선이다(HANDOFF.md §5에 근거 기록). 드래그 중엔 ESC/우클릭이
+ *   드래그만 취소한다(relocate 호출 없이 고스트만 원위치 복귀).
  *
  * ★ 강화는 damage(타워)/effect.value(서포터)에만 적용된다 — range·aoeRadius·effects·strongAgainst는
  *   레벨과 무관한 고정값이라 화살표 없이 정보성으로만 보여준다(Tower.js 자체 문서화와 동일 원칙).
@@ -20,7 +36,7 @@ import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
 import { COLOR, BUILD, UPGRADE, EASE } from './UITheme.js';
 import { CELL, W, H, setGridVisible } from './mapView.js';
-import GridSystem from '../game/GridSystem.js';
+import { FOOTPRINT } from '../game/GridSystem.js';
 import towersData from '../../data/towers.json';
 import supportsData from '../../data/supports.json';
 import enemiesData from '../../data/enemies.json';
@@ -29,7 +45,14 @@ const FXTEST = new URLSearchParams(location.search).get('fxtest') === '1';
 const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
 const MAX_CX = W / CELL - 1;
 const MAX_CY = H / CELL - 1;
-const HIT_RADIUS = 20; // 건물 클릭 판정 반경(VIEW.towerSize 절반보다 살짝 여유를 둠)
+// 타워·서포터는 2×2(80×80) — 건물 절반(40px)보다 살짝 여유를 둔다(기존엔 40px 1×1 기준 20px였음)
+const HIT_RADIUS = (CELL * FOOTPRINT.tower) / 2 + 4;
+// 재배치 대상은 늘 tower/support뿐이라(장애물은 relocate 대상 아님) 클램프는 이 footprint 하나로 충분하다
+function maxAnchor(max) {
+  return max - (FOOTPRINT.tower - 1);
+}
+// pointerdown~pointerup 사이 이 거리(px)를 넘기면 클릭이 아니라 드래그로 판정한다.
+const DRAG_THRESHOLD = 6;
 
 export class UpgradeUI {
   constructor(scene, core) {
@@ -37,12 +60,14 @@ export class UpgradeUI {
     this.core = core;
 
     this.current = null;      // { instanceId, kind: 'tower'|'support' }
-    this.relocateMode = false;
     this.locked = false;      // DraftOverlay가 열려 있는 동안 true
     this.panelGroup = [];
     this.panelBounds = null;  // 실제 렌더된 패널 크기(내용에 따라 가변) — 밖 클릭 판정에 씀
-    this._lastRelocateCx = null;
-    this._lastRelocateCy = null;
+
+    this.dragCandidate = null; // { instanceId, kind, downX, downY } — pointerdown 직후, 클릭/드래그 미정
+    this.dragging = null;      // { instanceId, kind } — DRAG_THRESHOLD를 넘겨 드래그로 확정된 후
+    this._lastDragCx = null;
+    this._lastDragCy = null;
 
     this.rangeGfx = scene.add.graphics().setDepth(45);
     this.relocateGfx = scene.add.graphics().setDepth(50);
@@ -60,8 +85,10 @@ export class UpgradeUI {
 
     this.onPointerMove = p => this.handlePointerMove(p);
     this.onPointerDown = p => this.handlePointerDown(p);
+    this.onPointerUp = p => this.handlePointerUp(p);
     scene.input.on('pointermove', this.onPointerMove);
     scene.input.on('pointerdown', this.onPointerDown);
+    scene.input.on('pointerup', this.onPointerUp);
 
     this.onEsc = () => this.handleEsc();
     scene.input.keyboard.on('keydown-ESC', this.onEsc);
@@ -78,7 +105,8 @@ export class UpgradeUI {
     if (this.locked) {
       // buildUI 잠금/해제는 DraftOverlay가 직접 소유한다 — 여긴 내 패널 표시만 지운다.
       this.current = null;
-      this.relocateMode = false;
+      if (this.dragging) this.cancelDrag();
+      this.dragCandidate = null;
       this.relocateGfx.clear();
       this.rangeGfx.clear();
       this.clearPanel();
@@ -88,17 +116,16 @@ export class UpgradeUI {
   handleEsc() {
     if (this.locked) return;
     if (this.scene.draft?.current) return; // 드래프트가 떠 있으면 그쪽이 우선 — 반응 안 함
-    if (this.relocateMode) { this.cancelRelocate(); return; }
+    if (this.dragging) { this.cancelDrag(); return; }
     if (this.current) this.close();
   }
 
-  // ────────────────────────────────────────── 클릭 감지
+  // ────────────────────────────────────────── 클릭/드래그 감지
   handlePointerDown(pointer) {
     if (this.locked) return;
 
-    if (this.relocateMode) {
-      if (pointer.rightButtonDown()) { this.cancelRelocate(); return; }
-      this.attemptRelocateClick(pointer);
+    if (this.dragging) {
+      if (pointer.rightButtonDown()) this.cancelDrag(); // 우클릭 = 드래그 취소
       return;
     }
 
@@ -106,31 +133,114 @@ export class UpgradeUI {
     if (pointer.y >= BUILD.barY - BUILD.barHeight / 2) return; // 건설 바 영역
 
     const hit = this.hitTest(pointer.x, pointer.y);
-    if (hit) { this.open(hit.instanceId, hit.kind); return; }
+    if (hit) {
+      // 클릭(패널 열기)인지 드래그(재배치)인지는 여기서 정하지 않는다 — pointerup/pointermove가 가른다.
+      this.dragCandidate = { instanceId: hit.instanceId, kind: hit.kind, downX: pointer.x, downY: pointer.y };
+      return;
+    }
 
     if (this.current && !this.isInsidePanel(pointer.x, pointer.y)) this.close();
   }
 
   handlePointerMove(pointer) {
-    if (!this.relocateMode) return;
-    if (pointer.y >= BUILD.barY - BUILD.barHeight / 2) { this.relocateGfx.clear(); return; }
+    if (this.dragging) { this.updateDragPreview(pointer); return; }
 
-    const cx = Phaser.Math.Clamp(Math.floor(pointer.x / CELL), 0, MAX_CX);
-    const cy = Phaser.Math.Clamp(Math.floor(pointer.y / CELL), 0, MAX_CY);
-    if (cx === this._lastRelocateCx && cy === this._lastRelocateCy) return;
-    this._lastRelocateCx = cx;
-    this._lastRelocateCy = cy;
+    if (this.dragCandidate) {
+      const d = Math.hypot(pointer.x - this.dragCandidate.downX, pointer.y - this.dragCandidate.downY);
+      if (d > DRAG_THRESHOLD) this.beginDrag();
+    }
+  }
 
-    const ok = GridSystem.canPlace(this.current.kind, cx, cy).ok;
+  /** DRAG_THRESHOLD를 넘긴 순간 클릭 후보를 드래그로 승격 — 패널을 닫고 고스트를 반투명으로 전환한다. */
+  beginDrag() {
+    const { instanceId, kind } = this.dragCandidate;
+    this.dragCandidate = null;
+    this.dragging = { instanceId, kind };
+    this._lastDragCx = null;
+    this._lastDragCy = null;
+    if (this.current) this.close();
+    this.scene.towerView?.beginDrag(instanceId);
+    setGridVisible(true);
+  }
+
+  updateDragPreview(pointer) {
+    const { instanceId, kind } = this.dragging;
+    this.scene.towerView?.updateDragPosition(instanceId, pointer.x, pointer.y); // 고스트는 픽셀 단위로 커서를 그대로 따라간다
+
+    const overBar = pointer.y >= BUILD.barY - BUILD.barHeight / 2;
+    if (overBar) {
+      this.relocateGfx.clear();
+      this.rangeGfx.clear();
+      this._lastDragCx = null;
+      this._lastDragCy = null;
+      return;
+    }
+
+    const cx = Phaser.Math.Clamp(Math.floor(pointer.x / CELL), 0, maxAnchor(MAX_CX));
+    const cy = Phaser.Math.Clamp(Math.floor(pointer.y / CELL), 0, maxAnchor(MAX_CY));
+    if (cx === this._lastDragCx && cy === this._lastDragCy) return; // ★ 셀이 안 바뀌면 재조회 안 함
+    this._lastDragCx = cx;
+    this._lastDragCy = cy;
+
+    const ok = this.core.canRelocate(instanceId, cx, cy).ok;
+    const size = FOOTPRINT[kind] ?? 1;
+    const px = cx * CELL + (CELL * size) / 2;
+    const py = cy * CELL + (CELL * size) / 2;
+
     this.relocateGfx.clear();
     this.relocateGfx.fillStyle(ok ? COLOR.ok : COLOR.ng, BUILD.previewAlpha);
-    this.relocateGfx.fillRect(cx * CELL, cy * CELL, CELL, CELL);
+    this.relocateGfx.fillRect(cx * CELL, cy * CELL, CELL * size, CELL * size);
+
+    // 사거리(타워)/오라(서포터) 원을 목표 위치(px,py)로 옮겨 그린다 — 실시간 거리 계산이 아니라
+    // 셀이 바뀔 때만(위 가드) 1회 재계산하므로 §5-2 "매 프레임 금지" 취지에 어긋나지 않는다.
+    const state = this.core.getState();
+    const obj = (kind === 'tower' ? state.towers : state.supports).find(o => o.instanceId === instanceId);
+    if (obj) this.drawRangeCircle(obj, kind, px, py);
+  }
+
+  handlePointerUp(pointer) {
+    if (this.locked) return;
+
+    if (this.dragging) { this.finishDrag(pointer); return; }
+
+    if (this.dragCandidate) {
+      const { instanceId, kind } = this.dragCandidate;
+      this.dragCandidate = null;
+      this.open(instanceId, kind);
+    }
+  }
+
+  finishDrag(pointer) {
+    const { instanceId, kind } = this.dragging;
+    const overBar = pointer.y >= BUILD.barY - BUILD.barHeight / 2;
+
+    if (!overBar) {
+      const cx = Phaser.Math.Clamp(Math.floor(pointer.x / CELL), 0, maxAnchor(MAX_CX));
+      const cy = Phaser.Math.Clamp(Math.floor(pointer.y / CELL), 0, maxAnchor(MAX_CY));
+      this.core.relocate(instanceId, cx, cy); // 실패해도 안전 — actionRejected 토스트만 뜨고 고스트는 아래서 원위치로 복귀
+    }
+
+    this.scene.towerView?.endDrag(instanceId);
+    this.dragging = null;
+    this.relocateGfx.clear();
+    this.rangeGfx.clear();
+    setGridVisible(false);
+  }
+
+  cancelDrag() {
+    if (!this.dragging) return;
+    this.scene.towerView?.endDrag(this.dragging.instanceId);
+    this.dragging = null;
+    this.relocateGfx.clear();
+    this.rangeGfx.clear();
+    setGridVisible(false);
   }
 
   hitTest(x, y) {
     const state = this.core.getState();
     const candidates = [
-      ...state.towers.map(t => ({ instanceId: t.instanceId, kind: 'tower', x: t.x, y: t.y })),
+      // N서울타워는 제외 — TowerView에 그려진 실체가 없어 드래그 대상이 될 수 없다(§ 상단 주석).
+      ...state.towers.filter(t => t.id !== 'nseoulTower').map(t => ({ instanceId: t.instanceId, kind: 'tower', x: t.x, y: t.y })),
       ...state.supports.map(s => ({ instanceId: s.instanceId, kind: 'support', x: s.x, y: s.y })),
     ];
     return candidates.find(c => Math.hypot(c.x - x, c.y - y) <= HIT_RADIUS) ?? null;
@@ -144,7 +254,6 @@ export class UpgradeUI {
   // ────────────────────────────────────────── 열기/닫기
   open(instanceId, kind) {
     this.current = { instanceId, kind };
-    this.relocateMode = false;
     this.relocateGfx.clear();
     this.scene.buildUI?.setInputEnabled(false);
     this.render();
@@ -152,7 +261,6 @@ export class UpgradeUI {
 
   close() {
     this.current = null;
-    this.relocateMode = false;
     this.relocateGfx.clear();
     this.rangeGfx.clear();
     this.clearPanel();
@@ -164,8 +272,6 @@ export class UpgradeUI {
     this.panelGroup.forEach(o => o.destroy());
     this.panelGroup = [];
     this.panelBounds = null;
-    this.hintText?.destroy();
-    this.hintText = null;
   }
 
   // ────────────────────────────────────────── 렌더링
@@ -216,15 +322,10 @@ export class UpgradeUI {
       cy += UPGRADE.buttonHeight + UPGRADE.buttonGap;
     }
 
-    // N서울타워는 map.json 고정 좌표의 상시 지형물이다 — buildTower()를 안 거치고 GameCore
-    // 모듈 로드 시 자동 배치돼서(ensureNSeoulTower) objectBuilt가 안 뜬다. TowerView는 그 이벤트로만
-    // 스프라이트를 만들기 때문에 N서울타워는 화면에 그려진 실체가 없다 — SeoulTowerLight가 같은
-    // 좌표에 그리는 조명 원이 그 자리를 대신할 뿐이다. 재배치를 허용하면 좌표만 옮겨가고 조명 원은
-    // 그대로 남아 "그림은 그대로인데 반경만 옮겨간" 것처럼 보이는 버그가 난다 — 그래서 막는다
-    // (BuildUI가 애초에 N서울타워를 건설 바에서 빼놓은 것과 같은 이유).
+    // 재배치는 이제 버튼이 아니라 드래그다(맵 위 건물을 직접 잡아서 옮긴다, § 상단 주석) — 여기선
+    // 안내 한 줄만 보여준다. N서울타워는 hitTest()에서 애초에 드래그 대상 후보에서 빠진다.
     if (obj.id !== 'nseoulTower') {
-      this.makeButton(x + w / 2, cy + UPGRADE.buttonHeight / 2, UPGRADE.buttonWidth, '재배치', true, () => this.startRelocate());
-      cy += UPGRADE.buttonHeight;
+      addLine('맵 위 건물을 드래그하면 옮길 수 있습니다', UPGRADE.relocateHintColor, UPGRADE.statFontSize);
     }
 
     const panelH = cy - UPGRADE.panelY + UPGRADE.padding;
@@ -292,64 +393,29 @@ export class UpgradeUI {
   }
 
   // ────────────────────────────────────────── 사거리/오라 원
-  drawRangeCircle(obj, kind) {
+  /** x,y 생략 시 obj의 실제 현재 위치 — 드래그 미리보기는 목표 셀 중심을 명시로 넘겨서 재사용한다. */
+  drawRangeCircle(obj, kind, x = obj.x, y = obj.y) {
     this.rangeGfx.clear();
     if (kind === 'tower') {
       this.rangeGfx.lineStyle(BUILD.rangeLineWidth, BUILD.rangeColor, BUILD.rangeAlpha);
-      this.rangeGfx.strokeCircle(obj.x, obj.y, obj.effectiveRange);
+      this.rangeGfx.strokeCircle(x, y, obj.effectiveRange);
       return;
     }
     const def = supportsData[obj.id];
     if (def.effect.radius > 0) {
       this.rangeGfx.fillStyle(BUILD.auraColor, BUILD.auraFillAlpha);
       this.rangeGfx.lineStyle(BUILD.auraLineWidth, BUILD.auraColor, BUILD.auraLineAlpha);
-      this.rangeGfx.fillCircle(obj.x, obj.y, def.effect.radius);
-      this.rangeGfx.strokeCircle(obj.x, obj.y, def.effect.radius);
+      this.rangeGfx.fillCircle(x, y, def.effect.radius);
+      this.rangeGfx.strokeCircle(x, y, def.effect.radius);
     }
   }
 
   refreshRangeCircle() {
-    if (!this.current || this.relocateMode) return;
+    if (!this.current || this.dragging) return;
     const state = this.core.getState();
     const obj = (this.current.kind === 'tower' ? state.towers : state.supports)
       .find(o => o.instanceId === this.current.instanceId);
     if (obj) this.drawRangeCircle(obj, this.current.kind);
-  }
-
-  // ────────────────────────────────────────── 재배치 (드래그 대신 "선택→셀 클릭", CLAUDE.md §1-5 무료)
-  startRelocate() {
-    if (!this.current) return;
-    this.relocateMode = true;
-    this._lastRelocateCx = null;
-    this._lastRelocateCy = null;
-    this.clearPanel();
-    this.rangeGfx.clear();
-    this.hintText = this.scene.add.text(UPGRADE.panelX, UPGRADE.panelY, '이동할 위치를 고르세요 (ESC/우클릭 취소)', {
-      fontSize: `${UPGRADE.statFontSize}px`, color: UPGRADE.relocateHintColor,
-      wordWrap: { width: UPGRADE.panelWidth },
-    }).setDepth(61);
-    setGridVisible(true);
-  }
-
-  cancelRelocate() {
-    this.relocateMode = false;
-    this.relocateGfx.clear();
-    this.render();
-    setGridVisible(false);
-  }
-
-  attemptRelocateClick(pointer) {
-    if (pointer.y >= BUILD.barY - BUILD.barHeight / 2) return; // 건설 바 영역은 무시
-    const cx = Phaser.Math.Clamp(Math.floor(pointer.x / CELL), 0, MAX_CX);
-    const cy = Phaser.Math.Clamp(Math.floor(pointer.y / CELL), 0, MAX_CY);
-    const res = this.core.relocate(this.current.instanceId, cx, cy);
-    if (res.ok) {
-      this.relocateMode = false;
-      this.relocateGfx.clear();
-      this.render();
-      setGridVisible(false);
-    }
-    // 실패 시엔 actionRejected 토스트만 뜨고 relocateMode 유지 — 바로 다시 시도할 수 있다
   }
 
   // ────────────────────────────────────────── 실패 토스트
@@ -384,6 +450,7 @@ export class UpgradeUI {
     EventBus.off(EV.buffsRecalculated, this.onBuffsRecalculated, this);
     this.scene.input.off('pointermove', this.onPointerMove);
     this.scene.input.off('pointerdown', this.onPointerDown);
+    this.scene.input.off('pointerup', this.onPointerUp);
     this.scene.input.keyboard.off('keydown-ESC', this.onEsc);
 
     this.rangeGfx.destroy();

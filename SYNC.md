@@ -15,7 +15,7 @@
 | 항목 | 상태 |
 |---|---|
 | **`main` 빌드** | ✅ 정상 (`npm run build` 확인) |
-| **마지막 갱신** | 2026-08-02 / B |
+| **마지막 갱신** | 2026-08-02 / B (격자 연결 + towerFired 교체, A의 드래그 재배치 병합 반영) |
 | **🚨 D5 병합 사고 발견·복구** | A의 `abeb58e`(`Merge branch 'main'`)가 두 갈래(B의 D4 UI 작업 vs A의 구식 `feat/game-core` 사본)를 합치면서 `BuildUI.js`/`TowerView.js`/`UITheme.js`/`MockGameCore.js` 등 B 소유 파일이 **구버전으로 되돌아간 채 `main`에 올라가 있었다**(N1이 경고했던 바로 그 사고, 이번엔 A의 머지에서 재발). `git diff HEAD origin/main`으로 발견 → `feat/ui`에서 `git merge origin/main` 재수행, 충돌 3개(`GameCore.js`/`WaveManager.js`/`main.js`)는 전부 "A의 새 로직 유지 + B 파일은 내 버전 유지"로 해결 → `main`에 fast-forward로 재반영 완료. **현재 `main`은 정상(A+B 전부 반영, 헤드리스 검증·빌드 통과)이지만, 앞으로 `feat/game-core`류 보조 브랜치를 `main`에 직접 머지하는 작업은 반드시 `git diff`로 UI/FX 파일 변화를 먼저 확인하고 진행할 것 — 파일 단위 체리픽이 아니면 이 사고가 또 난다.** |
 | **현재 페이즈** | **P1 코어 로직 완료 (A) + P3(절대 사수) 완료 (B) + 오브젝트 렌더러 완료 (B, D4) — 일정 변경으로 D5까지 추가 작업 진행 중** |
 | **A 진행률** | **P1 완료** + `GameCore.js` 1단계 완료. **D4 하루 만에 N4 권장 순서 ①`LevelSystem` ②`DraftSystem`+`PerkSystem` ③`Supporter`+`Obstacle`(`buildSupport`/`buildObstacle` 실구현, `f8c6585`)까지 백엔드 전부 완료** — `GameCore` 레벨에선 드래프트 카드 7종이 다 살아있다. **아직 이 저장소(`main`/`feat/ui`)엔 없음** — A 브랜치에만 있다, D5에 B가 파일 단위로 가져와 스왑 예정(§2 N7). **단, `BuildUI`(B 소유)가 서포터/장애물 배치 UI를 아직 안 만들어서 플레이어 입장에선 여전히 죽은 카드다 — D5에 B가 먼저 만든다.** 남은 건 `pickPolicy`(보스 정책 효과 적용)와 장애물 강화(`Obstacle`은 `upgrade` 대상이 아직 아님) 뿐. **`GameCore.reset()`은 아직 없음(§3 C5 미해결)** |
@@ -439,7 +439,7 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 ---
 
-### ✅ [승인] C8 · B → A · 2026-08-01 — `towerFired` 이벤트 요청 (타워 발사 반동 애니메이션용)
+### ✅ [완료] C8 · B → A → B · 2026-08-01~02 — `towerFired` 이벤트 요청 (타워 발사 반동 애니메이션용)
 
 **변경 요청:** `Tower.update(dt)`가 쿨다운을 리셋하고 실제로 타겟을 쐈을 때(`return target` 분기)
 `EventBus.emit(EV.towerFired, { instanceId, x: this.x, y: this.y, targetX: target.x, targetY: target.y })`
@@ -454,11 +454,36 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 복사로 바뀌면(`[...towers]` 등) 조용히 깨진다(에러 없이 반동만 안 뜸). 진짜 이벤트가 생기면
 `TowerView.js`의 `tickRecoil()`을 그걸로 교체한다(HANDOFF.md §5에도 기록해둠).
 **하위 호환:** 새 이벤트 추가만. 기존 `EV` 20여 개·`GameCore` 시그니처 변경 없음.
-**상대 확인:** ✅ 2026-08-01 A 승인 — `EventBus.js`에 `EV.towerFired` 상수 추가, `Tower.update(dt)`가
-쿨다운을 리셋하고 대상을 반환하는 그 지점(`return target` 직전)에서 요청한 페이로드 그대로 emit하게
-구현(`src/game/Tower.js`). B가 말한 위험(`getTowers()` 참조 배열에 기대는 우회)은 이 이벤트로 대체하면
-해소된다 — `tickRecoil()` 교체 후 그 우회 코드(`cooldownRemaining` 폴링·`findTarget()` 재호출)는
-지워도 된다.
+
+**A 처리 결과 (2026-08-02):** 요청하신 그대로 반영 완료.
+- `WaveManager.js`의 `fireTower(tower, dt)` — `tower.update(dt)`가 target을 돌려주는 순간(=실제 발사)
+  `EventBus.emit(EV.towerFired, { instanceId: tower.instanceId, towerId: tower.id, x: tower.x, y: tower.y, targetX: target.x, targetY: target.y })` 추가.
+  요청하신 페이로드(`instanceId, x, y, targetX, targetY`)에 `towerId`까지 더한 최종 형태:
+  `{ instanceId, towerId, x, y, targetX, targetY }`.
+- `EventBus.js`의 `EV`에 `towerFired` 상수 추가.
+- `CLAUDE.md` §6-1 이벤트 표에도 같은 페이로드로 등재(⭐ 표시).
+- 콘솔로 실제 발사 시 정확한 페이로드로 발행되는지, 쿨다운 중엔 재발행 안 되는지 확인함.
+- `TowerView.js`의 임시 폴링(`tickRecoil()`)을 이 이벤트로 교체하는 건 `/src/fx/`라 B 쪽에서 진행해주세요.
+
+**B 처리 결과 (2026-08-02, 세션 15):** `TowerView.js`를 이벤트 구독으로 교체 완료 — `handleFired()`가
+`towerFired` 수신 즉시 반동 방향·시작 시각만 찍고, `tickRecoil()`은 감지 로직 없이 매 프레임 감쇠만
+그린다. `towerId` 필드는 반동 계산에 안 쓰여서 구조분해에서 그냥 무시. 병합 시 A가 그사이 만든
+드래그 재배치 고스트(`beginDrag`/`updateDragPosition`/`endDrag`, `entry.dragging` 가드)와 합쳐서
+`tickRecoil()`이 `squashing`뿐 아니라 `dragging` 중인 엔트리도 건너뛰게 했다.
+**상대 확인:** ✅ 양쪽 처리 완료 (2026-08-02)
+
+---
+
+### 📢 C9 · A → B · 2026-08-02 — `BuildUI.js` 건설 바 클릭 판정 수정 (경계 넘음, 통지)
+
+**변경:** `buildSlot()`의 클릭 판정을 `container.setInteractive(Rectangle, Rectangle.Contains)`에서
+`Controls.js`와 동일한 투명 `Zone` 방식으로 교체(`this.scene.add.zone(0,0,slotSize,slotSize).setInteractive(...)`를
+컨테이너의 마지막 자식으로 추가). 사용자가 "슬롯 가운데(스와치·아이콘)를 눌러도 선택이 안 된다"고
+보고해서 직접 고쳤다 — `/src/ui/`는 B 영역이지만 사용자가 명시적으로 이 파일을 지목해서 수정을 요청함.
+**이유:** 커스텀 Rectangle 히트영역 방식은 이론상 맞지만, 이미 `Controls.js`가 검증해둔 Zone 패턴으로
+통일하는 게 더 안전하다고 판단(시각 요소가 몇 개든 항상 최상단 Zone이 클릭/터치를 가로챔).
+**하위 호환:** `buildSlot()` 내부 클릭 판정 로직만 교체. 외부에서 보이는 동작(선택·잠금 토스트)은 동일.
+**상대 확인:** (통지 — 되돌리고 싶으시면 말씀해주세요. 직접 브라우저 테스트는 못 해봤습니다)
 
 ---
 
@@ -490,40 +515,49 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 ---
 
-## [2026-08-02] B · 세션 15 (격자 조건부 표시 연결 + towerFired 실제 이벤트로 교체)
+## [2026-08-02] B · 세션 15 (격자 조건부 표시 연결 + towerFired 실제 이벤트로 교체 + A의 드래그 재배치와 병합)
 
 **한 일**
-- `mapView.js`의 `setGridVisible()`(세션 14 끝에 정의만 해두고 미연결)을 실제 호출 지점 5곳에 연결:
-  `BuildUI.select()`/`clearSelection()`, `UpgradeUI.startRelocate()`/`cancelRelocate()`/`close()`,
-  그리고 주석엔 없었지만 실제로 필요한 지점 하나 더 발견해 추가함 —
-  `UpgradeUI.attemptRelocateClick()`의 재배치 성공 분기(`relocateMode`가 `cancelRelocate()`를
-  거치지 않고 바로 꺼지는 경로라, 여기서 안 끄면 재배치 성공 후에도 격자가 계속 떠 있었을 것)
-- `TowerView.js` 발사 반동을 `cooldownRemaining` 폴링 워크어라운드에서 진짜 `towerFired`
-  이벤트(SYNC.md §3 C8, A가 세션 중 `src/game/Tower.js`에 이미 emit 반영해둠)로 교체.
-  `handleFired()`가 이벤트 수신 즉시 반동 방향·시작 시각만 찍고, `tickRecoil()`은 감지 로직 없이
-  경과 시간 기반 감쇠만 그린다 — "감지(이벤트)"와 "렌더(매 프레임)"를 분리. `liveTowers` 참조 배열
-  들고 있던 것도 제거(더 이상 `GameCore` 내부 구현에 기댈 필요 없음). `tickRecoil`이 이제
-  `byInstance` 전체(서포터·장애물 포함)를 순회하지만 `recoilStart`가 `towerFired`로만 세팅되므로
-  타워가 아닌 엔트리는 자연히 아무 반동도 안 걸림(§ 상단 주석에 기록)
+- `mapView.js`의 `setGridVisible()`(세션 14 끝에 정의만 해두고 미연결)을 `BuildUI.select()`/
+  `clearSelection()`에 연결. 재배치 쪽은 처음엔 클릭식(`startRelocate`/`cancelRelocate`/
+  `attemptRelocateClick`)에 연결했는데, 커밋·푸시 직후 `origin/main`에 A가 같은 시간대에 올린
+  `f1938e9`(재배치를 클릭식 → 드래그식으로 전면 교체)와 정면으로 겹쳐서 병합 시 그 3개 함수 자체가
+  없어졌다 — 새 드래그 라이프사이클(`beginDrag`/`finishDrag`/`cancelDrag`)에 맞춰 다시 연결함
+  (`beginDrag`→표시, `finishDrag`/`cancelDrag`→숨김)
+- `TowerView.js` 발사 반동을 `cooldownRemaining` 폴링 워크어라운드에서 진짜 `towerFired` 이벤트로
+  교체(SYNC.md §3 C8). `handleFired()`가 이벤트 수신 즉시 반동 방향·시작 시각만 찍고, `tickRecoil()`은
+  감지 로직 없이 경과 시간 기반 감쇠만 그린다. 이것도 병합 대상이었다 — A가 같은 시간대에
+  `WaveManager.fireTower()`에서 emit을 완성해서 올렸고(내 로컬은 `Tower.js`에서 emit하는 다른
+  버전이었다 — A의 `WaveManager.js` 버전을 그대로 채택), TowerView.js는 A가 만든 드래그 고스트
+  기능(`beginDrag`/`updateDragPosition`/`endDrag`, `entry.dragging`)과 내 이벤트 기반 recoil을
+  같이 살려서 합쳤다(`tickRecoil`이 `squashing`·`dragging` 둘 다 건너뛰게)
+- **배경 사진(`assets/bg/*.jpg`)이 그동안 git에 커밋된 적이 없었던 것을 발견 → 커밋.** 로컬 디스크엔
+  파일이 있어서 dev 서버에선 잘 보였지만, 배포 사이트(GitHub Pages)엔 반영된 적이 없었다
+
+**겪은 일 — `origin/main`이 로컬 `main`보다 앞서 있었다:** 세션 시작 시점 로컬 `main`이 `feat/ui`와
+같은 커밋이라 fast-forward만 하면 될 줄 알았는데, `git fetch` 해보니 `origin/main`에 A가 커밋 4개
+(`dc40a65`~`f1938e9`, 건설 바 클릭판정 수정·2×2 격자 확장·`towerFired` C8 처리·재배치 드래그 전환)를
+이미 올려둔 상태였다. `EventBus.js`/`Tower.js`/`TowerView.js`/`UpgradeUI.js`/`SYNC.md` 5개 파일에서
+충돌 발생 → 전부 수동 병합(위 항목 참고). `BuildUI.js`는 겹치는 영역이 달라서 자동 병합됨.
 
 **지금 되는 것 / 안 되는 것**
-- 됨(코드 리뷰 + `npm run build` 통과로 확인): 격자 연결 5곳, `towerFired` 구독/해제, 기존 배치
-  "쿵" 스쿼시와의 `entry.squashing` 가드 충돌 없음(로직상 서로 다른 필드만 건드림)
-- 안 됨/확인 못 함: **이번 세션엔 브라우저 헤드리스 검증을 못 했다** — Chrome 확장 연결이 안 돼서
-  `?real=1`로 실제 타워 배치 → 발사 반동 눈으로 확인, 배치/재배치 모드 격자 페이드 인/아웃 확인을
-  둘 다 못 했다. 코드 리뷰로 로직만 확인한 상태(세션 14와 동일한 한계, HANDOFF.md 참고)
+- 됨(`?real=1&debug=1`로 브라우저 직접 검증 — Chrome 확장 재연결됨): 청계천 배치 후 즉시 웨이브 →
+  드래그로 상단 도로 쪽 몹 무리 근처까지 재배치(고스트 반투명 전환, 드롭 시 원위치 없이 새 자리로
+  이동) → 사거리 안에 몹이 들어오자 골드·XP가 자동으로 계속 올라감(전투 루프 정상 작동, 즉
+  `towerFired`→투사체→데미지 파이프라인이 살아있다는 뜻) → 콘솔 에러 0건. 배치/재배치 중 격자
+  페이드인도 육안 확인(줌 스크린샷으로 40px 격자선 확인). 2px 반동 자체는 타이밍상 스크린샷으로
+  못 잡았지만(감쇠가 워낙 짧다) 전투 루프가 정상이므로 코드 경로는 탄다고 판단
+- 안 됨/확인 못 함: 격자 확장(2×2) 배치 프리뷰와 드래그 프리뷰가 화면 경계 셀에서도 안 씹히는지는
+  안 봤음(맵 중앙 근처에서만 테스트함)
 
 **상대에게 필요한 것**
 - 없음
 
 **내가 한 가정**
-- `attemptRelocateClick` 성공 분기에 `setGridVisible(false)`를 추가로 넣은 것 — mapView.js 상단
-  주석엔 4곳만 적혀 있었지만 코드를 따라가 보니 5번째 지점이 실제로 필요했다. 틀렸을 때 영향:
-  없음(순수 추가, 되돌리면 재배치 성공 후 격자가 안 꺼지는 원래 버그로 돌아갈 뿐)
+- SYNC.md 충돌 중 "마지막 갱신" 줄은 시간상 내가 마지막이라 내 걸로, C8 처리 기록은 A/B 둘 다의
+  처리 결과를 순서대로 이어붙이는 쪽으로 정리(어느 한쪽만 남기면 상대 작업 기록이 사라짐)
 
 **다음 세션에 할 것**
-- `?real=1&debug=1`로 브라우저 직접 열어서(또는 Chrome 확장 재연결 후) 이번 세션 변경 2건 실사용
-  검증 — 특히 발사 반동 방향이 실제 타겟 쪽을 향하는지, 격자 페이드 타이밍이 자연스러운지
 - 폰트(Pretendard) 파일이 들어오면 `index.html` `@font-face` + `FONT` 블록 실제 연결(세션 14부터
   이어지는 미완료 항목)
 
@@ -1169,6 +1203,8 @@ core 상태를 안 건드림 — 이미 알려진 특성) → `MockGameCore.js`�
 | D18 | 2026-07-28 | `instanceId` = `"cheonggyecheon#1"` 문자열 · `getState()` **매 프레임 호출 금지** | 로그 가독성 / 웨이브 40+ 성능 조항 |
 | D19 | 2026-07-30 | §5-1 데미지 공식 의사코드 오탈 정정: `tower.strongAgainst?.[enemy.id]` → `def.strongAgainst?.[enemy.type]` | `strongAgainst` 키는 종(species) id인데(`enemies.json`의 `id`), `enemy.id`는 스폰마다 고유한 인스턴스 id라 실제 데이터와 안 맞았다. `Enemy.js`/`Combat.js` 구현 기준으로 정정 |
 | D20 | 2026-08-01 | B가 발견한 버그 2건(§2 N2 · N3 문맥과 별개로 채팅 공유) **실제 적용** — `Tower.js` 쿨다운 `1/attackSpeed` → `attackSpeed`, `enemies.json` `speed` 130/385/80/95(dust/car/trash/boss)로 재조정 | 둘 다 `/src/game/`·`/data/*.json` 수치 필드라 A 소유 영역이라 B는 발견만 하고 A가 반영. `attackSpeed`는 GAME_DESIGN §6-3상 "발사 간격 초"라 그대로 쿨다운이어야 하는데 역수를 써서 빠른 타워가 느리게 쏘고 있었음. speed는 경로가 길어져 사거리 체류시간이 부족해 타워가 못 잡던 걸 정정(밸런스값, P4 재조정 가능) |
+| D21 | 2026-08-02 | **/src/ui/, /src/fx/ 경계 전면 해제 — A가 앞으로 UI/FX도 직접 담당.** 첫 적용 작업: 타워·서포터 배치 크기 1×1 → **2×2**(장애물은 1×1 유지). `GridSystem.js`가 `FOOTPRINT = { tower:2, support:2, obstacle:1 }`를 export, `canPlace`/`occupy`/`release`/`toPixel`이 전부 footprint 인식. `BuildUI.js`/`UpgradeUI.js`/`TowerView.js`도 전부 이 상수 하나만 참조(숫자 하드코딩 없음). `canBuild` 실패 사유에 `outOfBounds` 추가(2×2가 격자 끝에 걸칠 때) — `EventBus.js` REJECT·`CLAUDE.md` §6-2·§5-3 갱신 | 사용자가 두 사람 역할을 겸하게 되면서 SYNC 스펙 요청 없이 A·B 양쪽을 한 세션에서 같이 구현하기로 함(CLAUDE.md §3의 "담당 경계"는 이 프로젝트에 한해 더 이상 적용 안 됨). N서울타워도 동일 규칙 적용 — 앵커는 `toCell(map.json의 nseoulTower)`이라 2×2 블록 중심이 원래 좌표에서 (+20,+20)px 밀린다(1240,480). `SeoulTowerLight`/라벨은 여전히 `mapData.nseoulTower` 원좌표를 그리므로 조명 시각과 실제 판정 중심 사이에 20px 오차가 생기지만, N서울타워는 TowerView로 렌더되는 실체가 없어 육안으로 드러나지 않는다(알려진 사소한 차이, 필요시 후속 정리) |
+| D22 | 2026-08-02 | **재배치를 "선택→셀 클릭" 버튼 방식에서 드래그 방식으로 전환.** `GridSystem.canPlace(kind,cellX,cellY,excludeInstanceId)` — 4번째 인자로 재배치 대상 자기 자신을 점유 충돌에서 제외. `GameCore.canRelocate(instanceId,cellX,cellY)` 신규(시그니처 추가, 기존 함수 변경 아님) — 드래그 중 매 셀 초록/빨강 판정용. `TowerView.js`에 `beginDrag/updateDragPosition/endDrag` 추가(고스트가 커서를 따라가고, 실패 시 `entry.baseX/baseY`가 안 바뀌어 있어서 자동으로 원위치 복귀됨). `UpgradeUI.js`는 pointerdown~pointerup 이동 거리 6px로 클릭(패널 열기)/드래그(재배치)를 가르고, 패널의 "재배치" 버튼·`startRelocate`류 클릭식 흐름은 전부 제거. `MockGameCore.js`에도 `canRelocate` 추가(?mock=1에서 UpgradeUI가 호출해도 죽지 않게, 단 Mock은 아직 FOOTPRINT 2×2 모델을 안 씀 — 기존 갭, 이번 범위 밖) | **재배치 유효성 검사는 canBuild와 다르다** — canBuild의 점유 검사는 "옮기는 그 건물 자신"이 서 있던 칸도 점유된 것으로 봐서, 옛 자리와 겹치는 칸으로 옮기려 하면 자기 자신과 충돌한 걸로 오판해 항상 실패하는 버그가 있었다(사용자가 설계 단계에서 미리 지적). release-후-검사 대신 "검사 시 자기 자신 제외"로 고쳐서, 검사 실패 시 release만 되고 occupy가 안 된 채 격자가 깨지는 경로 자체를 없앴다 |
 
 > **✅ D9~D18은 2026-07-28 P0 통화에서 A와 합의 완료.** §3의 C1·C2·C3 전부 승인됨.
 

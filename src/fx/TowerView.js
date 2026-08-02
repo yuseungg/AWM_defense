@@ -11,8 +11,14 @@
  * 확대(1 + level*0.15)로만 표현한다 — 장애물은 아직 강화 대상이 아니라(HANDOFF.md 참고)
  * 실제로는 항상 level 0이지만, 나중에 강화가 붙어도 코드 변경 없이 자연히 커지게 해둔다.
  *
- * `relocated`는 EventBus 계약상 좌표가 안 실려 와서(§5 알려진 미완성, BuildUI의 오라 추적과
- * 동일한 gap) 지금은 위치 갱신을 못 한다 — 재배치 UI 자체도 아직 없어서 실질적으로 발생하지 않는다.
+ * `relocated`는 EventBus 계약상 좌표가 안 실려 와서(§5 알려진 gap, BuildUI의 오라 추적과 동일)
+ * `applyRelocate()`가 그때만 `getState()`로 1회 재조회한다(D18 예외 — 드래그 드롭마다 발생하지만
+ * 여전히 "매 프레임"이 아니라 이벤트당 1회라 성능 조항에 어긋나지 않는다).
+ *
+ * ── 드래그 재배치 고스트 ────────────────────────────────────────────
+ * UpgradeUI가 건물을 드래그하는 동안 `beginDrag`/`updateDragPosition`/`endDrag`를 직접 호출해
+ * 이 엔트리의 gfx/sprite 위치를 커서에 맞춰 옮긴다 — `tickRecoil()`은 `entry.dragging`이 켜진
+ * 동안 그 엔트리를 건드리지 않는다(발사 반동과 드래그가 같은 위치값을 두고 싸우는 걸 막는다).
  *
  * 에셋이 없는 지금은 실루엣 도형 플레이스홀더를 쓴다(docs/ASSET_GUIDE.md와 동일한
  * 실루엣 규칙 — 윤곽만으로 식별 가능해야 한다는 원칙을 코드에도 그대로 반영).
@@ -28,6 +34,7 @@
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
 import { VIEW, EASE, ANIM } from '../ui/UITheme.js';
+import { FOOTPRINT } from '../game/GridSystem.js';
 import towersData from '../../data/towers.json';
 import supportsData from '../../data/supports.json';
 import obstaclesData from '../../data/obstacles.json';
@@ -128,12 +135,43 @@ export class TowerView {
 
     const entry = {
       gfx, sprite, kind, objId: id,
-      baseX: x, baseY: y, baseScale: 1, squashing: false,
+      baseX: x, baseY: y, baseScale: 1, squashing: false, dragging: false,
       dirX: 1, dirY: 0, recoilStart: -Infinity,
     };
     this.byInstance.set(instanceId, entry);
     this.redraw(entry, 0);
     this.playBuildSquash(entry);
+  }
+
+  // ────────────────────────────────────────── 드래그 재배치 (UpgradeUI가 호출)
+  /** 드래그 시작 — 반투명 고스트로 전환하고 tickRecoil이 이 엔트리의 위치를 건드리지 않게 막는다. */
+  beginDrag(instanceId) {
+    const entry = this.byInstance.get(instanceId);
+    if (!entry) return;
+    entry.dragging = true;
+    entry.gfx.setAlpha(0.75);
+    entry.sprite.setAlpha(0.75);
+  }
+
+  /** 드래그 중 커서를 그대로 따라간다 — 셀 스냅은 UI 쪽 미리보기 사각형이 별도로 보여준다. */
+  updateDragPosition(instanceId, x, y) {
+    const entry = this.byInstance.get(instanceId);
+    if (!entry) return;
+    entry.gfx.setPosition(x, y);
+    entry.sprite.setPosition(x, y);
+  }
+
+  /**
+   * 드래그 종료 — 항상 entry.baseX/baseY로 되돌린다. 이동에 성공했다면 objectChanged가 먼저
+   * 도착해 applyRelocate()가 baseX/baseY를 이미 새 위치로 갱신해뒀을 것이고(EventBus는 동기 발행),
+   * 실패했다면 baseX/baseY가 원래 값 그대로라 자연히 "원위치 복귀"가 된다 — 성공/실패를 따로 안 받아도 된다.
+   */
+  endDrag(instanceId) {
+    const entry = this.byInstance.get(instanceId);
+    if (!entry) return;
+    entry.dragging = false;
+    entry.gfx.setAlpha(1).setPosition(entry.baseX, entry.baseY);
+    entry.sprite.setAlpha(1).setPosition(entry.baseX, entry.baseY);
   }
 
   /**
@@ -197,7 +235,10 @@ export class TowerView {
       scale = 1 + level * 0.15;
       color = VIEW.objectColor[objId] ?? VIEW.towerStrokeColor;
     }
-    const size = kind === 'tower' ? VIEW.towerSize : kind === 'support' ? VIEW.supportSize : VIEW.obstacleSize;
+    // VIEW.towerSize/supportSize는 1칸(40px) 기준으로 튜닝된 값 — 2×2 블록을 채우도록 FOOTPRINT만큼 키운다.
+    // 장애물은 FOOTPRINT.obstacle이 1이라 곱해도 기존과 동일(×1).
+    const baseSize = kind === 'tower' ? VIEW.towerSize : kind === 'support' ? VIEW.supportSize : VIEW.obstacleSize;
+    const size = baseSize * (FOOTPRINT[kind] ?? 1);
 
     entry.baseScale = scale; // 발사 반동의 스케일 펀치가 여기 곱해진다(tickRecoil)
 
@@ -241,7 +282,8 @@ export class TowerView {
    */
   tickRecoil(time) {
     for (const entry of this.byInstance.values()) {
-      if (entry.squashing) continue; // 배치 "쿵" 튠이 scale을 쥐고 있는 동안엔 넘어간다
+      // 배치 "쿵" 튠이 scale을 쥐고 있거나, 드래그로 위치를 쥐고 있는 동안엔 넘어간다
+      if (entry.squashing || entry.dragging) continue;
 
       let k = 0, scaleMul = 1;
       const elapsed = time - entry.recoilStart;

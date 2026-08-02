@@ -228,10 +228,11 @@ recalculateBuffs() {
 
 | 격자 | 대상 | 규칙 |
 |---|---|---|
-| **경로 밖 슬롯 격자** | 랜드마크 타워 · 서포터 건물 | 한 셀 1개 |
-| **경로 위 격자** | 장애물 | 한 셀 1개 |
+| **경로 밖 슬롯 격자** | 랜드마크 타워 · 서포터 건물 | **2×2(4칸)**, 앵커(좌상단) 기준 |
+| **경로 위 격자** | 장애물 | 한 칸 1개(1×1 유지 — 경로 폭이 1칸이라 커지면 배치 불가 지점이 급증하고, "한 칸 1개" 무한 스턴 방지 규칙과도 충돌) |
 
-체감은 자유 배치, 내부는 셀 스냅. 유효성 검사는 **`그 셀이 비었나?` 불린 하나.**
+체감은 자유 배치, 내부는 셀 스냅. 유효성 검사는 **`footprint 전 칸이 비었나?` 불린 하나**(1×1일 땐 칸 하나, 2×2일 땐 네 칸 전부).
+크기는 `GridSystem.js`가 export하는 `FOOTPRINT = { tower: 2, support: 2, obstacle: 1 }` 하나로만 관리한다 — A(`/src/game`)·B(`/src/ui`,`/src/fx`) 양쪽이 이 상수를 참조하고, 숫자를 각자 하드코딩하지 않는다.
 
 ### 5-4. 조명 체력
 
@@ -306,6 +307,7 @@ export const EventBus = new Phaser.Events.EventEmitter();
 | `objectChanged` | `{ instanceId, action: 'upgraded'\|'relocated', level }` ⭐ — 역사 변천 색조·재배치 |
 | `actionRejected` | `{ action, reason, message }` ⭐ — **없으면 실패가 "클릭이 씹힌 것"처럼 보인다** |
 | `obstacleTriggered` | `{ instanceId, type, x, y, cooldown }` ⭐ — 통나무 발동 + 쿨다운 게이지 |
+| `towerFired` | `{ instanceId, towerId, x, y, targetX, targetY }` ⭐ — 타워 발사 반동 애니메이션용 (`SYNC.md` §3 C8) |
 
 ⭐ = **[✅ A 승인 2026-07-28]** `SYNC.md` §3 C3. 이벤트 이름은 `EventBus.js`의 `EV` 상수를 쓴다 (리터럴 문자열 금지).
 
@@ -318,7 +320,8 @@ export const EventBus = new Phaser.Events.EventEmitter();
 1. **좌표 단위 = 셀 인덱스.** `cellX = Math.floor(px / 40)`. 픽셀→셀 변환 책임은 **B**에게 있다.
 2. **반환값 = `{ ok, reason?, instanceId? }`.** `canBuild`도 boolean이 아니다 —
    boolean만 오면 UI가 **"왜 안 되는지"를 표시할 수 없다.**
-   `reason` 목록: `'occupied'` `'unique'` `'locked'` `'noGold'` `'notOnPath'` `'onPath'` `'noPick'`
+   `reason` 목록: `'occupied'` `'unique'` `'locked'` `'noGold'` `'notOnPath'` `'onPath'` `'noPick'` `'outOfBounds'`
+   (`outOfBounds`는 타워·서포터가 2×2로 커지면서 추가됨 — 앵커 셀 기준 footprint가 격자 밖으로 나가는 경우)
 3. **`getState()`는 매 프레임 호출 금지.** 씬 진입 · 오버레이 열 때 · `?debug=1` 에서만.
    실시간 갱신은 전부 이벤트로 한다 (§2 성능 조항).
    `instanceId` 형식은 `"cheonggyecheon#1"` (id + `#` + 순번).
@@ -335,6 +338,9 @@ export const GameCore = {
   startNextWave() {},                          // 즉시 웨이브 (보너스 골드)
   setSpeed(n) {}, setPaused(bool) {},
   canBuild(id, cellX, cellY) {},               // → { ok, reason } (boolean 아님)
+  canRelocate(instanceId, cellX, cellY) {},    // → { ok, reason } — canBuild와 다름: 옮기는 자기 자신은
+                                                //   점유 충돌로 안 침(GridSystem.canPlace의 excludeInstanceId).
+                                                //   드래그 재배치 미리보기(초록/빨강)가 매 셀마다 이걸로 판정한다.
   getState() {}   // { gold, xp, level, xpToNext, wave, season, cityLight,
                   //   towers[], supports[], obstacles[], perks{}, policies[],
                   //   unlockedTowers[], kills, bestWave, isPrepPhase }

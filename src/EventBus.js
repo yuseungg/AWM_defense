@@ -41,6 +41,9 @@ export const EV = {
   bossLeaked:     'bossLeaked',      // { x, y }  코어 도달. 조명 2단계 하강
   seasonChanged:  'seasonChanged',   // { season }
 
+  // ── 타워
+  towerFired:     'towerFired',      // { instanceId, towerId, x, y, targetX, targetY } — SYNC.md §3 C8
+
   // ── 건설 · 배치  [✅ 전부 A 승인 2026-07-28]
   objectBuilt:    'objectBuilt',     // { kind, id, instanceId, cellX, cellY, x, y }
   objectChanged:  'objectChanged',   // { instanceId, action: 'upgraded'|'relocated', level }
@@ -64,4 +67,5 @@ export const REJECT = {
   notOnPath: '장애물은 경로 위에만 놓을 수 있습니다',
   onPath:    '경로 위에는 세울 수 없습니다',
   noPick:    '남은 설치 횟수가 없습니다',
+  outOfBounds: '맵 밖에는 세울 수 없습니다', // 2×2 건물이 격자 가장자리에 걸칠 때
 };

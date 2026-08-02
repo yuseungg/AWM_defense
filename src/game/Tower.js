@@ -13,7 +13,7 @@
  */
 
 import towersData from '../../data/towers.json';
-import GridSystem from './GridSystem.js';
+import GridSystem, { FOOTPRINT } from './GridSystem.js';
 import EnemyPool from './EnemyPool.js';
 import { EventBus, EV } from '../EventBus.js';
 
@@ -25,7 +25,7 @@ export class Tower {
 
     this.cellX = cellX;
     this.cellY = cellY;
-    const p = GridSystem.toPixel(cellX, cellY);
+    const p = GridSystem.toPixel(cellX, cellY, FOOTPRINT.tower);
     this.x = p.x;
     this.y = p.y;
 
@@ -37,7 +37,7 @@ export class Tower {
   relocate(cellX, cellY) {
     this.cellX = cellX;
     this.cellY = cellY;
-    const p = GridSystem.toPixel(cellX, cellY);
+    const p = GridSystem.toPixel(cellX, cellY, FOOTPRINT.tower);
     this.x = p.x;
     this.y = p.y;
   }
