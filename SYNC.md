@@ -15,7 +15,7 @@
 | 항목 | 상태 |
 |---|---|
 | **`main` 빌드** | ✅ 정상 (`npm run build` 확인) |
-| **마지막 갱신** | 2026-08-02 / A (B의 격자 연결·towerFired 이벤트 정리 병합 후, 4단계 강화=복제 시스템 추가) |
+| **마지막 갱신** | 2026-08-02 / B (코어 스왑 실행 — 기본값이 이제 실제 GameCore, §2 N8) |
 | **🚨 D5 병합 사고 발견·복구** | A의 `abeb58e`(`Merge branch 'main'`)가 두 갈래(B의 D4 UI 작업 vs A의 구식 `feat/game-core` 사본)를 합치면서 `BuildUI.js`/`TowerView.js`/`UITheme.js`/`MockGameCore.js` 등 B 소유 파일이 **구버전으로 되돌아간 채 `main`에 올라가 있었다**(N1이 경고했던 바로 그 사고, 이번엔 A의 머지에서 재발). `git diff HEAD origin/main`으로 발견 → `feat/ui`에서 `git merge origin/main` 재수행, 충돌 3개(`GameCore.js`/`WaveManager.js`/`main.js`)는 전부 "A의 새 로직 유지 + B 파일은 내 버전 유지"로 해결 → `main`에 fast-forward로 재반영 완료. **현재 `main`은 정상(A+B 전부 반영, 헤드리스 검증·빌드 통과)이지만, 앞으로 `feat/game-core`류 보조 브랜치를 `main`에 직접 머지하는 작업은 반드시 `git diff`로 UI/FX 파일 변화를 먼저 확인하고 진행할 것 — 파일 단위 체리픽이 아니면 이 사고가 또 난다.** |
 | **현재 페이즈** | **P1 코어 로직 완료 (A) + P3(절대 사수) 완료 (B) + 오브젝트 렌더러 완료 (B, D4) — 일정 변경으로 D5까지 추가 작업 진행 중** |
 | **A 진행률** | **P1 완료** + `GameCore.js` 1단계 완료. **D4 하루 만에 N4 권장 순서 ①`LevelSystem` ②`DraftSystem`+`PerkSystem` ③`Supporter`+`Obstacle`(`buildSupport`/`buildObstacle` 실구현, `f8c6585`)까지 백엔드 전부 완료** — `GameCore` 레벨에선 드래프트 카드 7종이 다 살아있다. **아직 이 저장소(`main`/`feat/ui`)엔 없음** — A 브랜치에만 있다, D5에 B가 파일 단위로 가져와 스왑 예정(§2 N7). **단, `BuildUI`(B 소유)가 서포터/장애물 배치 UI를 아직 안 만들어서 플레이어 입장에선 여전히 죽은 카드다 — D5에 B가 먼저 만든다.** 남은 건 `pickPolicy`(보스 정책 효과 적용)와 장애물 강화(`Obstacle`은 `upgrade` 대상이 아직 아님) 뿐. **`GameCore.reset()`은 아직 없음(§3 C5 미해결)** |
@@ -24,7 +24,7 @@
 | **⚠️ `GameCore.js` 병합 주의** | A의 `feat/game-core` 브랜치를 **그대로 병합하지 말 것**. 그 브랜치의 `main.js`는 B의 D2 리팩터링(씬 분리) 이전 기준이라 통째로 병합하면 그 작업이 지워진다. `GameCore.js`+`/src/game/*` 9종은 B가 이미 골라서 `feat/ui`/`main`에 반영해뒀다 — 자세한 내용은 §2 N1 |
 | **🔴 `GameScene.js` update() 필수** | `GameCore.update(deltaMs)`를 매 프레임 불러야 실제 코어의 웨이브·적 이동이 돈다. `GameScene.update(time,delta){ this.core?.update?.(delta); }`를 실수로 지우면 "적이 안 움직인다"가 재발한다(§2 N3) |
 | **🔴 `DraftOverlay.js`의 빈 카드 가드 필수** | `draftCards`/`policyCards`가 빈 배열이면 오버레이를 안 여는 가드가 `show()` 맨 앞에 있다. 이걸 지우면 `DraftSystem` 붙기 전까지 레벨업할 때마다 게임이 영구 정지한다(§2 N5) |
-| **코어 스왑 타이밍** | **API 조건은 충족, UI가 아직 안 끝남 — D5에 처리.** N4 순서 ③(Supporter/Obstacle)이 `GameCore` 레벨에선 끝났지만, `BuildUI.js`가 여전히 타워만 배치해서 서포터/장애물 카드를 뽑아도 맵에 놓을 방법이 없다. D5에 ①`BuildUI`에 서포터/장애물 배치 추가 → ②스왑 → ③전체 검증 → ④baseline 재촬영 → ⑤촬영 대본 갱신 순서로 진행(§2 N6·N7) |
+| **코어 스왑 타이밍** | ✅ **완료 (2026-08-02, §2 N8).** 기본값이 실제 `GameCore.js`로 승격됨. `?real=1`은 폐기, Mock 데모는 `?mockcore=1`로 대신 본다. baseline 스크린샷·촬영 대본이 아직 Mock 기준이면 재촬영 필요(§2 N7 ④⑤ 남은 항목) |
 | **배포 링크** | ✅ https://yuseungg.github.io/AWM_defense/ |
 
 ### 🚨 최우선 공지 — B 부재 일정 (2026-07-31 갱신: D4~D7 → D6~D7로 축소)
@@ -230,6 +230,36 @@ Mock 데모를 기본값으로 유지하는 게 낫다.
 D5에 A가 여유 있으면 이어서 하고, 아니면 그대로 제출해도 절대 사수엔 영향 없다.
 
 **틀렸을 때 영향:** 없음, 계획 기록. D5에 막히는 부분이 생기면 그 자리에서 §2에 새로 기록한다.
+
+### 🚨 [중요] N8 · B · 2026-08-02 — 코어 스왑 실행: 기본값을 실제 GameCore로 승격 (`?real=1` 폐기, `?mockcore=1` 신설)
+
+**발견 경위:** 사용자가 배포 링크(`?real=1` 없이 그냥 접속)를 열어보고 "게임이 개판났다"고 보고했다.
+재현해보니 기본값이 아직 `MockGameCore`였고, `MockGameCore.js:70`의 `this.loop(2500, () =>
+this.nextWave())`가 그대로 살아있어서 아무 것도 안 눌러도 2.5초마다 웨이브가 자동으로 넘어가며
+레벨업 배너·드래프트 카드·보스 등장이 순식간에 겹쳐 뜨고 있었다. A는 항상 `?real=1`로 테스트해서
+이 문제를 본 적이 없었던 것 — 같은 게임의 다른 모드를 보고 있었을 뿐, 새 버그가 계속 나는 게 아니었다.
+
+**스왑 조건 확인:** N6/N7에서 보류했던 사유 두 가지를 코드로 직접 확인했다 — ①`BuildUI.js`가
+서포터/장애물 배치를 이미 지원함(드래그 재배치·2×2 격자까지 반영) ②`PolicySystem.js`가 실제로
+존재하고 `GameCore.pickPolicy()`가 스텁이 아니라 그걸 호출함. N7의 마지막 갭(`pickPolicy` 무효과)도
+해소됨.
+
+**처리:** `GameScene.js`의 코어 전환 지점(§0) 삼항 기본값을 `GameCore.js`로 승격.
+- `?real=1` 플래그 제거 — 이제 기본값 자체가 실제 코어라 별도 플래그가 필요 없다
+- **`?mockcore=1` 신설** — 전체 루프가 자동으로 도는 Mock 데모(QA·FX 검증용)를 그대로 보고 싶을 때
+  쓴다. `?mock=1`은 이미 `main.js` 라우터가 선점(전혀 다른 `MockScene` 진단 화면으로 분기)하고
+  있어서 이름이 겹치면 안 된다 — 처음에 `?mock=1`로 하려다가 이 충돌을 발견해서 이름을 바꿨다
+- 화면 배지도 `REAL CORE`(상시 표시였던 것) → `MOCK DEMO`(이제 `?mockcore=1`일 때만 표시)로 반전
+- `main.js`/`FxLayer.js` 주석의 `?real=1` 언급도 `?mockcore=1`로 갱신
+- 로컬 dev 서버(`?mockcore=1` 없이)로 직접 확인: 웨이브 0부터 정상 시작, 자동 진행 없음, 콘솔에
+  실제 에러 없음(에셋 404류만, 기존과 동일한 예상된 폴백)
+
+**하위 호환 참고:** `?real=1`을 아직 즐겨찾기 해둔 사람이 있으면 그 링크는 이제 그냥 기본 동작과
+동일해진다(무해한 무시), `?mockcore=1`을 대신 알려주면 됨.
+
+**틀렸을 때 영향:** `GameScene.js`의 삼항 기본값 한 줄 되돌리면 끝(5분). A가 Mock 데모를 계속
+플레이 화면의 기본값으로 유지하고 싶었다면 다음 세션에 반대 의견 남겨주세요 — 사용자 확인 하에
+진행했습니다.
 
 ### [기록] N0 · B · 2026-07-29 (D2) — main.js MockScene 교체
 

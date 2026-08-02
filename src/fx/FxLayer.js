@@ -252,7 +252,7 @@ export class FxLayer {
     kb.on('keydown-COMMA', () => {
       const active = this.usePoolPolling ? EnemyPool.getActive() : [];
       if (!active.length) {
-        if (DEBUG) console.warn('[FxLayer] , — 활성 적이 없어 상태이상 마커를 확인할 대상이 없다(?real=1에서만 위치 추적)');
+        if (DEBUG) console.warn('[FxLayer] , — 활성 적이 없어 상태이상 마커를 확인할 대상이 없다(?mockcore=1에서는 위치 추적 안 함)');
         return;
       }
       ['stun', 'dot', 'slow'].forEach((type, i) => {

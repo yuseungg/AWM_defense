@@ -36,7 +36,8 @@ import enemiesData from '../../data/enemies.json';
 
 const FXTEST = new URLSearchParams(location.search).get('fxtest') === '1';
 const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
-const REAL = new URLSearchParams(location.search).get('real') === '1';
+// ?mock=1은 main.js 라우터가 이미 선점(MockScene 전체로 분기) — 여기선 다른 이름을 쓴다.
+const MOCK_CORE = new URLSearchParams(location.search).get('mockcore') === '1';
 
 export class GameScene extends Phaser.Scene {
   constructor() { super('Game'); }
@@ -93,18 +94,16 @@ export class GameScene extends Phaser.Scene {
     this.hud = new HUD(this);
 
     // ══ 코어 전환 지점 ══
-    // 기본값 = MockGameCore(전체 루프가 보이는 데모 상태 유지). `?real=1`을 붙이면 실제
-    // GameCore.js로 붙는다 — A가 LevelSystem/DraftSystem 등 자기 진도를 그때그때 확인하는 용도다.
-    // 스텁 4개(buildSupport/buildObstacle/pickDraftCard/pickPolicy)가 전부 채워져서 실제 코어를
-    // "기본값"으로 승격할 때가 오면, 아래 삼항의 기본값 쪽 한 줄만 바꾸면 된다.
-    // (SYNC.md §6-4 "Mock이 스펙이다" / §2 전환 전제 조건 참고)
-    const { GameCore } = REAL
-      ? await import('../GameCore.js')
-      : await import('../MockGameCore.js');
+    // 기본값 = 실제 GameCore.js (스텁 4개가 전부 채워져서 승격 완료, SYNC.md §2 N8).
+    // `?mockcore=1`을 붙이면 전체 루프가 자동으로 도는 MockGameCore 데모 상태를 볼 수 있다
+    // (UI/FX 검증·QA 용도로 남겨둔다 — SYNC.md §6-4 "Mock이 스펙이다").
+    const { GameCore } = MOCK_CORE
+      ? await import('../MockGameCore.js')
+      : await import('../GameCore.js');
     this.core = GameCore;
 
-    if (REAL) {
-      this.add.text(HUDT.margin, 104, 'REAL CORE', {
+    if (MOCK_CORE) {
+      this.add.text(HUDT.margin, 104, 'MOCK DEMO', {
         fontSize: '12px', color: '#ff7043', fontStyle: 'bold',
         backgroundColor: 'rgba(0,0,0,0.4)', padding: { x: 6, y: 3 },
       });

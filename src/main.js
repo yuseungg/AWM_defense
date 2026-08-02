@@ -9,9 +9,8 @@
  *   ?verify=1  VerifyScene — 경로 검증 화면(격자 정렬·완주 시간 자동 검사)
  *   ?fxtest=1  GameScene 안에서만 의미 있음 — 조명·데미지 숫자 FX 검증 키 (B 영역)
  *   ?debug=1   GameScene 안에서만 의미 있음 — 웨이브 점프 등 (A 영역, CLAUDE.md §7)
- *   ?real=1    GameScene 안에서만 의미 있음 — MockGameCore 대신 실제 GameCore.js로 붙는다.
- *              스텁 4개(buildSupport/buildObstacle/pickDraftCard/pickPolicy)가 안 채워진 지금은
- *              레벨업·드래프트가 안 뜬다 — A가 자기 진도 확인용으로 쓴다 (HANDOFF.md §0)
+ *   ?mockcore=1 GameScene 안에서만 의미 있음 — 기본값(실제 GameCore.js) 대신 전체 루프가 자동으로
+ *              도는 MockGameCore 데모로 붙는다(SYNC.md §2 N8, UI/FX 검증·QA 용도)
  */
 
 import Phaser from 'phaser';
