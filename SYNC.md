@@ -285,6 +285,24 @@ this.nextWave())`가 그대로 살아있어서 아무 것도 안 눌러도 2.5�
 **틀렸을 때 영향:** 전부 순수 로직 교체라 되돌리기 쉬움 — ①은 문서만, ②는 상수 하나, ③은
 `resolveBgKey`↔`bgKeyForWave` 함수 하나만 서로 바꾸면 된다.
 
+### [기록] N10 · B · 2026-08-02 — "세운상가 범위 안인데 사거리가 안 늘어난다" — 실제로는 UI 텍스트만 안 늘어난 것
+
+**발견 경위:** 사용자가 세운상가 반경 내 타워인데도 사거리가 안 늘어난다고 보고. `WaveManager.
+recalculateBuffs()`(§5-2)·`Tower.applyBuff()`·`effectiveRange` 게터를 코드로 먼저 확인했는데 로직
+자체는 멀쩡했다. 직접 브라우저에서 타워+세운상가를 나란히 지어보니 **사거리 원(파란 원, `UpgradeUI.
+drawRangeCircle`)은 실제로 커졌다** — `obj.effectiveRange`를 이미 정확히 쓰고 있었다(150px 오라
+원보다 눈에 띄게 큼). 버그는 딱 한 곳: `UpgradeUI.infoLines()`의 텍스트 줄이 `def.range`(고정값)만
+찍고 있어서 패널 글자로는 "사거리 140"에서 절대 안 바뀌었다 — 실제 판정은 맞는데 표시만 거짓말을
+하고 있었다.
+
+**처리:** `infoLines(kind, def, obj)`로 `obj`(=`effectiveRange` 있는 실제 인스턴스)를 받아서,
+`Math.round(obj.effectiveRange) !== def.range`일 때만 `사거리 140 → 175`처럼 화살표로 보여주게
+고침(`statLine()`의 기존 화살표 표기와 통일). 세운상가 지어서 반경 안 타워 패널 열어
+"140 → 175"(150 반경, +25% 버프) 뜨는 것 직접 확인.
+
+**틀렸을 때 영향:** `infoLines` 호출부·본문 되돌리면 끝(5분) — 실제 게임 로직은 손 안 댐, 표시
+문구만 바꿨다.
+
 ### [기록] N0 · B · 2026-07-29 (D2) — main.js MockScene 교체
 
 **한 일:** `main.js`의 `MockScene`에 있던 임시 조명 로직(즉시 색 전환 원형)을 `SeoulTowerLight.js`(정식 구현, `/src/fx/`)로 교체했다.

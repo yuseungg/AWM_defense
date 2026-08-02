@@ -304,7 +304,7 @@ export class UpgradeUI {
       stat.next ? '#f2f4f8' : UPGRADE.maxLevelColor,
     );
 
-    this.infoLines(kind, def).forEach(line => addLine(line, '#8a919e'));
+    this.infoLines(kind, def, obj).forEach(line => addLine(line, '#8a919e'));
 
     cy += 6;
 
@@ -368,11 +368,17 @@ export class UpgradeUI {
     return { label, cur: fmt(cur), next: next != null ? fmt(next) : null };
   }
 
-  /** 레벨과 무관한 고정 정보. 서포터는 카드와 같은 desc(효과+실제 근거)를 그대로 재사용한다. */
-  infoLines(kind, def) {
+  /**
+   * 레벨과 무관한 고정 정보. 서포터는 카드와 같은 desc(효과+실제 근거)를 그대로 재사용한다.
+   * 사거리는 세운상가 오라·정책(towerRangeMul)으로 버프될 수 있어서 `def.range`(고정값)만 보여주면
+   * "범위 안에 있는데도 안 늘어난다"는 오해가 생긴다 — `obj.effectiveRange`(Tower.js §5-2)와 다르면
+   * 버프 후 값을 화살표로 같이 보여준다.
+   */
+  infoLines(kind, def, obj) {
     if (kind === 'support') return [def.desc];
 
-    const lines = [`사거리 ${def.range}`];
+    const buffed = Math.round(obj.effectiveRange) !== def.range;
+    const lines = [buffed ? `사거리 ${def.range} → ${Math.round(obj.effectiveRange)}` : `사거리 ${def.range}`];
     if (def.aoeRadius > 0) lines.push(`광역 반경 ${def.aoeRadius}`);
     (def.effects || []).forEach(e => {
       if (e.type === 'slow') lines.push(`슬로우 ${Math.round(e.amount * 100)}%, ${e.duration}초`);
