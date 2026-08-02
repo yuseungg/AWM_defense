@@ -47,6 +47,9 @@ export const EV = {
   actionRejected: 'actionRejected',  // { action, reason }
   obstacleTriggered: 'obstacleTriggered', // { instanceId, type, x, y, cooldown }
 
+  // ── 발사 연출  [✅ A 승인 2026-08-01, SYNC.md §3 C8]
+  towerFired:     'towerFired',      // { instanceId, x, y, targetX, targetY }
+
   // ── 버프 · 종료
   buffsRecalculated: 'buffsRecalculated', // { towerStats[] }
   gameOver:       'gameOver',        // { wave, kills, level, isNewRecord }

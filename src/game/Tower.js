@@ -15,6 +15,7 @@
 import towersData from '../../data/towers.json';
 import GridSystem from './GridSystem.js';
 import EnemyPool from './EnemyPool.js';
+import { EventBus, EV } from '../EventBus.js';
 
 export class Tower {
   constructor(towerId, instanceId, cellX, cellY) {
@@ -100,6 +101,13 @@ export class Tower {
     if (!target) return null;
 
     this.cooldownRemaining = this.def.attackSpeed;
+    EventBus.emit(EV.towerFired, {
+      instanceId: this.instanceId,
+      x: this.x,
+      y: this.y,
+      targetX: target.x,
+      targetY: target.y,
+    });
     return target;
   }
 }

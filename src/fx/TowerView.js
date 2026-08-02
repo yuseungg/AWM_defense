@@ -18,17 +18,11 @@
  * 실루엣 규칙 — 윤곽만으로 식별 가능해야 한다는 원칙을 코드에도 그대로 반영).
  *
  * ── 발사 반동(recoil) ──────────────────────────────────────────────
- * EventBus에 `towerFired` 같은 이벤트가 없어서(HANDOFF.md §5에 기록) A의 파일을 고치지 않고는
- * "지금 쐈다"는 신호를 직접 받을 방법이 없다. 대신 `GameCore.getState().towers`가 돌려주는
- * 배열이 WaveManager 내부 배열의 "참조"라는 점(GameCore.js:231 `getTowers()`가 복사 없이
- * 그대로 반환)을 이용해 씬 진입 시 1회만(D18 준수) 이 배열 참조를 들고, 매 프레임
- * `tower.cooldownRemaining`이 감소하다 갑자기 튀어오르는 순간(=Tower.update()가 쿨다운을
- * `attackSpeed`로 리셋한 순간, 곧 발사 순간)을 렌더러가 스스로 감지한다. `tower.findTarget()`은
- * 순수 조회 메서드(부작용 없음)라 반동 방향(=조준 방향의 반대)을 구하는 데 그대로 쓴다.
- * 전부 읽기 전용이고 논리 상태는 절대 건드리지 않는다 — 그래도 A의 내부 구현(배열이 참조로
- * 온다는 점)에 기대는 만큼 이상적인 방법은 아니다. A가 `towerFired` 이벤트를 추가해주면
- * 이 블록은 그걸로 교체한다. Mock은 cooldownRemaining이 없는 더미 객체라 아예 동작 안 함
- * (다른 Mock 한계와 동일 원칙 — HANDOFF.md §0).
+ * `towerFired` 이벤트(SYNC.md §3 C8)로 발사 순간을 직접 받는다 — payload의 x/y/targetX/targetY로
+ * 반동 방향(조준 방향의 반대)을 즉시 계산하고 recoilStart를 찍으면, tickRecoil()은 매 프레임
+ * 그 시각 이후 경과 시간만으로 감쇠(위치·스케일)를 그린다. 감지(이벤트)와 렌더(매 프레임 감쇠)가
+ * 분리돼 있어서 폴링이 필요 없다. Mock은 실제 Tower.js를 쓰지 않아 이 이벤트를 애초에 안 쏘므로
+ * 별도 분기 없이 자연히 아무 반동도 안 걸린다.
  */
 
 import Phaser from 'phaser';
@@ -108,18 +102,15 @@ export class TowerView {
     this.core = core;
     this.byInstance = new Map();
 
-    // 발사 반동 — 실제 코어에서만(§ 위 주석). Mock의 tower 객체엔 cooldownRemaining이 없어서
-    // prevCooldown이 항상 undefined로 남아 자연히 아무 반동도 안 걸린다(에러도 안 남).
-    this.trackRecoil = !core.__isMock;
-    this.liveTowers = this.trackRecoil ? core.getState().towers : null; // 씬 진입 시 1회만(D18)
-
     this.onBuilt = payload => this.create(payload);
     this.onChanged = ({ instanceId, action, level }) => {
       if (action === 'upgraded') this.applyLevel(instanceId, level);
       else if (action === 'relocated') this.applyRelocate(instanceId);
     };
+    this.onFired = payload => this.handleFired(payload);
     EventBus.on(EV.objectBuilt, this.onBuilt, this);
     EventBus.on(EV.objectChanged, this.onChanged, this);
+    EventBus.on(EV.towerFired, this.onFired, this);
 
     this.onUpdate = (time) => this.tickRecoil(time);
     scene.events.on(Phaser.Scenes.Events.UPDATE, this.onUpdate, this);
@@ -138,7 +129,7 @@ export class TowerView {
     const entry = {
       gfx, sprite, kind, objId: id,
       baseX: x, baseY: y, baseScale: 1, squashing: false,
-      dirX: 1, dirY: 0, recoilStart: -Infinity, prevCooldown: undefined,
+      dirX: 1, dirY: 0, recoilStart: -Infinity,
     };
     this.byInstance.set(instanceId, entry);
     this.redraw(entry, 0);
@@ -231,29 +222,26 @@ export class TowerView {
   }
 
   // ────────────────────────────────────────── 발사 반동 (§ 상단 주석 참고)
+  /** towerFired 수신 즉시 반동 방향(조준 방향의 반대)과 시작 시각만 찍는다 — 렌더는 tickRecoil이 매 프레임 감쇠로 그린다. */
+  handleFired({ instanceId, x, y, targetX, targetY }) {
+    const entry = this.byInstance.get(instanceId);
+    if (!entry) return;
+    const dx = targetX - x, dy = targetY - y;
+    const dist = Math.hypot(dx, dy) || 1;
+    entry.dirX = dx / dist;
+    entry.dirY = dy / dist;
+    entry.recoilStart = this.scene.time.now;
+  }
+
   /**
-   * tower.cooldownRemaining이 감소하다 갑자기 커지면 방금 리셋된 것 — 즉 발사 순간이다.
-   * 타워 수가 유니크 룰상 최대 8개뿐이라(§ 상단) 매 프레임 전부 순회해도 비용이 무시할 만하다
-   * (EnemyView처럼 100+개를 오브젝트 풀로 관리해야 하는 경우와는 스케일이 다르다).
+   * recoilStart 이후 경과 시간만으로 위치·스케일 감쇠를 그린다(감지는 handleFired가 이벤트로 이미 끝냄).
+   * 오브젝트 수가 유니크 룰·격자 상한으로 적어서(§ 상단) 매 프레임 전부 순회해도 비용이 무시할 만하다
+   * (EnemyView처럼 100+개를 오브젝트 풀로 관리해야 하는 경우와는 스케일이 다르다). 서포터·장애물
+   * 엔트리는 recoilStart가 항상 -Infinity로 남아 자연히 아무 반동도 안 걸린다.
    */
   tickRecoil(time) {
-    if (!this.trackRecoil || !this.liveTowers) return;
-
-    for (const tower of this.liveTowers) {
-      const entry = this.byInstance.get(tower.instanceId);
-      if (!entry || entry.squashing) continue; // objectBuilt가 아직 안 왔거나, 배치 "쿵" 튠이 scale을 쥐고 있는 동안
-
-      if (entry.prevCooldown !== undefined && tower.cooldownRemaining > entry.prevCooldown + 1e-6) {
-        const target = tower.findTarget(); // 순수 조회 — 방금 실제로 쐈을 그 대상과 사실상 동일
-        if (target) {
-          const dx = target.x - tower.x, dy = target.y - tower.y;
-          const dist = Math.hypot(dx, dy) || 1;
-          entry.dirX = dx / dist;
-          entry.dirY = dy / dist;
-        }
-        entry.recoilStart = time;
-      }
-      entry.prevCooldown = tower.cooldownRemaining;
+    for (const entry of this.byInstance.values()) {
+      if (entry.squashing) continue; // 배치 "쿵" 튠이 scale을 쥐고 있는 동안엔 넘어간다
 
       let k = 0, scaleMul = 1;
       const elapsed = time - entry.recoilStart;
@@ -273,6 +261,7 @@ export class TowerView {
   destroy() {
     EventBus.off(EV.objectBuilt, this.onBuilt, this);
     EventBus.off(EV.objectChanged, this.onChanged, this);
+    EventBus.off(EV.towerFired, this.onFired, this);
     this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.onUpdate, this);
     this.byInstance.forEach(({ gfx, sprite }) => { gfx.destroy(); sprite.destroy(); });
   }
