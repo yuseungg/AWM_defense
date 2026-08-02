@@ -18,7 +18,7 @@
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
 import { COLOR, BUILD, CONTROLS, VIEW, PANEL } from './UITheme.js';
-import { CELL, W, H } from './mapView.js';
+import { CELL, W, H, setGridVisible } from './mapView.js';
 import { drawPanel } from './Panel.js';
 import towersData from '../../data/towers.json';
 import supportsData from '../../data/supports.json';
@@ -270,6 +270,7 @@ export class BuildUI {
     this.lastCy = null;
     this.previewGfx.clear();
     this.buildBar();
+    setGridVisible(this.selectedId !== null);
   }
 
   /** 픽 직후엔 아직 화면에 없는 카드 종류(서포터/장애물)를 바로 배치 대기열에 추가한다. 퍼크는 배치 불필요(즉시 적용). */
@@ -391,6 +392,7 @@ export class BuildUI {
     this.selectedId = null;
     this.selectedKind = null;
     this.previewGfx.clear();
+    setGridVisible(false);
   }
 
   handleObjectChanged({ instanceId, action }) {

@@ -19,7 +19,7 @@
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
 import { COLOR, BUILD, UPGRADE, EASE } from './UITheme.js';
-import { CELL, W, H } from './mapView.js';
+import { CELL, W, H, setGridVisible } from './mapView.js';
 import GridSystem from '../game/GridSystem.js';
 import towersData from '../../data/towers.json';
 import supportsData from '../../data/supports.json';
@@ -157,6 +157,7 @@ export class UpgradeUI {
     this.rangeGfx.clear();
     this.clearPanel();
     this.scene.buildUI?.setInputEnabled(true);
+    setGridVisible(false);
   }
 
   clearPanel() {
@@ -327,12 +328,14 @@ export class UpgradeUI {
       fontSize: `${UPGRADE.statFontSize}px`, color: UPGRADE.relocateHintColor,
       wordWrap: { width: UPGRADE.panelWidth },
     }).setDepth(61);
+    setGridVisible(true);
   }
 
   cancelRelocate() {
     this.relocateMode = false;
     this.relocateGfx.clear();
     this.render();
+    setGridVisible(false);
   }
 
   attemptRelocateClick(pointer) {
@@ -344,6 +347,7 @@ export class UpgradeUI {
       this.relocateMode = false;
       this.relocateGfx.clear();
       this.render();
+      setGridVisible(false);
     }
     // 실패 시엔 actionRejected 토스트만 뜨고 relocateMode 유지 — 바로 다시 시도할 수 있다
   }

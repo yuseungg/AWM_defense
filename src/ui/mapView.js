@@ -1,5 +1,5 @@
 /**
- * mapView.js — 지도 배경(격자 + 도로 + 차선 + 진행 방향 화살표 + 코어)을 그린다.
+ * mapView.js — 지도 배경(배경 사진 + 격자 + 도로 + 차선 + 진행 방향 화살표 + 코어)을 그린다.
  * GameScene · VerifyScene · MockScene이 공유한다.
  *
  * ⚠️ collectPathCells는 경로 셀을 "그리기 용도"로만 근사 수집한다. A가
@@ -9,16 +9,74 @@
  * ★ 컨셉이 "적이 서울 도로를 타고 온다"라서 경로를 실제 도로처럼 그린다 —
  *   중앙 점선 차선 + 진행 방향 화살표(양방향 도로가 아니라 방향 표시 목적).
  *   ROAD 상수는 UITheme.js에 있다.
+ *
+ * ★ 경로 밖 슬롯 격자는 기본 숨김이다 — 배치/재배치 모드일 때만 setGridVisible(true)로 켠다
+ *   (BuildUI.select/clearSelection, UpgradeUI.startRelocate/cancelRelocate/close가 호출한다).
+ *   ?debug=1이면 격자 정렬 확인용으로 항상 보인다. 격자·격자용 추가 dim 레이어는 모듈
+ *   싱글톤(gridGfx/gridDimGfx)으로 들고 있다 — 씬은 항상 하나만 활성화되므로(main.js) 충분하다.
  */
 
 import mapData from '../../data/map.json';
-import { COLOR, ROAD } from './UITheme.js';
+import { COLOR, ROAD, BG, GRID, EASE } from './UITheme.js';
 
 export const W = 1280;
 export const H = 720;
 export const CELL = mapData.obstacleGrid.cell;
 
 const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
+const BG_PARAM = new URLSearchParams(location.search).get('bg'); // 'day'|'night' 강제 지정(촬영용)
+
+let gridGfx = null;
+let gridDimGfx = null;
+
+/** 접속 시각 06~18시=낮, 그 외=밤(GAME_DESIGN §12 "시각 반영"). ?bg=day|night로 강제 지정 가능. */
+function resolveBgKey() {
+  if (BG_PARAM === 'day' || BG_PARAM === 'night') return BG_PARAM;
+  const hour = new Date().getHours();
+  return (hour >= 6 && hour < 18) ? 'day' : 'night';
+}
+
+/**
+ * 배경 사진 — GameScene.preload()가 `bg_day`/`bg_night` 텍스처를 로드해뒀을 때만 그린다.
+ * 없으면(로드 실패·MockScene/VerifyScene처럼 애초에 preload 자체를 안 하는 씬) 조용히
+ * 스킵하고 카메라 배경색(COLOR.bg)이 그대로 보인다 — 다른 에셋들과 동일한 폴백 원칙
+ * (TowerView/EnemyView의 `textures.exists()` 패턴).
+ *
+ * cover 방식: 텍스처의 실제 크기를 읽어서 세로를 캔버스에 맞추고 가로는 중앙 기준으로
+ * 넘치는 만큼 잘라낸다 — 원본 해상도가 몇이든(1280×720이든 1685×925든) 코드 변경이 없다.
+ */
+function drawBackground(scene) {
+  const key = `bg_${resolveBgKey()}`;
+  if (!scene.textures.exists(key)) return;
+
+  const src = scene.textures.get(key).getSourceImage();
+  const scale = Math.max(W / src.width, H / src.height);
+  scene.add.image(W / 2, H / 2, key).setScale(scale);
+
+  const dimAlpha = key === 'bg_day' ? BG.dimDay : BG.dimNight;
+  scene.add.rectangle(W / 2, H / 2, W, H, BG.dimColor, dimAlpha);
+}
+
+/**
+ * 배치/재배치 모드 진입·이탈 시 호출한다. ?debug=1일 때는 격자가 항상 보여야 하므로
+ * 토글 요청을 무시한다(드로우맵 때 이미 debugAlpha로 고정해뒀다).
+ */
+export function setGridVisible(visible) {
+  if (DEBUG || !gridGfx) return;
+  const scene = gridGfx.scene;
+  scene.tweens.killTweensOf(gridGfx);
+  scene.tweens.add({
+    targets: gridGfx, alpha: visible ? GRID.visibleAlpha : 0,
+    duration: GRID.fadeMs, ease: EASE.fade,
+  });
+  if (gridDimGfx) {
+    scene.tweens.killTweensOf(gridDimGfx);
+    scene.tweens.add({
+      targets: gridDimGfx, alpha: visible ? 1 : 0,
+      duration: GRID.fadeMs, ease: EASE.fade,
+    });
+  }
+}
 
 /** 경로를 따라 걸으며 지나가는 격자 셀을 수집한다 (중복 제거) */
 export function collectPathCells(path, cell) {
@@ -43,12 +101,18 @@ export function collectPathCells(path, cell) {
 
 /** 맵 배경을 그린다. { path, cells, core, tower }를 돌려준다. */
 export function drawMap(scene) {
+  drawBackground(scene);
+
   const path = mapData.paths[0];
 
-  const grid = scene.add.graphics();
-  grid.lineStyle(1, COLOR.slot, DEBUG ? 0.9 : 0.35);
-  for (let x = 0; x <= W; x += CELL) grid.lineBetween(x, 0, x, H);
-  for (let y = 0; y <= H; y += CELL) grid.lineBetween(0, y, W, y);
+  // 격자 표시 중 배경을 살짝 더 어둡게(배치 판단 편의) — 격자와 같은 박자로 페이드
+  gridDimGfx = scene.add.rectangle(W / 2, H / 2, W, H, BG.dimColor, GRID.extraDimAlpha).setAlpha(0);
+
+  gridGfx = scene.add.graphics();
+  gridGfx.lineStyle(1, COLOR.slot, 1); // 알파는 오브젝트 alpha로 통일 관리(setGridVisible이 그걸 트윈한다)
+  for (let x = 0; x <= W; x += CELL) gridGfx.lineBetween(x, 0, x, H);
+  for (let y = 0; y <= H; y += CELL) gridGfx.lineBetween(0, y, W, y);
+  gridGfx.setAlpha(DEBUG ? GRID.debugAlpha : 0);
 
   const cells = collectPathCells(path, CELL);
   const cellGfx = scene.add.graphics();
