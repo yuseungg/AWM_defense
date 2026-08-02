@@ -59,6 +59,7 @@ class Mock {
     this.ownedSupportIds = new Set();     // 드래프트로 얻었지만 아직 안 지은 서포터(유니크, id당 1개)
     this.obstaclePicksById = new Map();   // 드래프트로 얻었지만 아직 안 지은 장애물 설치 횟수(id별)
     this.clonePicksById = new Map();      // §5-7 복제로 얻었지만 아직 안 지은 설치권(id별)
+    this.clonedTowerInstances = new Set(); // 타워 추가는 인스턴스당 평생 1회(2026-08-03, GameCore.js와 동일)
     this.timers = [];
     this.started = false;
   }
@@ -382,12 +383,24 @@ export const GameCore = {
   },
 
   /**
-   * §5-7 복제 — 실제 코어와 동일한 인터페이스만 맞춘다. Mock은 instanceIndex별 강화비 스케일까지는
-   * 안 흉내낸다(기존 upgrade()도 80 * 고정배율로 근사하는 것과 같은 수준의 단순화, 범위 밖).
+   * §5-7 타워 추가(구 "복제") — 실제 코어와 동일한 인터페이스만 맞춘다. Mock은 instanceIndex별
+   * 강화비 스케일까지는 안 흉내낸다(기존 upgrade()도 80 * 고정배율로 근사하는 것과 같은 수준의
+   * 단순화, 범위 밖). 타워는 인스턴스당 평생 1회 제한만 GameCore.js와 동일하게 맞춘다.
    */
-  cloneCost(instanceId) {
+  canClone(instanceId) {
     const o = findInstance(instanceId);
-    if (!o || o.id === 'nseoulTower' || o.level < 2) return null;
+    if (!o) return { ok: false, reason: 'locked' };
+    if (o.id === 'nseoulTower') return { ok: false, reason: 'locked' };
+    if (o.level < 2) return { ok: false, reason: 'notMaxLevel' };
+    if (o.kind === 'tower' && mock.clonedTowerInstances.has(instanceId)) {
+      return { ok: false, reason: 'cloneUsed' };
+    }
+    return { ok: true };
+  },
+
+  cloneCost(instanceId) {
+    if (!this.canClone(instanceId).ok) return null;
+    const o = findInstance(instanceId);
     const def = o.kind === 'tower' ? towersData[o.id] : o.kind === 'support' ? supportsData[o.id] : null;
     if (!def) return null;
     const list = o.kind === 'tower' ? mock.state.towers : mock.state.supports;
@@ -397,13 +410,13 @@ export const GameCore = {
   },
 
   clone(instanceId) {
+    const check = this.canClone(instanceId);
+    if (!check.ok) return reject('clone', check.reason);
     const o = findInstance(instanceId);
-    if (!o) return reject('clone', 'locked');
-    if (o.id === 'nseoulTower') return reject('clone', 'locked');
-    if (o.level < 2) return reject('clone', 'notMaxLevel');
     const cost = this.cloneCost(instanceId);
     if (mock.state.gold < cost) return reject('clone', 'noGold');
     mock.addGold(-cost);
+    if (o.kind === 'tower') mock.clonedTowerInstances.add(instanceId);
     mock.clonePicksById.set(o.id, (mock.clonePicksById.get(o.id) || 0) + 1);
     EventBus.emit(EV.cloneAcquired, { kind: o.kind, id: o.id });
     return { ok: true };

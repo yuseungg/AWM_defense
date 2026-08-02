@@ -36,6 +36,11 @@ const supportsOwned = new Set();
 // 장애물은 카드가 반복 등장해서 "그 카드를 뽑은 횟수"라 전역 총량이면 충분했지만, 복제는
 // "어느 종류를 복제했는지"가 canBuild의 유니크 예외 판정에 그대로 필요하다.
 const clonePicksById = new Map();
+// 타워 추가(§5-7)는 인스턴스당 평생 1회 — 사용자 요청(2026-08-03)으로 "같은 타워로 계속 눌러서
+// 티켓만 쌓이는" 문제를 막는다. 한 번 쓴 인스턴스는 여기 영구히 남고, 그 인스턴스로는 다시 못 쓴다
+// — 새 타워를 지어 최대 강화해야 그 새 인스턴스로 다시 쓸 수 있다. 서포터는 대상 밖(요청 범위가
+// 타워 한정이라 기존 반복 사용 방식 그대로 둠).
+const clonedTowerInstances = new Set();
 
 function nextInstanceId(id) {
   seqByType[id] = (seqByType[id] ?? 0) + 1;
@@ -215,15 +220,29 @@ function relocate(instanceId, cellX, cellY) {
 }
 
 /**
- * §5-7 복제 시스템 — 최대 레벨 건물을 지으면 그 종류의 추가 설치권을 파는 4번째 강화 단계.
- * N서울타워는 대상에서 뺀다(재배치와 같은 이유 — 상시 지형물이라 복제되면 "조명=체력바" 가정이
+ * §5-7 타워 추가(구 "복제") — 최대 레벨 건물을 지으면 그 종류의 추가 설치권을 파는 4번째 강화 단계.
+ * N서울타워는 대상에서 뺀다(재배치와 같은 이유 — 상시 지형물이라 추가되면 "조명=체력바" 가정이
  * 깨진다). 비용은 그 건물의 upgradeBaseCost에 waves.json의 cloneScale을 곱해서 구한다 —
- * existingCount(현재 그 종류 인스턴스 수)가 늘수록 다음 복제가 기하급수로 비싸진다.
+ * existingCount(현재 그 종류 인스턴스 수)가 늘수록 다음 타워 추가가 기하급수로 비싸진다.
+ *
+ * 타워는 인스턴스당 평생 1회로 제한한다(2026-08-03 사용자 요청) — canClone()이 그 판정을 한다.
+ * 같은 인스턴스를 다시 쓰려는 클릭은 cloneCost()가 null을 돌려줘서 UI가 버튼 자체를 안 보여준다.
  */
-function cloneCost(instanceId) {
+function canClone(instanceId) {
   const target = findBuildable(instanceId);
-  if (!target || target.id === 'nseoulTower' || target.canUpgrade()) return null;
+  if (!target) return { ok: false, reason: 'locked' };
+  if (target.id === 'nseoulTower') return { ok: false, reason: 'locked' };
+  if (target.canUpgrade()) return { ok: false, reason: 'notMaxLevel' };
+  if (targetKind(target) === 'tower' && clonedTowerInstances.has(instanceId)) {
+    return { ok: false, reason: 'cloneUsed' };
+  }
+  return { ok: true };
+}
 
+function cloneCost(instanceId) {
+  if (!canClone(instanceId).ok) return null;
+
+  const target = findBuildable(instanceId);
   const kind = targetKind(target);
   const def = kind === 'tower' ? towersData[target.id] : supportsData[target.id];
   const existingCount = (kind === 'tower' ? WaveManager.getTowers() : WaveManager.getSupports())
@@ -233,18 +252,20 @@ function cloneCost(instanceId) {
 }
 
 function clone(instanceId) {
-  const target = findBuildable(instanceId);
-  if (!target) return reject('clone', 'locked');
-  if (target.id === 'nseoulTower') return reject('clone', 'locked');
-  if (target.canUpgrade()) return reject('clone', 'notMaxLevel');
+  const check = canClone(instanceId);
+  if (!check.ok) return reject('clone', check.reason);
 
+  const target = findBuildable(instanceId);
+  const kind = targetKind(target);
   const cost = cloneCost(instanceId);
   const spend = Economy.trySpend(cost);
   if (!spend.ok) return reject('clone', spend.reason);
 
+  if (kind === 'tower') clonedTowerInstances.add(instanceId);
+
   const id = target.id;
   clonePicksById.set(id, (clonePicksById.get(id) || 0) + 1);
-  EventBus.emit(EV.cloneAcquired, { kind: targetKind(target), id });
+  EventBus.emit(EV.cloneAcquired, { kind, id });
   return { ok: true };
 }
 
@@ -330,6 +351,7 @@ export const GameCore = {
   upgrade,
   relocate,
   canRelocate,
+  canClone,
   cloneCost,
   clone,
   pickDraftCard,

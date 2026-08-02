@@ -303,6 +303,42 @@ drawRangeCircle`)은 실제로 커졌다** — `obj.effectiveRange`를 이미 �
 **틀렸을 때 영향:** `infoLines` 호출부·본문 되돌리면 끝(5분) — 실제 게임 로직은 손 안 댐, 표시
 문구만 바꿨다.
 
+### 🚨 [중요] N11 · B · 2026-08-03 — "복제" → "타워 추가" 개편: 인스턴스당 평생 1회로 제한
+
+**요청 배경:** 사용자가 "복제" 버튼을 같은 타워 인스턴스에서 여러 번 눌러도 계속 결제되고
+`clonePicksById` 티켓만 쌓이는 게 문제라고 지적 — 실제로 그만큼 타워를 짓지 않으면 돈만 나가고
+체감상 "하나만 더 추가되는" 것처럼 보인다. 요청한 새 규칙: **타워 인스턴스 하나당 평생 1회만
+"타워 추가"(개명 전 "복제") 가능**. 한 번 쓰면 그 인스턴스는 영구히 못 씀 — 다시 하려면 새 타워를
+지어서 최대 강화한 뒤 그 새 인스턴스로 써야 한다. 종류당 개수가 늘수록 비용이 기하급수로 오르는
+기존 스케일링은 그대로 유지. 서포터 복제는 이번 요청 범위 밖이라 기존 방식(반복 사용 가능)
+그대로 뒀다.
+
+**처리 (`GameCore.js`):**
+- `clonedTowerInstances`(Set) 신설 — 타워 추가에 쓴 인스턴스ID를 영구 기록
+- `canClone(instanceId)` 신규 export — `{ok, reason}` 패턴(`canBuild`/`canRelocate`와 동일).
+  `nseoulTower`/`canUpgrade()`/이미 사용(`cloneUsed`) 3가지 사유를 구분해서 돌려줌
+- `cloneCost()`는 `canClone().ok`가 아니면 `null` 반환(UI가 버튼을 아예 안 그림)
+- `clone()`은 `canClone()`으로 먼저 막고, 성공 시 `kind==='tower'`일 때만
+  `clonedTowerInstances.add(instanceId)` — 서포터는 기존처럼 반복 가능
+- `EventBus.js`의 `REJECT`에 `cloneUsed` 메시지 추가, `notMaxLevel` 문구도 "타워 추가"로 갱신
+- `MockGameCore.js`에도 동일한 `canClone`/`clonedTowerInstances`를 미러링(Mock도 인터페이스는
+  맞춰야 `?mockcore=1` 데모가 안 깨짐)
+
+**처리 (`UpgradeUI.js`):**
+- 버튼 라벨 `'복제'` → `'타워 추가'`, 비용 문구 `복제 비용` → `타워 추가 비용`
+- 이미 그 인스턴스로 추가를 썼으면(`canClone().ok === false && reason==='cloneUsed'`) 버튼 대신
+  "이 타워로는 이미 타워를 추가했습니다 / 새 타워를 지어 최대 강화하면 다시 추가할 수 있습니다"
+  안내 텍스트만 표시
+
+**검증:** Chrome 확장 연결이 끊겨서 이번엔 브라우저 실사용 확인을 못 했다 — 코드 리뷰로 로직만
+확인(`canBuild`/`canRelocate`와 동일한 기존 패턴을 그대로 따라서 구조적으로는 검증된 방식). 다음
+세션에 브라우저로 직접 확인 필요: 타워 최대 강화 → 타워 추가 1회 성공 → 같은 인스턴스 패널에
+버튼 대신 안내문구 뜨는지, 새 타워 지어서 최대 강화하면 그 타워는 다시 버튼이 뜨는지.
+
+**틀렸을 때 영향:** `canClone()` 도입 이전으로 되돌리려면 `clone()`/`cloneCost()`에서 `canClone()`
+호출부만 제거하면 원래 동작(인스턴스 제한 없음)으로 복원됨. `UpgradeUI.js` 라벨도 원래 문자열로
+되돌리면 끝.
+
 ### [기록] N0 · B · 2026-07-29 (D2) — main.js MockScene 교체
 
 **한 일:** `main.js`의 `MockScene`에 있던 임시 조명 로직(즉시 색 전환 원형)을 `SeoulTowerLight.js`(정식 구현, `/src/fx/`)로 교체했다.
