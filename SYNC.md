@@ -15,7 +15,7 @@
 | 항목 | 상태 |
 |---|---|
 | **`main` 빌드** | ✅ 정상 (`npm run build` 확인) |
-| **마지막 갱신** | 2026-08-01 / B |
+| **마지막 갱신** | 2026-08-02 / B |
 | **🚨 D5 병합 사고 발견·복구** | A의 `abeb58e`(`Merge branch 'main'`)가 두 갈래(B의 D4 UI 작업 vs A의 구식 `feat/game-core` 사본)를 합치면서 `BuildUI.js`/`TowerView.js`/`UITheme.js`/`MockGameCore.js` 등 B 소유 파일이 **구버전으로 되돌아간 채 `main`에 올라가 있었다**(N1이 경고했던 바로 그 사고, 이번엔 A의 머지에서 재발). `git diff HEAD origin/main`으로 발견 → `feat/ui`에서 `git merge origin/main` 재수행, 충돌 3개(`GameCore.js`/`WaveManager.js`/`main.js`)는 전부 "A의 새 로직 유지 + B 파일은 내 버전 유지"로 해결 → `main`에 fast-forward로 재반영 완료. **현재 `main`은 정상(A+B 전부 반영, 헤드리스 검증·빌드 통과)이지만, 앞으로 `feat/game-core`류 보조 브랜치를 `main`에 직접 머지하는 작업은 반드시 `git diff`로 UI/FX 파일 변화를 먼저 확인하고 진행할 것 — 파일 단위 체리픽이 아니면 이 사고가 또 난다.** |
 | **현재 페이즈** | **P1 코어 로직 완료 (A) + P3(절대 사수) 완료 (B) + 오브젝트 렌더러 완료 (B, D4) — 일정 변경으로 D5까지 추가 작업 진행 중** |
 | **A 진행률** | **P1 완료** + `GameCore.js` 1단계 완료. **D4 하루 만에 N4 권장 순서 ①`LevelSystem` ②`DraftSystem`+`PerkSystem` ③`Supporter`+`Obstacle`(`buildSupport`/`buildObstacle` 실구현, `f8c6585`)까지 백엔드 전부 완료** — `GameCore` 레벨에선 드래프트 카드 7종이 다 살아있다. **아직 이 저장소(`main`/`feat/ui`)엔 없음** — A 브랜치에만 있다, D5에 B가 파일 단위로 가져와 스왑 예정(§2 N7). **단, `BuildUI`(B 소유)가 서포터/장애물 배치 UI를 아직 안 만들어서 플레이어 입장에선 여전히 죽은 카드다 — D5에 B가 먼저 만든다.** 남은 건 `pickPolicy`(보스 정책 효과 적용)와 장애물 강화(`Obstacle`은 `upgrade` 대상이 아직 아님) 뿐. **`GameCore.reset()`은 아직 없음(§3 C5 미해결)** |
@@ -439,7 +439,7 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 ---
 
-### C8 · B → A · 2026-08-01 — `towerFired` 이벤트 요청 (타워 발사 반동 애니메이션용)
+### ✅ [승인] C8 · B → A · 2026-08-01 — `towerFired` 이벤트 요청 (타워 발사 반동 애니메이션용)
 
 **변경 요청:** `Tower.update(dt)`가 쿨다운을 리셋하고 실제로 타겟을 쐈을 때(`return target` 분기)
 `EventBus.emit(EV.towerFired, { instanceId, x: this.x, y: this.y, targetX: target.x, targetY: target.y })`
@@ -454,7 +454,11 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 복사로 바뀌면(`[...towers]` 등) 조용히 깨진다(에러 없이 반동만 안 뜸). 진짜 이벤트가 생기면
 `TowerView.js`의 `tickRecoil()`을 그걸로 교체한다(HANDOFF.md §5에도 기록해둠).
 **하위 호환:** 새 이벤트 추가만. 기존 `EV` 20여 개·`GameCore` 시그니처 변경 없음.
-**상대 확인:** (검토 대기)
+**상대 확인:** ✅ 2026-08-01 A 승인 — `EventBus.js`에 `EV.towerFired` 상수 추가, `Tower.update(dt)`가
+쿨다운을 리셋하고 대상을 반환하는 그 지점(`return target` 직전)에서 요청한 페이로드 그대로 emit하게
+구현(`src/game/Tower.js`). B가 말한 위험(`getTowers()` 참조 배열에 기대는 우회)은 이 이벤트로 대체하면
+해소된다 — `tickRecoil()` 교체 후 그 우회 코드(`cooldownRemaining` 폴링·`findTarget()` 재호출)는
+지워도 된다.
 
 ---
 
@@ -483,6 +487,47 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 **main 빌드:** ✅ / ❌
 ```
+
+---
+
+## [2026-08-02] B · 세션 15 (격자 조건부 표시 연결 + towerFired 실제 이벤트로 교체)
+
+**한 일**
+- `mapView.js`의 `setGridVisible()`(세션 14 끝에 정의만 해두고 미연결)을 실제 호출 지점 5곳에 연결:
+  `BuildUI.select()`/`clearSelection()`, `UpgradeUI.startRelocate()`/`cancelRelocate()`/`close()`,
+  그리고 주석엔 없었지만 실제로 필요한 지점 하나 더 발견해 추가함 —
+  `UpgradeUI.attemptRelocateClick()`의 재배치 성공 분기(`relocateMode`가 `cancelRelocate()`를
+  거치지 않고 바로 꺼지는 경로라, 여기서 안 끄면 재배치 성공 후에도 격자가 계속 떠 있었을 것)
+- `TowerView.js` 발사 반동을 `cooldownRemaining` 폴링 워크어라운드에서 진짜 `towerFired`
+  이벤트(SYNC.md §3 C8, A가 세션 중 `src/game/Tower.js`에 이미 emit 반영해둠)로 교체.
+  `handleFired()`가 이벤트 수신 즉시 반동 방향·시작 시각만 찍고, `tickRecoil()`은 감지 로직 없이
+  경과 시간 기반 감쇠만 그린다 — "감지(이벤트)"와 "렌더(매 프레임)"를 분리. `liveTowers` 참조 배열
+  들고 있던 것도 제거(더 이상 `GameCore` 내부 구현에 기댈 필요 없음). `tickRecoil`이 이제
+  `byInstance` 전체(서포터·장애물 포함)를 순회하지만 `recoilStart`가 `towerFired`로만 세팅되므로
+  타워가 아닌 엔트리는 자연히 아무 반동도 안 걸림(§ 상단 주석에 기록)
+
+**지금 되는 것 / 안 되는 것**
+- 됨(코드 리뷰 + `npm run build` 통과로 확인): 격자 연결 5곳, `towerFired` 구독/해제, 기존 배치
+  "쿵" 스쿼시와의 `entry.squashing` 가드 충돌 없음(로직상 서로 다른 필드만 건드림)
+- 안 됨/확인 못 함: **이번 세션엔 브라우저 헤드리스 검증을 못 했다** — Chrome 확장 연결이 안 돼서
+  `?real=1`로 실제 타워 배치 → 발사 반동 눈으로 확인, 배치/재배치 모드 격자 페이드 인/아웃 확인을
+  둘 다 못 했다. 코드 리뷰로 로직만 확인한 상태(세션 14와 동일한 한계, HANDOFF.md 참고)
+
+**상대에게 필요한 것**
+- 없음
+
+**내가 한 가정**
+- `attemptRelocateClick` 성공 분기에 `setGridVisible(false)`를 추가로 넣은 것 — mapView.js 상단
+  주석엔 4곳만 적혀 있었지만 코드를 따라가 보니 5번째 지점이 실제로 필요했다. 틀렸을 때 영향:
+  없음(순수 추가, 되돌리면 재배치 성공 후 격자가 안 꺼지는 원래 버그로 돌아갈 뿐)
+
+**다음 세션에 할 것**
+- `?real=1&debug=1`로 브라우저 직접 열어서(또는 Chrome 확장 재연결 후) 이번 세션 변경 2건 실사용
+  검증 — 특히 발사 반동 방향이 실제 타겟 쪽을 향하는지, 격자 페이드 타이밍이 자연스러운지
+- 폰트(Pretendard) 파일이 들어오면 `index.html` `@font-face` + `FONT` 블록 실제 연결(세션 14부터
+  이어지는 미완료 항목)
+
+**main 빌드:** ✅ (`npm run build` 통과, 브라우저 런타임 미검증)
 
 ---
 
