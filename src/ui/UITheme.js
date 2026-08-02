@@ -8,14 +8,33 @@
  */
 
 export const COLOR = {
-  bg:        0x11141a,   // 맵 배경
-  path:      0x2a3040,   // 경로
+  bg:        0x11141a,   // 맵 배경 (배경 이미지가 없을 때의 폴백)
+  path:      0x3a4356,   // 경로 — 배경 사진 위에서도 도로가 도드라지게 원래(#2a3040)보다 밝게 조정
   slot:      0x1c2230,   // 경로 밖 슬롯 격자
   accent:    0x3fa7d6,   // 단일 액센트 컬러 (아트 방향: 단색 실루엣 + 액센트 1개)
   ok:        0x4caf50,   // 배치 가능
   ng:        0xe53935,   // 배치 불가
   text:      0xf2f4f8,
   textDim:   0x8a919e,
+};
+
+/**
+ * 배경 이미지 — 접속 시각 자동 낮/밤 전환(mapView.js resolveBgKey, 06~18시=낮). ?bg=day|night로
+ * 강제 지정 가능(촬영용). 파일이 없으면(loaderror) 조용히 COLOR.bg 단색으로 폴백한다.
+ * 낮 사진이 밝아서 경로·적·데미지 숫자가 묻히므로 어두운 반투명 레이어를 한 겹 깐다.
+ */
+export const BG = {
+  dimColor: 0x000000,
+  dimDay:   0.35,   // ↑ 낮 배경이 밝아 가독성이 떨어지면 올린다. ↓ 내리면 사진이 더 잘 보이지만 묻히기 쉽다
+  dimNight: 0.15,   // 밤은 원래 어두워서 낮보다 옅게. ↑ 올리면 더 어두워진다
+};
+
+/** 경로 밖 슬롯 격자 — 배치/재배치 모드일 때만 보인다(mapView.setGridVisible). ?debug=1은 상시 표시 */
+export const GRID = {
+  visibleAlpha:  0.35,  // 배치/재배치 모드에서 켜졌을 때 격자선 알파(선 색은 COLOR.slot)
+  debugAlpha:    0.9,   // ?debug=1 상시 표시 — 격자 정렬 확인용이라 진하게 유지
+  fadeMs:        150,   // 표시/숨김 전환 시간
+  extraDimAlpha: 0.15,  // 격자 표시 중 배경을 추가로 어둡게(배치 판단 편의). 과하면 0으로 낮춰서 끈다
 };
 
 /**

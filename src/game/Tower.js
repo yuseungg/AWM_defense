@@ -99,7 +99,12 @@ export class Tower {
     return best;
   }
 
-  /** 쿨다운이 찼고 사거리 내 대상이 있으면 대상을 돌려주고 쿨다운을 리셋한다. 없으면 null. */
+  /**
+   * 쿨다운이 찼고 사거리 내 대상이 있으면 대상을 돌려주고 쿨다운을 리셋한다. 없으면 null.
+   * EV.towerFired는 여기서 쏘지 않는다 — WaveManager.fireTower(tower, dt)가 이 update()의
+   * 반환값(target)을 받는 그 자리에서 towerId까지 포함해 발행한다(SYNC.md §3 C8, CLAUDE.md
+   * §6-1 문서화된 계약). 여기서 한 번 더 쏘면 같은 발사에 이벤트가 두 번 뜬다.
+   */
   update(dt) {
     this.cooldownRemaining = Math.max(0, this.cooldownRemaining - dt);
     if (this.cooldownRemaining > 0) return null;

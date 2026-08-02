@@ -35,7 +35,7 @@
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
 import { COLOR, BUILD, UPGRADE, EASE } from './UITheme.js';
-import { CELL, W, H } from './mapView.js';
+import { CELL, W, H, setGridVisible } from './mapView.js';
 import { FOOTPRINT } from '../game/GridSystem.js';
 import towersData from '../../data/towers.json';
 import supportsData from '../../data/supports.json';
@@ -160,6 +160,7 @@ export class UpgradeUI {
     this._lastDragCy = null;
     if (this.current) this.close();
     this.scene.towerView?.beginDrag(instanceId);
+    setGridVisible(true);
   }
 
   updateDragPreview(pointer) {
@@ -223,6 +224,7 @@ export class UpgradeUI {
     this.dragging = null;
     this.relocateGfx.clear();
     this.rangeGfx.clear();
+    setGridVisible(false);
   }
 
   cancelDrag() {
@@ -231,6 +233,7 @@ export class UpgradeUI {
     this.dragging = null;
     this.relocateGfx.clear();
     this.rangeGfx.clear();
+    setGridVisible(false);
   }
 
   hitTest(x, y) {
@@ -262,6 +265,7 @@ export class UpgradeUI {
     this.rangeGfx.clear();
     this.clearPanel();
     this.scene.buildUI?.setInputEnabled(true);
+    setGridVisible(false);
   }
 
   clearPanel() {

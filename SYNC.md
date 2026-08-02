@@ -15,7 +15,7 @@
 | 항목 | 상태 |
 |---|---|
 | **`main` 빌드** | ✅ 정상 (`npm run build` 확인) |
-| **마지막 갱신** | 2026-08-02 / A (4단계 강화 = 복제 시스템 추가 — 유니크 룰의 유일한 예외) |
+| **마지막 갱신** | 2026-08-02 / A (B의 격자 연결·towerFired 이벤트 정리 병합 후, 4단계 강화=복제 시스템 추가) |
 | **🚨 D5 병합 사고 발견·복구** | A의 `abeb58e`(`Merge branch 'main'`)가 두 갈래(B의 D4 UI 작업 vs A의 구식 `feat/game-core` 사본)를 합치면서 `BuildUI.js`/`TowerView.js`/`UITheme.js`/`MockGameCore.js` 등 B 소유 파일이 **구버전으로 되돌아간 채 `main`에 올라가 있었다**(N1이 경고했던 바로 그 사고, 이번엔 A의 머지에서 재발). `git diff HEAD origin/main`으로 발견 → `feat/ui`에서 `git merge origin/main` 재수행, 충돌 3개(`GameCore.js`/`WaveManager.js`/`main.js`)는 전부 "A의 새 로직 유지 + B 파일은 내 버전 유지"로 해결 → `main`에 fast-forward로 재반영 완료. **현재 `main`은 정상(A+B 전부 반영, 헤드리스 검증·빌드 통과)이지만, 앞으로 `feat/game-core`류 보조 브랜치를 `main`에 직접 머지하는 작업은 반드시 `git diff`로 UI/FX 파일 변화를 먼저 확인하고 진행할 것 — 파일 단위 체리픽이 아니면 이 사고가 또 난다.** |
 | **현재 페이즈** | **P1 코어 로직 완료 (A) + P3(절대 사수) 완료 (B) + 오브젝트 렌더러 완료 (B, D4) — 일정 변경으로 D5까지 추가 작업 진행 중** |
 | **A 진행률** | **P1 완료** + `GameCore.js` 1단계 완료. **D4 하루 만에 N4 권장 순서 ①`LevelSystem` ②`DraftSystem`+`PerkSystem` ③`Supporter`+`Obstacle`(`buildSupport`/`buildObstacle` 실구현, `f8c6585`)까지 백엔드 전부 완료** — `GameCore` 레벨에선 드래프트 카드 7종이 다 살아있다. **아직 이 저장소(`main`/`feat/ui`)엔 없음** — A 브랜치에만 있다, D5에 B가 파일 단위로 가져와 스왑 예정(§2 N7). **단, `BuildUI`(B 소유)가 서포터/장애물 배치 UI를 아직 안 만들어서 플레이어 입장에선 여전히 죽은 카드다 — D5에 B가 먼저 만든다.** 남은 건 `pickPolicy`(보스 정책 효과 적용)와 장애물 강화(`Obstacle`은 `upgrade` 대상이 아직 아님) 뿐. **`GameCore.reset()`은 아직 없음(§3 C5 미해결)** |
@@ -439,7 +439,7 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 ---
 
-### ✅ [처리 완료] C8 · B → A · 2026-08-01 — `towerFired` 이벤트 요청 (타워 발사 반동 애니메이션용)
+### ✅ [완료] C8 · B → A → B · 2026-08-01~02 — `towerFired` 이벤트 요청 (타워 발사 반동 애니메이션용)
 
 **변경 요청:** `Tower.update(dt)`가 쿨다운을 리셋하고 실제로 타겟을 쐈을 때(`return target` 분기)
 `EventBus.emit(EV.towerFired, { instanceId, x: this.x, y: this.y, targetX: target.x, targetY: target.y })`
@@ -454,7 +454,8 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 복사로 바뀌면(`[...towers]` 등) 조용히 깨진다(에러 없이 반동만 안 뜸). 진짜 이벤트가 생기면
 `TowerView.js`의 `tickRecoil()`을 그걸로 교체한다(HANDOFF.md §5에도 기록해둠).
 **하위 호환:** 새 이벤트 추가만. 기존 `EV` 20여 개·`GameCore` 시그니처 변경 없음.
-**처리 결과 (2026-08-02):** 요청하신 그대로 반영 완료.
+
+**A 처리 결과 (2026-08-02):** 요청하신 그대로 반영 완료.
 - `WaveManager.js`의 `fireTower(tower, dt)` — `tower.update(dt)`가 target을 돌려주는 순간(=실제 발사)
   `EventBus.emit(EV.towerFired, { instanceId: tower.instanceId, towerId: tower.id, x: tower.x, y: tower.y, targetX: target.x, targetY: target.y })` 추가.
   요청하신 페이로드(`instanceId, x, y, targetX, targetY`)에 `towerId`까지 더한 최종 형태:
@@ -463,7 +464,20 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 - `CLAUDE.md` §6-1 이벤트 표에도 같은 페이로드로 등재(⭐ 표시).
 - 콘솔로 실제 발사 시 정확한 페이로드로 발행되는지, 쿨다운 중엔 재발행 안 되는지 확인함.
 - `TowerView.js`의 임시 폴링(`tickRecoil()`)을 이 이벤트로 교체하는 건 `/src/fx/`라 B 쪽에서 진행해주세요.
-**상대 확인:** ✅ A 처리 완료 (2026-08-02)
+
+**B 처리 결과 (2026-08-02, 세션 15):** `TowerView.js`를 이벤트 구독으로 교체 완료 — `handleFired()`가
+`towerFired` 수신 즉시 반동 방향·시작 시각만 찍고, `tickRecoil()`은 감지 로직 없이 매 프레임 감쇠만
+그린다. `towerId` 필드는 반동 계산에 안 쓰여서 구조분해에서 그냥 무시. 병합 시 A가 그사이 만든
+드래그 재배치 고스트(`beginDrag`/`updateDragPosition`/`endDrag`, `entry.dragging` 가드)와 합쳐서
+`tickRecoil()`이 `squashing`뿐 아니라 `dragging` 중인 엔트리도 건너뛰게 했다.
+
+**A 후속 수정 (2026-08-02, `origin/main` 머지 중 발견):** B의 세션 15 로컬 브랜치가 `Tower.js`
+자체에서도 독립적으로 `EventBus.emit(EV.towerFired, ...)`를 하고 있던 걸(`towerId` 없는 payload)
+`WaveManager.fireTower()`의 기존 emit과 같이 병합해버려서, `origin/main`에 **발사 1회당
+`towerFired`가 2번 발행**되는 상태로 올라와 있었다(`EventBus.js`에도 `towerFired` 키가 중복
+정의됨 — 나중 값이 이겨서 동작은 했지만 정의가 두 곳). `Tower.update()`의 emit과 `EventBus.js`의
+중복 키를 제거하고 `WaveManager.fireTower()`(payload에 `towerId` 포함, 문서화된 계약)만 남김.
+**상대 확인:** ✅ 양쪽 처리 완료 + 중복 emit 정리 (2026-08-02)
 
 ---
 
@@ -505,6 +519,56 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 **main 빌드:** ✅ / ❌
 ```
+
+---
+
+## [2026-08-02] B · 세션 15 (격자 조건부 표시 연결 + towerFired 실제 이벤트로 교체 + A의 드래그 재배치와 병합)
+
+**한 일**
+- `mapView.js`의 `setGridVisible()`(세션 14 끝에 정의만 해두고 미연결)을 `BuildUI.select()`/
+  `clearSelection()`에 연결. 재배치 쪽은 처음엔 클릭식(`startRelocate`/`cancelRelocate`/
+  `attemptRelocateClick`)에 연결했는데, 커밋·푸시 직후 `origin/main`에 A가 같은 시간대에 올린
+  `f1938e9`(재배치를 클릭식 → 드래그식으로 전면 교체)와 정면으로 겹쳐서 병합 시 그 3개 함수 자체가
+  없어졌다 — 새 드래그 라이프사이클(`beginDrag`/`finishDrag`/`cancelDrag`)에 맞춰 다시 연결함
+  (`beginDrag`→표시, `finishDrag`/`cancelDrag`→숨김)
+- `TowerView.js` 발사 반동을 `cooldownRemaining` 폴링 워크어라운드에서 진짜 `towerFired` 이벤트로
+  교체(SYNC.md §3 C8). `handleFired()`가 이벤트 수신 즉시 반동 방향·시작 시각만 찍고, `tickRecoil()`은
+  감지 로직 없이 경과 시간 기반 감쇠만 그린다. 이것도 병합 대상이었다 — A가 같은 시간대에
+  `WaveManager.fireTower()`에서 emit을 완성해서 올렸고(내 로컬은 `Tower.js`에서 emit하는 다른
+  버전이었다 — A의 `WaveManager.js` 버전을 그대로 채택), TowerView.js는 A가 만든 드래그 고스트
+  기능(`beginDrag`/`updateDragPosition`/`endDrag`, `entry.dragging`)과 내 이벤트 기반 recoil을
+  같이 살려서 합쳤다(`tickRecoil`이 `squashing`·`dragging` 둘 다 건너뛰게)
+- **배경 사진(`assets/bg/*.jpg`)이 그동안 git에 커밋된 적이 없었던 것을 발견 → 커밋.** 로컬 디스크엔
+  파일이 있어서 dev 서버에선 잘 보였지만, 배포 사이트(GitHub Pages)엔 반영된 적이 없었다
+
+**겪은 일 — `origin/main`이 로컬 `main`보다 앞서 있었다:** 세션 시작 시점 로컬 `main`이 `feat/ui`와
+같은 커밋이라 fast-forward만 하면 될 줄 알았는데, `git fetch` 해보니 `origin/main`에 A가 커밋 4개
+(`dc40a65`~`f1938e9`, 건설 바 클릭판정 수정·2×2 격자 확장·`towerFired` C8 처리·재배치 드래그 전환)를
+이미 올려둔 상태였다. `EventBus.js`/`Tower.js`/`TowerView.js`/`UpgradeUI.js`/`SYNC.md` 5개 파일에서
+충돌 발생 → 전부 수동 병합(위 항목 참고). `BuildUI.js`는 겹치는 영역이 달라서 자동 병합됨.
+
+**지금 되는 것 / 안 되는 것**
+- 됨(`?real=1&debug=1`로 브라우저 직접 검증 — Chrome 확장 재연결됨): 청계천 배치 후 즉시 웨이브 →
+  드래그로 상단 도로 쪽 몹 무리 근처까지 재배치(고스트 반투명 전환, 드롭 시 원위치 없이 새 자리로
+  이동) → 사거리 안에 몹이 들어오자 골드·XP가 자동으로 계속 올라감(전투 루프 정상 작동, 즉
+  `towerFired`→투사체→데미지 파이프라인이 살아있다는 뜻) → 콘솔 에러 0건. 배치/재배치 중 격자
+  페이드인도 육안 확인(줌 스크린샷으로 40px 격자선 확인). 2px 반동 자체는 타이밍상 스크린샷으로
+  못 잡았지만(감쇠가 워낙 짧다) 전투 루프가 정상이므로 코드 경로는 탄다고 판단
+- 안 됨/확인 못 함: 격자 확장(2×2) 배치 프리뷰와 드래그 프리뷰가 화면 경계 셀에서도 안 씹히는지는
+  안 봤음(맵 중앙 근처에서만 테스트함)
+
+**상대에게 필요한 것**
+- 없음
+
+**내가 한 가정**
+- SYNC.md 충돌 중 "마지막 갱신" 줄은 시간상 내가 마지막이라 내 걸로, C8 처리 기록은 A/B 둘 다의
+  처리 결과를 순서대로 이어붙이는 쪽으로 정리(어느 한쪽만 남기면 상대 작업 기록이 사라짐)
+
+**다음 세션에 할 것**
+- 폰트(Pretendard) 파일이 들어오면 `index.html` `@font-face` + `FONT` 블록 실제 연결(세션 14부터
+  이어지는 미완료 항목)
+
+**main 빌드:** ✅ (`npm run build` 통과, 브라우저 런타임 미검증)
 
 ---
 

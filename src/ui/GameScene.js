@@ -62,6 +62,9 @@ export class GameScene extends Phaser.Scene {
 
     // vite.config.js의 publicDir이 assets/를 site root로 서빙하므로 URL엔 "assets/" 접두어가 없다
     // (디스크상 파일 경로는 CLAUDE.md §3 그대로 assets/towers/<id>.png).
+    // 배경 사진(낮/밤) — 없으면 loaderror만 나고 mapView.js가 COLOR.bg 단색으로 조용히 폴백한다.
+    this.load.image('bg_day', 'bg/day.jpg');
+    this.load.image('bg_night', 'bg/night.jpg');
     Object.keys(towersData).forEach(id => this.load.image(`tower_${id}`, `towers/${id}.png`));
     Object.keys(enemiesData).forEach(type => this.load.image(`enemy_${type}`, `enemies/${type}.png`));
     // 서포터/장애물은 아직 화면에 그리는 렌더러가 없다(§0 알려진 미완성) — 텍스처는 미리 로드해둬서
