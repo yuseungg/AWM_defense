@@ -334,14 +334,29 @@ export const GameCore = {
   relocate(instanceId, cellX, cellY) {
     const o = findInstance(instanceId);
     if (!o) return reject('relocate', 'locked');
+    const check = this.canRelocate(instanceId, cellX, cellY);
+    if (!check.ok) return reject('relocate', check.reason);
     const s = mock.state;
-    if ([...s.towers, ...s.supports, ...s.obstacles]
-        .some(t => t !== o && t.cellX === cellX && t.cellY === cellY))
-      return reject('relocate', 'occupied');
     o.cellX = cellX; o.cellY = cellY;
     o.x = cellX * CELL + CELL / 2; o.y = cellY * CELL + CELL / 2;
     EventBus.emit(EV.objectChanged, { instanceId, action: 'relocated', level: o.level });
     EventBus.emit(EV.buffsRecalculated, { towerStats: s.towers });
+    return { ok: true };
+  },
+
+  /**
+   * 실제 코어의 GameCore.canRelocate와 동일한 용도(드래그 미리보기 초록/빨강) — Mock은 아직
+   * FOOTPRINT 2×2 모델을 안 써서(기존 1×1 갭, 이번 작업 범위 밖) 자기 자신 제외 + 경로 판정만 맞춘다.
+   */
+  canRelocate(instanceId, cellX, cellY) {
+    const o = findInstance(instanceId);
+    if (!o) return { ok: false, reason: 'locked' };
+    const gridCheck = checkGrid(o.kind, cellX, cellY);
+    if (!gridCheck.ok) return gridCheck;
+    const s = mock.state;
+    if ([...s.towers, ...s.supports, ...s.obstacles]
+        .some(t => t !== o && t.cellX === cellX && t.cellY === cellY))
+      return { ok: false, reason: 'occupied' };
     return { ok: true };
   },
 

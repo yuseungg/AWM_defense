@@ -92,8 +92,13 @@ export function createGridSystem(map) {
     }
   }
 
-  /** kind: 'tower' | 'support' → 경로 밖 빈 셀만 / 'obstacle' → 경로 위 빈 셀만. footprint 전 칸을 검사한다. */
-  function canPlace(kind, cellX, cellY) {
+  /**
+   * kind: 'tower' | 'support' → 경로 밖 빈 셀만 / 'obstacle' → 경로 위 빈 셀만. footprint 전 칸을 검사한다.
+   * excludeInstanceId: 재배치 검사용 — 그 칸의 점유자가 바로 "옮기는 자기 자신"이면 점유로 안 친다.
+   * (release 먼저 하고 검사하면 되지 않냐 할 수 있지만, 실패했을 때 release만 되고 occupy가 안 된 채
+   * 남는 경우를 막으려면 "검사 → 성공 시에만 release+occupy" 순서가 안전하다 — 그래서 검사 쪽에서 제외한다)
+   */
+  function canPlace(kind, cellX, cellY, excludeInstanceId) {
     for (const c of footprintCells(kind, cellX, cellY)) {
       if (c.cellX < 0 || c.cellY < 0 || c.cellX * cell >= MAP_W || c.cellY * cell >= MAP_H) {
         return { ok: false, reason: 'outOfBounds' };
@@ -104,7 +109,12 @@ export function createGridSystem(map) {
       } else if (onPath) {
         return { ok: false, reason: 'onPath' };
       }
-      if (isOccupied(c.cellX, c.cellY)) return { ok: false, reason: 'occupied' };
+      if (isOccupied(c.cellX, c.cellY)) {
+        const occupant = getOccupant(c.cellX, c.cellY);
+        if (!excludeInstanceId || occupant?.instanceId !== excludeInstanceId) {
+          return { ok: false, reason: 'occupied' };
+        }
+      }
     }
     return { ok: true };
   }

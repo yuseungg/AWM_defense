@@ -338,6 +338,9 @@ export const GameCore = {
   startNextWave() {},                          // 즉시 웨이브 (보너스 골드)
   setSpeed(n) {}, setPaused(bool) {},
   canBuild(id, cellX, cellY) {},               // → { ok, reason } (boolean 아님)
+  canRelocate(instanceId, cellX, cellY) {},    // → { ok, reason } — canBuild와 다름: 옮기는 자기 자신은
+                                                //   점유 충돌로 안 침(GridSystem.canPlace의 excludeInstanceId).
+                                                //   드래그 재배치 미리보기(초록/빨강)가 매 셀마다 이걸로 판정한다.
   getState() {}   // { gold, xp, level, xpToNext, wave, season, cityLight,
                   //   towers[], supports[], obstacles[], perks{}, policies[],
                   //   unlockedTowers[], kills, bestWave, isPrepPhase }

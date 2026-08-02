@@ -156,12 +156,28 @@ function upgrade(instanceId) {
   return { ok: true };
 }
 
+function targetKind(target) {
+  return WaveManager.getTowers().includes(target) ? 'tower' : 'support';
+}
+
+/**
+ * 재배치 전용 유효성 검사 — canBuild와 다르다. canBuild의 점유 검사는 "옮기는 자기 자신"이 서
+ * 있던 칸도 그대로 점유된 것으로 보기 때문에, 옛 자리와 조금이라도 겹치는 칸으로 옮기려 하면
+ * 자기 자신과 충돌한 걸로 오판해 항상 실패한다. GridSystem.canPlace의 excludeInstanceId로
+ * 그 오판을 막는다. UI가 드래그 중 매 칸마다(셀이 바뀔 때만) 호출해 초록/빨강을 판단하는 용도.
+ */
+function canRelocate(instanceId, cellX, cellY) {
+  const target = findBuildable(instanceId);
+  if (!target) return { ok: false, reason: 'locked' };
+  return GridSystem.canPlace(targetKind(target), cellX, cellY, instanceId);
+}
+
 function relocate(instanceId, cellX, cellY) {
   const target = findBuildable(instanceId);
   if (!target) return reject('relocate', 'locked');
 
-  const kind = WaveManager.getTowers().includes(target) ? 'tower' : 'support';
-  const check = GridSystem.canPlace(kind, cellX, cellY);
+  const kind = targetKind(target);
+  const check = GridSystem.canPlace(kind, cellX, cellY, instanceId);
   if (!check.ok) return reject('relocate', check.reason);
 
   GridSystem.release(target.cellX, target.cellY, kind);
@@ -254,6 +270,7 @@ export const GameCore = {
   buildObstacle,
   upgrade,
   relocate,
+  canRelocate,
   pickDraftCard,
   pickPolicy,
 
