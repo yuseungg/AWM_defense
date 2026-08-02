@@ -21,6 +21,10 @@ import towersData from '../../data/towers.json';
 
 const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
 const W = 1280, H = 720;
+// BuildUI/UpgradeUI의 사거리·오라 원(depth 45~62)보다 항상 위에 뜨게 한다 — 세운상가 오라 원이
+// 카드 위로 비쳐 보이던 문제(depth 미지정 시 기본값 0이라 오라 레이어보다 아래에 깔림).
+// BossAlert(9000대)·GameOverScene(9999)보다는 아래로 남겨서 그쪽이 항상 최우선이 되게 한다.
+const OVERLAY_DEPTH = 500;
 
 export class DraftOverlay {
   constructor(scene, core) {
@@ -84,14 +88,14 @@ export class DraftOverlay {
     const startX = (W - totalW) / 2;
     const y = (H - CARD.height) / 2;
 
-    const dim = this.scene.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6).setInteractive();
+    const dim = this.scene.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6).setInteractive().setDepth(OVERLAY_DEPTH);
     this.visuals.push(dim);
 
     if (type === 'draft' && payload.unlockedTower) {
       const t = towersData[payload.unlockedTower];
       const banner = this.scene.add.text(W / 2, y - 36, `${t ? t.name : payload.unlockedTower} 해금!`, {
         fontSize: `${CARD.fontSize + 4}px`, color: '#3fa7d6', fontStyle: 'bold',
-      }).setOrigin(0.5);
+      }).setOrigin(0.5).setDepth(OVERLAY_DEPTH);
       this.visuals.push(banner);
     }
 
@@ -104,17 +108,18 @@ export class DraftOverlay {
   buildCard(card, type, x, y) {
     const bg = this.scene.add.rectangle(x, y + CARD.height / 2, CARD.width, CARD.height, COLOR.slot)
       .setStrokeStyle(2, COLOR.accent, 0.6)
-      .setInteractive({ useHandCursor: true });
+      .setInteractive({ useHandCursor: true })
+      .setDepth(OVERLAY_DEPTH);
 
     const title = this.scene.add.text(x, y + CARD.padding, card.name, {
       fontSize: `${CARD.fontSize}px`, color: '#f2f4f8', fontStyle: 'bold',
       wordWrap: { width: CARD.width - CARD.padding * 2 }, align: 'center',
-    }).setOrigin(0.5, 0);
+    }).setOrigin(0.5, 0).setDepth(OVERLAY_DEPTH);
 
     const desc = this.scene.add.text(x, y + CARD.padding + 56, card.desc, {
       fontSize: `${CARD.reasonSize}px`, color: '#8a919e',
       wordWrap: { width: CARD.width - CARD.padding * 2 }, align: 'center', lineSpacing: 4,
-    }).setOrigin(0.5, 0);
+    }).setOrigin(0.5, 0).setDepth(OVERLAY_DEPTH);
 
     const group = [bg, title, desc];
     group.forEach(o => { o.alpha = 0; });

@@ -17,6 +17,7 @@
  */
 
 import mapData from '../../data/map.json';
+import { EventBus, EV } from '../EventBus.js';
 import { COLOR, ROAD, BG, GRID, EASE } from './UITheme.js';
 
 export const W = 1280;
@@ -25,15 +26,33 @@ export const CELL = mapData.obstacleGrid.cell;
 
 const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
 const BG_PARAM = new URLSearchParams(location.search).get('bg'); // 'day'|'night' 강제 지정(촬영용)
+const BG_WAVES_PER_CYCLE = 5; // 5웨이브마다 낮/밤 전환(합의 사항 — 접속 시각 연동 폐기)
 
 let gridGfx = null;
 let gridDimGfx = null;
+let bgImage = null;
+let bgDim = null;
+let bgWaveHandler = null;
 
-/** 접속 시각 06~18시=낮, 그 외=밤(GAME_DESIGN §12 "시각 반영"). ?bg=day|night로 강제 지정 가능. */
-function resolveBgKey() {
+/**
+ * 웨이브 5개마다 낮↔밤 전환. wave 1~5=낮, 6~10=밤, 11~15=낮 ... (wave 0은 1로 취급).
+ * ?bg=day|night면 웨이브와 무관하게 그 값으로 고정(촬영용).
+ */
+function bgKeyForWave(wave) {
   if (BG_PARAM === 'day' || BG_PARAM === 'night') return BG_PARAM;
-  const hour = new Date().getHours();
-  return (hour >= 6 && hour < 18) ? 'day' : 'night';
+  const w = Math.max(1, wave);
+  return Math.floor((w - 1) / BG_WAVES_PER_CYCLE) % 2 === 0 ? 'day' : 'night';
+}
+
+/** 이미 그려둔 배경 이미지의 텍스처·틴트만 교체한다(위치는 그대로) — 웨이브 전환마다 호출됨. */
+function applyBgKey(scene, dayOrNight) {
+  const fullKey = `bg_${dayOrNight}`;
+  if (!bgImage || !scene.textures.exists(fullKey)) return;
+
+  const src = scene.textures.get(fullKey).getSourceImage();
+  const scale = Math.max(W / src.width, H / src.height);
+  bgImage.setTexture(fullKey).setScale(scale);
+  bgDim.setFillStyle(BG.dimColor, dayOrNight === 'day' ? BG.dimDay : BG.dimNight);
 }
 
 /**
@@ -44,17 +63,30 @@ function resolveBgKey() {
  *
  * cover 방식: 텍스처의 실제 크기를 읽어서 세로를 캔버스에 맞추고 가로는 중앙 기준으로
  * 넘치는 만큼 잘라낸다 — 원본 해상도가 몇이든(1280×720이든 1685×925든) 코드 변경이 없다.
+ *
+ * `waveStarted`를 구독해서 5웨이브마다 텍스처를 교체한다(?bg= 강제 지정 시에는 구독 자체를
+ * 안 한다 — 촬영 중에 웨이브가 넘어가서 값이 바뀌면 안 되므로).
  */
 function drawBackground(scene) {
-  const key = `bg_${resolveBgKey()}`;
-  if (!scene.textures.exists(key)) return;
+  const initialKey = bgKeyForWave(0);
+  const fullKey = `bg_${initialKey}`;
+  if (!scene.textures.exists(fullKey)) return;
 
-  const src = scene.textures.get(key).getSourceImage();
+  const src = scene.textures.get(fullKey).getSourceImage();
   const scale = Math.max(W / src.width, H / src.height);
-  scene.add.image(W / 2, H / 2, key).setScale(scale);
+  bgImage = scene.add.image(W / 2, H / 2, fullKey).setScale(scale);
+  bgDim = scene.add.rectangle(W / 2, H / 2, W, H, BG.dimColor, initialKey === 'day' ? BG.dimDay : BG.dimNight);
 
-  const dimAlpha = key === 'bg_day' ? BG.dimDay : BG.dimNight;
-  scene.add.rectangle(W / 2, H / 2, W, H, BG.dimColor, dimAlpha);
+  if (BG_PARAM !== 'day' && BG_PARAM !== 'night') {
+    bgWaveHandler = ({ wave }) => applyBgKey(scene, bgKeyForWave(wave));
+    EventBus.on(EV.waveStarted, bgWaveHandler);
+    scene.events.once('shutdown', () => {
+      if (bgWaveHandler) EventBus.off(EV.waveStarted, bgWaveHandler);
+      bgWaveHandler = null;
+      bgImage = null;
+      bgDim = null;
+    });
+  }
 }
 
 /**

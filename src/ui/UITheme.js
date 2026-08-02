@@ -19,8 +19,8 @@ export const COLOR = {
 };
 
 /**
- * 배경 이미지 — 접속 시각 자동 낮/밤 전환(mapView.js resolveBgKey, 06~18시=낮). ?bg=day|night로
- * 강제 지정 가능(촬영용). 파일이 없으면(loaderror) 조용히 COLOR.bg 단색으로 폴백한다.
+ * 배경 이미지 — 5웨이브마다 낮/밤 전환(mapView.js bgKeyForWave, 접속 시각 연동은 폐기함).
+ * ?bg=day|night로 강제 지정 가능(촬영용). 파일이 없으면(loaderror) 조용히 COLOR.bg 단색으로 폴백한다.
  * 낮 사진이 밝아서 경로·적·데미지 숫자가 묻히므로 어두운 반투명 레이어를 한 겹 깐다.
  */
 export const BG = {
