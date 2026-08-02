@@ -41,6 +41,9 @@ export const EV = {
   bossLeaked:     'bossLeaked',      // { x, y }  코어 도달. 조명 2단계 하강
   seasonChanged:  'seasonChanged',   // { season }
 
+  // ── 타워
+  towerFired:     'towerFired',      // { instanceId, towerId, x, y, targetX, targetY } — SYNC.md §3 C8
+
   // ── 건설 · 배치  [✅ 전부 A 승인 2026-07-28]
   objectBuilt:    'objectBuilt',     // { kind, id, instanceId, cellX, cellY, x, y }
   objectChanged:  'objectChanged',   // { instanceId, action: 'upgraded'|'relocated', level }

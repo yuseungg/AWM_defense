@@ -439,7 +439,7 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 
 ---
 
-### C8 · B → A · 2026-08-01 — `towerFired` 이벤트 요청 (타워 발사 반동 애니메이션용)
+### ✅ [처리 완료] C8 · B → A · 2026-08-01 — `towerFired` 이벤트 요청 (타워 발사 반동 애니메이션용)
 
 **변경 요청:** `Tower.update(dt)`가 쿨다운을 리셋하고 실제로 타겟을 쐈을 때(`return target` 분기)
 `EventBus.emit(EV.towerFired, { instanceId, x: this.x, y: this.y, targetX: target.x, targetY: target.y })`
@@ -454,7 +454,16 @@ A의 답을 기다리면 B의 3일 중 하루가 사라지므로 **§6-4 "Mock�
 복사로 바뀌면(`[...towers]` 등) 조용히 깨진다(에러 없이 반동만 안 뜸). 진짜 이벤트가 생기면
 `TowerView.js`의 `tickRecoil()`을 그걸로 교체한다(HANDOFF.md §5에도 기록해둠).
 **하위 호환:** 새 이벤트 추가만. 기존 `EV` 20여 개·`GameCore` 시그니처 변경 없음.
-**상대 확인:** (검토 대기)
+**처리 결과 (2026-08-02):** 요청하신 그대로 반영 완료.
+- `WaveManager.js`의 `fireTower(tower, dt)` — `tower.update(dt)`가 target을 돌려주는 순간(=실제 발사)
+  `EventBus.emit(EV.towerFired, { instanceId: tower.instanceId, towerId: tower.id, x: tower.x, y: tower.y, targetX: target.x, targetY: target.y })` 추가.
+  요청하신 페이로드(`instanceId, x, y, targetX, targetY`)에 `towerId`까지 더한 최종 형태:
+  `{ instanceId, towerId, x, y, targetX, targetY }`.
+- `EventBus.js`의 `EV`에 `towerFired` 상수 추가.
+- `CLAUDE.md` §6-1 이벤트 표에도 같은 페이로드로 등재(⭐ 표시).
+- 콘솔로 실제 발사 시 정확한 페이로드로 발행되는지, 쿨다운 중엔 재발행 안 되는지 확인함.
+- `TowerView.js`의 임시 폴링(`tickRecoil()`)을 이 이벤트로 교체하는 건 `/src/fx/`라 B 쪽에서 진행해주세요.
+**상대 확인:** ✅ A 처리 완료 (2026-08-02)
 
 ---
 

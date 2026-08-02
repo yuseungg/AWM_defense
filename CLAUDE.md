@@ -306,6 +306,7 @@ export const EventBus = new Phaser.Events.EventEmitter();
 | `objectChanged` | `{ instanceId, action: 'upgraded'\|'relocated', level }` ⭐ — 역사 변천 색조·재배치 |
 | `actionRejected` | `{ action, reason, message }` ⭐ — **없으면 실패가 "클릭이 씹힌 것"처럼 보인다** |
 | `obstacleTriggered` | `{ instanceId, type, x, y, cooldown }` ⭐ — 통나무 발동 + 쿨다운 게이지 |
+| `towerFired` | `{ instanceId, towerId, x, y, targetX, targetY }` ⭐ — 타워 발사 반동 애니메이션용 (`SYNC.md` §3 C8) |
 
 ⭐ = **[✅ A 승인 2026-07-28]** `SYNC.md` §3 C3. 이벤트 이름은 `EventBus.js`의 `EV` 상수를 쓴다 (리터럴 문자열 금지).
 

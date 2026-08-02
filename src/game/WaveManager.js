@@ -248,6 +248,11 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
     const target = tower.update(dt);
     if (!target) return;
 
+    EventBus.emit(EV.towerFired, {
+      instanceId: tower.instanceId, towerId: tower.id, x: tower.x, y: tower.y,
+      targetX: target.x, targetY: target.y,
+    });
+
     ProjectilePool.launch({
       originX: tower.x,
       originY: tower.y,
