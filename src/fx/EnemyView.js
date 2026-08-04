@@ -21,13 +21,20 @@
 
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
-import { VIEW, ANIM } from '../ui/UITheme.js';
+import { VIEW, ANIM, SPRITE } from '../ui/UITheme.js';
+import { fitSpriteWidth } from './SpriteScale.js';
 import enemiesData from '../../data/enemies.json';
 import EnemyPool from '../game/EnemyPool.js';
 import PathSystem from '../game/PathSystem.js';
 
 const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
 const ASSET_KEY = type => `enemy_${type}`;
+// car 스프라이트가 "왼쪽 보기" 기본 방향이라(작업 지시 참고) heading(atan2, 0rad=+x 방향)에
+// 이 오프셋을 더해야 진행방향을 향한다 — 실제 PNG를 보고 확정한 값이 아니라 작업 가설이다.
+// 아이소메트릭 뷰라 회전이 부자연스러우면 CAR_USE_ROTATION만 false로 바꿔서 기존 carTilt
+// 고정각(도형 폴백과 동일)으로 되돌릴 수 있게 분리해뒀다.
+const CAR_ROTATION_OFFSET = Math.PI;
+const CAR_USE_ROTATION = true;
 
 export class EnemyView {
   constructor(scene, core) {
@@ -91,12 +98,13 @@ export class EnemyView {
     this.freeList.push(token);
   }
 
-  /** 텍스처가 있으면 이미지로, 없으면(지금 기본) archetype별 도형으로 그린다 */
+  /** 텍스처가 있으면 이미지로(가로세로비 유지한 목표 폭으로 스케일), 없으면 archetype별 도형으로 그린다 */
   draw(token) {
     const key = ASSET_KEY(token.type);
     if (this.scene.textures.exists(key)) {
       token.gfx.setVisible(false);
       token.sprite.setTexture(key).setVisible(true);
+      fitSpriteWidth(token.sprite, SPRITE.enemyWidth[token.archetype] ?? SPRITE.enemyWidth.swarm);
       return;
     }
     token.sprite.setVisible(false);
@@ -196,7 +204,11 @@ export class EnemyView {
               + ANIM.dustFloatAmp * Math.sin(now * ANIM.dustFloatFreq + token.phase);
         break;
       case 'fast':
-        rotation += ANIM.carTilt;
+        // 스프라이트가 실제로 떠 있을 때만 heading 기반 회전을 시도한다 — 도형 폴백은 기존
+        // 고정 틸트 그대로 유지(작업 지시: 아이소메트릭 뷰라 부자연스러우면 언제든 되돌릴 것).
+        rotation = (token.sprite.visible && CAR_USE_ROTATION)
+          ? token.heading + CAR_ROTATION_OFFSET
+          : token.heading + ANIM.carTilt;
         break;
       case 'tank':
         offY += ANIM.tankBobAmp * Math.sin(now * ANIM.tankBobFreq + token.phase);

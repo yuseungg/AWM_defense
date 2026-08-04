@@ -346,6 +346,22 @@ export const VIEW = {
 };
 
 /**
+ * 실제 PNG 스프라이트의 목표 폭(px, SpriteScale.js의 fitSpriteWidth가 소비). VIEW의
+ * swarmRadius/fastSize/tankSize/bossRadius(위)는 손그림 도형 폴백 전용 파라미터라 의미가
+ * 다르다(반지름·변 길이 등 도형마다 제각각) — 실사 스프라이트는 "가로세로비 유지한 목표 폭"
+ * 하나로 통일해서 여기 따로 둔다. 시작값은 눈대중 — ?real=1에서 보고 이 블록만 조정하면 된다.
+ */
+export const SPRITE = {
+  enemyWidth: {
+    swarm: 20,  // dust — 가장 작게
+    fast:  34,  // car
+    tank:  30,  // trash
+    boss:  56,  // 위압감이 나야 함 — 작아 보이면 여기부터 키운다
+  },
+  // towerWidth / supportWidth / obstacleWidth — 다음 턴에 여기 추가
+};
+
+/**
  * 건물 배치 — 절대 사수. 사거리 원과 오라 원은 색뿐 아니라 형태로도 구분한다
  * (TASKS_B.md P4 기준: "오라 반경 원과 사거리 원이 서로 헷갈리지 않음" — 색만 다르면
  * 겹쳤을 때·저대비 모니터·색약에서 무너진다):
