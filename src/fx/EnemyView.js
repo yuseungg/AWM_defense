@@ -98,17 +98,25 @@ export class EnemyView {
     this.freeList.push(token);
   }
 
-  /** 텍스처가 있으면 이미지로(가로세로비 유지한 목표 폭으로 스케일), 없으면 archetype별 도형으로 그린다 */
+  /**
+   * 텍스처가 있으면 이미지로(가로세로비 유지한 목표 폭으로 스케일), 없으면 archetype별 도형으로 그린다.
+   * 여기서 계산한 스케일은 token.baseScale에 저장만 하고 끝난다 — 실제 setScale은 renderToken()이
+   * 매 프레임 "baseScale × 그 순간의 애니메이션 배율"로 계산해서 건다(TowerView.js의 entry.baseScale과
+   * 동일 패턴). 예전엔 여기서 setScale을 걸어도 renderToken()이 다음 줄에서 곧바로 scale=1로
+   * 덮어써서 원본 텍스처 크기 그대로 노출되는 버그가 있었다 — draw()는 "크기를 정하기"만 하고
+   * "화면에 적용하기"는 renderToken() 하나만 한다는 원칙을 지켜야 이 버그가 재발하지 않는다.
+   */
   draw(token) {
     const key = ASSET_KEY(token.type);
     if (this.scene.textures.exists(key)) {
       token.gfx.setVisible(false);
       token.sprite.setTexture(key).setVisible(true);
-      fitSpriteWidth(token.sprite, SPRITE.enemyWidth[token.archetype] ?? SPRITE.enemyWidth.swarm);
+      token.baseScale = fitSpriteWidth(token.sprite, SPRITE.enemyWidth[token.archetype] ?? SPRITE.enemyWidth.swarm);
       return;
     }
     token.sprite.setVisible(false);
     token.gfx.clear().setVisible(true);
+    token.baseScale = 1; // 도형 폴백은 좌표 자체가 목표 크기로 그려져서 추가 스케일이 필요 없다(기존 동작 그대로)
 
     const def = enemiesData[token.type];
     const color = VIEW.enemyColors[token.type] ?? 0xffffff;
@@ -195,7 +203,7 @@ export class EnemyView {
     const baseX = frozen ? token.frozenX : token.logicX;
     const baseY = frozen ? token.frozenY : token.logicY;
 
-    let offX = 0, offY = 0, rotation = token.heading, scale = 1;
+    let offX = 0, offY = 0, rotation = token.heading, scale = token.baseScale ?? 1;
 
     switch (token.archetype) {
       case 'swarm':
@@ -227,11 +235,13 @@ export class EnemyView {
       offY += -Math.sin(token.heading) * dist;
     }
 
-    // 스케일 펀치 — hitStart 기준(히트스톱 동안에도 같이 재생돼서 "맞았다"는 느낌이 즉시 온다)
+    // 스케일 펀치 — hitStart 기준(히트스톱 동안에도 같이 재생돼서 "맞았다"는 느낌이 즉시 온다).
+    // baseScale에 곱해서 얹는다(TowerView.js의 tickRecoil과 동일 방식) — 아니면 펀치 순간
+    // 스케일이 1(원본 텍스처 크기)로 튀어버린다.
     const punchElapsed = now - token.hitStart;
     if (punchElapsed >= 0 && punchElapsed < ANIM.scalePunchMs) {
       const p = punchElapsed / ANIM.scalePunchMs;
-      scale = 1 + ANIM.scalePunchAmt * token.hitStrength * Math.sin(p * Math.PI);
+      scale = (token.baseScale ?? 1) * (1 + ANIM.scalePunchAmt * token.hitStrength * Math.sin(p * Math.PI));
     }
 
     const rx = baseX + offX, ry = baseY + offY;
