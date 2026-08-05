@@ -23,6 +23,15 @@
  * 에셋이 없는 지금은 실루엣 도형 플레이스홀더를 쓴다(docs/ASSET_GUIDE.md와 동일한
  * 실루엣 규칙 — 윤곽만으로 식별 가능해야 한다는 원칙을 코드에도 그대로 반영).
  *
+ * ── 표시 크기 · 앵커 (렌더 전용 — 격자·판정·좌표는 절대 안 건드림) ─────────
+ * 배치 판정(GridSystem)은 타워·서포터를 2×2 footprint로 점유하지만, 화면에 그리는 크기는
+ * 그 절반도 안 되는 셀(40px) 하나 기준으로 맞춘다(`VIEW.towerFitRatio` 등) — footprint를
+ * 꽉 채우면 인접 건물끼리 변이 붙어 버린다. 텍스처는 원본 픽셀 크기가 제각각이라 고정
+ * 배율 대신 `fit / max(tex.width, tex.height)`로 매번 계산한다(긴 변 기준 — 비율 유지).
+ * 앵커는 중앙이 아니라 셀 하단(스프라이트 `setOrigin(0.5,1)` / 실루엣은 `translateCanvas`로
+ * 동일 효과)이라 "바닥이 셀에 놓인" 것처럼 보인다. depth는 y값 그대로 써서 아래쪽(가까운)
+ * 건물이 위쪽 건물 위로 그려지게 한다 — 항상 경로 띠·격자보다는 위, HUD보다는 아래.
+ *
  * ── 발사 반동(recoil) ──────────────────────────────────────────────
  * `towerFired` 이벤트(SYNC.md §3 C8)로 발사 순간을 직접 받는다 — payload의 x/y/targetX/targetY로
  * 반동 방향(조준 방향의 반대)을 즉시 계산하고 recoilStart를 찍으면, tickRecoil()은 매 프레임
@@ -34,7 +43,7 @@
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
 import { VIEW, EASE, ANIM } from '../ui/UITheme.js';
-import { FOOTPRINT } from '../game/GridSystem.js';
+import { CELL } from '../ui/mapView.js';
 import towersData from '../../data/towers.json';
 import supportsData from '../../data/supports.json';
 import obstaclesData from '../../data/obstacles.json';
@@ -129,18 +138,29 @@ export class TowerView {
     const def = DATA_BY_KIND[kind]?.[id];
     if (!def) return;
 
+    const { ax, ay } = this.anchorPosition(x, y);
     const gfx = this.scene.add.graphics();
-    const sprite = this.scene.add.image(x, y, '__DEFAULT').setVisible(false);
-    gfx.setPosition(x, y);
+    const sprite = this.scene.add.image(ax, ay, '__DEFAULT').setVisible(false);
+    gfx.setPosition(ax, ay);
 
     const entry = {
       gfx, sprite, kind, objId: id,
-      baseX: x, baseY: y, baseScale: 1, squashing: false, dragging: false,
+      baseX: ax, baseY: ay, baseScale: 1, squashing: false, dragging: false,
       dirX: 1, dirY: 0, recoilStart: -Infinity,
     };
     this.byInstance.set(instanceId, entry);
     this.redraw(entry, 0);
     this.playBuildSquash(entry);
+
+    // 아래쪽(y가 큰) 건물이 위쪽 건물보다 앞에 그려지게 — 경로 띠·격자(depth 0대)보다는 항상 위,
+    // HUD·카드류(depth 40+)보다는 항상 아래로 유지되도록 맵 높이 안쪽 값만 쓴다(y 자체가 그 범위).
+    gfx.setDepth(ay);
+    sprite.setDepth(ay);
+  }
+
+  /** 셀 하단 앵커 픽셀 — payload의 x,y(footprint 중심)를 셀(40px) 하나 기준 바닥 라인으로 내린다. */
+  anchorPosition(x, y) {
+    return { ax: x, ay: y + CELL / 2 + VIEW.towerAnchorY };
   }
 
   // ────────────────────────────────────────── 드래그 재배치 (UpgradeUI가 호출)
@@ -209,16 +229,20 @@ export class TowerView {
     const state = this.core.getState();
     const obj = [...state.towers, ...state.supports].find(o => o.instanceId === instanceId);
     if (!obj) return;
-    entry.baseX = obj.x;
-    entry.baseY = obj.y;
-    entry.gfx.setPosition(obj.x, obj.y);
-    entry.sprite.setPosition(obj.x, obj.y);
+    const { ax, ay } = this.anchorPosition(obj.x, obj.y);
+    entry.baseX = ax;
+    entry.baseY = ay;
+    entry.gfx.setPosition(ax, ay).setDepth(ay);
+    entry.sprite.setPosition(ax, ay).setDepth(ay);
   }
 
   /**
    * 텍스처가 있으면 이미지로, 없으면(지금 기본) 실루엣 도형으로 그린다.
    * 타워는 towers.json의 levels[].tint/scale을 그대로 쓴다. 서포터/장애물은 데이터에 그
    * 필드가 없어서(§4) VIEW.objectColor 고정색 + 레벨당 완만한 확대(1 + level*0.15)로 대신한다.
+   *
+   * 표시 크기는 항상 셀(40px) 하나 기준(`VIEW.*FitRatio`)이다 — 배치 footprint(타워·서포터
+   * 2×2)와는 별개라, footprint를 다 채워서 옆 칸·경로를 침범하는 일이 없다(파일 상단 주석 참고).
    */
   redraw(entry, level) {
     const { kind, objId } = entry;
@@ -235,31 +259,50 @@ export class TowerView {
       scale = 1 + level * 0.15;
       color = VIEW.objectColor[objId] ?? VIEW.towerStrokeColor;
     }
-    // VIEW.towerSize/supportSize는 1칸(40px) 기준으로 튜닝된 값 — 2×2 블록을 채우도록 FOOTPRINT만큼 키운다.
-    // 장애물은 FOOTPRINT.obstacle이 1이라 곱해도 기존과 동일(×1).
-    const baseSize = kind === 'tower' ? VIEW.towerSize : kind === 'support' ? VIEW.supportSize : VIEW.obstacleSize;
-    const size = baseSize * (FOOTPRINT[kind] ?? 1);
 
-    entry.baseScale = scale; // 발사 반동의 스케일 펀치가 여기 곱해진다(tickRecoil)
+    const fitRatio = kind === 'tower' ? VIEW.towerFitRatio
+      : kind === 'support' ? VIEW.supportFitRatio
+      : VIEW.obstacleFitRatio;
+    const fit = CELL * fitRatio; // 셀의 fitRatio%만큼만 채운다 — 나머지가 개별 건물로 읽히는 여백
 
     const key = ASSET_KEY(kind, objId);
     if (this.scene.textures.exists(key)) {
-      entry.gfx.setVisible(false);
-      entry.sprite.setTexture(key).setVisible(true).setScale(scale);
+      // 텍스처 원본 픽셀 크기가 제각각이라 고정 배율 대신 실제 크기 기준으로 fit에 맞춘다
+      // (긴 변 기준 축소 — 비율 유지). scale(레벨 성장)은 그 위에 곱하는 미세 확대일 뿐이다.
+      const tex = this.scene.textures.get(key).getSourceImage();
+      const fitScale = fit / (Math.max(tex.width, tex.height) || 1);
+      entry.baseScale = fitScale * scale; // 발사 반동의 스케일 펀치가 여기 곱해진다(tickRecoil)
+      // 안 보이는 gfx라도 scale은 맞춰둔다 — playBuildSquash()가 entry.gfx.scaleX/Y를 "쿵" 튠의
+      // 목표값으로 읽어서 sprite에도 같이 적용하기 때문에(둘이 어긋나면 실제로 안 그리는 쪽 스케일이
+      // 튄다), 두 오브젝트의 scale이 항상 같은 값을 가리키게 유지한다.
+      entry.gfx.setVisible(false).setScale(entry.baseScale);
+      // setOrigin(0.5,1) = 셀 하단 중앙 앵커 — entry.baseY(anchorPosition이 이미 셀 하단으로
+      // 내려둔 값)에 스프라이트의 "발"이 정확히 오게 한다(중앙 정렬이면 위가 붕 뜨고 아래가 경로를 덮는다).
+      entry.sprite.setTexture(key).setVisible(true).setOrigin(0.5, 1).setScale(entry.baseScale);
       return;
     }
 
+    entry.baseScale = scale; // 발사 반동의 스케일 펀치가 여기 곱해진다(tickRecoil)
     entry.sprite.setVisible(false);
     entry.gfx.clear().setVisible(true).setScale(scale);
 
+    // Graphics엔 origin이 없어서, 그리기 전에 로컬 좌표를 절반만큼 밀어(translateCanvas) 스프라이트의
+    // setOrigin(0.5,1)과 같은 효과를 낸다 — 모든 실루엣이 원점(0,0) 중심으로 그려지므로(§상단 SILHOUETTES
+    // 규칙) fit/2만큼 올려 그리면 로컬 최하단(y=+fit/2)이 정확히 entry.baseY(셀 하단)에 온다.
+    // save/restore로 감싸 이 이동이 다음 프레임 redraw에 누적되지 않게 한다.
+    entry.gfx.save();
+    entry.gfx.translateCanvas(0, -fit / 2);
+
     // 실루엣 밑에 얇은 기준 원 하나 — 어떤 모양이든 "여기 서 있다"는 발판 표시가 통일되게
     entry.gfx.lineStyle(1, VIEW.towerStrokeColor, VIEW.towerStrokeAlpha);
-    entry.gfx.strokeCircle(0, 0, size * 0.55);
+    entry.gfx.strokeCircle(0, 0, fit * 0.55);
 
     entry.gfx.fillStyle(color, 1);
     const draw = SILHOUETTES[objId];
-    if (draw) draw(entry.gfx, size);
-    else entry.gfx.fillRect(-size / 2, -size / 2, size, size);
+    if (draw) draw(entry.gfx, fit);
+    else entry.gfx.fillRect(-fit / 2, -fit / 2, fit, fit);
+
+    entry.gfx.restore();
   }
 
   // ────────────────────────────────────────── 발사 반동 (§ 상단 주석 참고)

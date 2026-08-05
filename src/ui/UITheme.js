@@ -327,14 +327,17 @@ export const VIEW = {
   },
 
   // 타워 — towers.json id별 색(levels[].tint) 구분. 사거리와 무관하게 셀(40px) 안에 들어와야 함
-  towerSize:        28,   // 셀 40px 안에 여백을 두고 들어오는 크기. ↑ 올리면 셀을 거의 꽉 채운다
+  // TowerView.redraw()가 CELL(40px) × 이 비율로 표시 크기를 계산한다(배치 footprint(2×2)와는
+  // 별개 — footprint를 다 채우면 옆 칸·경로까지 넘친다, HANDOFF.md §3 참고).
+  towerFitRatio:  0.82,  // ↑ 올리면 타워가 커진다(1.0이면 셀에 꽉 참 = 인접 타워와 변이 붙음)
+  towerAnchorY:   0,     // 셀 하단 앵커 미세조정(px). ↓ 내리면 타워가 위로 올라간다
   towerStrokeColor: 0xf2f4f8,
   towerStrokeAlpha: 0.6,
 
   // 서포터/장애물 — supports.json/obstacles.json엔 타워와 달리 색 필드(tint)가 없어서
   // docs/ASSET_GUIDE.md §6에서 B가 새로 배정한 색을 그대로 가져와 코드-문서 값을 일치시킨다.
-  supportSize:   26,
-  obstacleSize:  18,   // 경로 위 마커라 타워보다 작게 — 경로 자체를 가리지 않아야 함
+  supportFitRatio:   0.82,
+  obstacleFitRatio:  0.7,   // 경로 위 마커라 타워보다 작게 — 경로 자체를 가리지 않아야 함
   objectColor: {
     sewoon:       0x8c7ae6,
     cityHall:     0x5b7c99,
