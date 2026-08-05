@@ -20,8 +20,20 @@
  * 이 엔트리의 gfx/sprite 위치를 커서에 맞춰 옮긴다 — `tickRecoil()`은 `entry.dragging`이 켜진
  * 동안 그 엔트리를 건드리지 않는다(발사 반동과 드래그가 같은 위치값을 두고 싸우는 걸 막는다).
  *
- * 에셋이 없는 지금은 실루엣 도형 플레이스홀더를 쓴다(docs/ASSET_GUIDE.md와 동일한
- * 실루엣 규칙 — 윤곽만으로 식별 가능해야 한다는 원칙을 코드에도 그대로 반영).
+ * 텍스처가 있으면(assets/towers|supports|obstacles/*.png) 이미지로, 없으면 실루엣 도형
+ * 플레이스홀더를 쓴다(docs/ASSET_GUIDE.md와 동일한 실루엣 규칙 — 윤곽만으로 식별 가능해야
+ * 한다는 원칙을 코드에도 그대로 반영). `scene.textures.exists()`로 매번 확인하므로 PNG를
+ * 넣거나 빼는 것만으로 코드 변경 없이 반영된다(§6 자동 교체 파이프라인).
+ *
+ * ── 표시 크기 · 앵커 (렌더 전용 — 격자·판정·좌표는 절대 안 건드림) ─────────
+ * 배치 판정(GridSystem)은 타워·서포터를 2×2 footprint로 점유하지만, 화면에 그리는 크기는
+ * 그 절반도 안 되는 셀(40px) 하나 기준으로 맞춘다(`SPRITE.towerWidth` 등 = `GridSystem.cell ×
+ * VIEW.towerFitRatio`, UITheme.js) — footprint를 꽉 채우면 인접 건물끼리 변이 붙어 버린다.
+ * 텍스처는 `fitSpriteWidth`(SpriteScale.js)가 "가로세로비 유지한 목표 폭" 하나로 정규화한다
+ * (원본이 정사각형이 아니어도 억지로 채우지 않는다). 앵커는 중앙이 아니라 셀 하단(스프라이트는
+ * `fitSpriteWidth`의 origin(0.5,1) / 실루엣은 `translateCanvas`로 동일 효과)이라 "바닥이 셀에
+ * 놓인" 것처럼 보인다. depth는 y값 그대로 써서 아래쪽(가까운) 건물이 위쪽 건물 위로 그려지게
+ * 한다 — 항상 경로 띠·격자보다는 위, HUD보다는 아래.
  *
  * ── 발사 반동(recoil) ──────────────────────────────────────────────
  * `towerFired` 이벤트(SYNC.md §3 C8)로 발사 순간을 직접 받는다 — payload의 x/y/targetX/targetY로
@@ -34,7 +46,7 @@
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
 import { VIEW, EASE, ANIM, SPRITE } from '../ui/UITheme.js';
-import { FOOTPRINT } from '../game/GridSystem.js';
+import GridSystem from '../game/GridSystem.js';
 import { fitSpriteWidth } from './SpriteScale.js';
 import towersData from '../../data/towers.json';
 import supportsData from '../../data/supports.json';
@@ -42,8 +54,8 @@ import obstaclesData from '../../data/obstacles.json';
 
 const DATA_BY_KIND = { tower: towersData, support: supportsData, obstacle: obstaclesData };
 const ASSET_KEY = (kind, id) => `${kind}_${id}`;
-// kind → UITheme.SPRITE의 목표 폭 키. 3종 다 FOOTPRINT에서 도출된 값이라 하나의 매핑으로 충분하다
-// (예전엔 kind === 'tower' 하드코딩이라 서포터·장애물엔 폭 정규화가 아예 안 걸렸다).
+// kind → UITheme.SPRITE의 목표 폭 키. 3종 다 GridSystem.cell × VIEW의 fitRatio에서 도출된
+// 값이라(배치 footprint와는 무관) 하나의 매핑으로 충분하다.
 const SPRITE_WIDTH_KEY = { tower: 'towerWidth', support: 'supportWidth', obstacle: 'obstacleWidth' };
 
 /** 랜드마크별 실루엣 — 전부 원점(0,0) 기준으로 그린다. docs/ASSET_GUIDE.md 실루엣 규칙과 1:1 대응 */
@@ -145,18 +157,29 @@ export class TowerView {
     const def = DATA_BY_KIND[kind]?.[id];
     if (!def) return;
 
+    const { ax, ay } = this.anchorPosition(x, y);
     const gfx = this.scene.add.graphics();
-    const sprite = this.scene.add.image(x, y, '__DEFAULT').setVisible(false);
-    gfx.setPosition(x, y);
+    const sprite = this.scene.add.image(ax, ay, '__DEFAULT').setVisible(false);
+    gfx.setPosition(ax, ay);
 
     const entry = {
       gfx, sprite, kind, objId: id,
-      baseX: x, baseY: y, baseScale: 1, squashing: false, dragging: false,
+      baseX: ax, baseY: ay, baseScale: 1, squashing: false, dragging: false,
       dirX: 1, dirY: 0, recoilStart: -Infinity,
     };
     this.byInstance.set(instanceId, entry);
     this.redraw(entry, 0);
     this.playBuildSquash(entry);
+
+    // 아래쪽(y가 큰) 건물이 위쪽 건물보다 앞에 그려지게 — 경로 띠·격자(depth 0대)보다는 항상 위,
+    // HUD·카드류(depth 40+)보다는 항상 아래로 유지되도록 맵 높이 안쪽 값만 쓴다(y 자체가 그 범위).
+    gfx.setDepth(ay);
+    sprite.setDepth(ay);
+  }
+
+  /** 셀 하단 앵커 픽셀 — payload의 x,y(footprint 중심)를 셀(40px) 하나 기준 바닥 라인으로 내린다. */
+  anchorPosition(x, y) {
+    return { ax: x, ay: y + GridSystem.cell / 2 + VIEW.towerAnchorY };
   }
 
   // ────────────────────────────────────────── 드래그 재배치 (UpgradeUI가 호출)
@@ -230,16 +253,20 @@ export class TowerView {
     const state = this.core.getState();
     const obj = [...state.towers, ...state.supports].find(o => o.instanceId === instanceId);
     if (!obj) return;
-    entry.baseX = obj.x;
-    entry.baseY = obj.y;
-    entry.gfx.setPosition(obj.x, obj.y);
-    entry.sprite.setPosition(obj.x, obj.y);
+    const { ax, ay } = this.anchorPosition(obj.x, obj.y);
+    entry.baseX = ax;
+    entry.baseY = ay;
+    entry.gfx.setPosition(ax, ay).setDepth(ay);
+    entry.sprite.setPosition(ax, ay).setDepth(ay);
   }
 
   /**
-   * 텍스처가 있으면 이미지로, 없으면(지금 기본) 실루엣 도형으로 그린다.
+   * 텍스처가 있으면 이미지로, 없으면 실루엣 도형으로 그린다.
    * 타워는 towers.json의 levels[].tint/scale을 그대로 쓴다. 서포터/장애물은 데이터에 그
    * 필드가 없어서(§4) VIEW.objectColor 고정색 + 레벨당 완만한 확대(1 + level*0.15)로 대신한다.
+   *
+   * 표시 크기는 항상 셀(40px) 하나 기준(`SPRITE.*Width`)이다 — 배치 footprint(타워·서포터
+   * 2×2)와는 별개라, footprint를 다 채워서 옆 칸·경로를 침범하는 일이 없다(파일 상단 주석 참고).
    */
   redraw(entry, level) {
     const { kind, objId } = entry;
@@ -256,12 +283,8 @@ export class TowerView {
       scale = 1 + level * 0.15;
       color = VIEW.objectColor[objId] ?? VIEW.towerStrokeColor;
     }
-    // VIEW.towerSize/supportSize는 1칸(40px) 기준으로 튜닝된 값 — 2×2 블록을 채우도록 FOOTPRINT만큼 키운다.
-    // 장애물은 FOOTPRINT.obstacle이 1이라 곱해도 기존과 동일(×1).
-    const baseSize = kind === 'tower' ? VIEW.towerSize : kind === 'support' ? VIEW.supportSize : VIEW.obstacleSize;
-    const size = baseSize * (FOOTPRINT[kind] ?? 1);
 
-    entry.baseScale = scale; // 발사 반동의 스케일 펀치가 여기 곱해진다(tickRecoil) — 텍스처면 아래서 폭 정규화까지 곱해 덮어쓴다
+    const fit = SPRITE[SPRITE_WIDTH_KEY[kind]]; // 셀(40px) 하나 기준 목표 폭(위 docstring 참고)
 
     // 타워는 레벨별 이미지가 있을 수 있다(지금은 nseoulTower만 실제로 있음, 나머지는 자동 폴백).
     // tower_<id>_<level+1>을 먼저 찾고 없으면 tower_<id>. level은 0-index(Tower.js this.level을
@@ -272,29 +295,41 @@ export class TowerView {
     const key = (leveledKey && this.scene.textures.exists(leveledKey)) ? leveledKey : ASSET_KEY(kind, objId);
 
     if (this.scene.textures.exists(key)) {
-      entry.gfx.setVisible(false);
       entry.sprite.setTexture(key).setVisible(true);
-      // 목표 폭(FOOTPRINT 유래) 정규화 × 레벨 배율을 곱해서 entry.baseScale 하나로 합친다 —
-      // tickRecoil()·playBuildSquash()가 전부 이 값만 읽으므로(§B 함정 수정) 여기서만 정확히
-      // 계산해두면 나머지는 자동으로 옳다. kind → SPRITE 목표 폭 키 매핑 하나로 3종 다 처리
-      // (예전엔 kind === 'tower' 하드코딩이라 서포터·장애물엔 이 줄 자체가 안 탔다).
-      const widthKey = SPRITE_WIDTH_KEY[kind];
-      if (widthKey) entry.baseScale = fitSpriteWidth(entry.sprite, SPRITE[widthKey]) * scale;
+      // fitSpriteWidth(SpriteScale.js)에 origin (0.5,1)을 넘겨 "가로세로비 유지한 목표 폭
+      // 정규화"와 "셀 하단 중앙 앵커"를 한 번에 처리한다 — entry.baseY(anchorPosition이 이미
+      // 셀 하단으로 내려둔 값)에 스프라이트의 "발"이 정확히 오게 된다(중앙 정렬이면 위가 붕
+      // 뜨고 아래가 경로를 덮는다). 반환된 fitScale에 레벨 배율(scale)을 곱해 entry.baseScale
+      // 하나로 합친다 — tickRecoil()·playBuildSquash()가 전부 이 값만 읽는다.
+      const fitScale = fitSpriteWidth(entry.sprite, fit, 0.5, 1);
+      entry.baseScale = fitScale * scale;
       entry.sprite.setScale(entry.baseScale);
+      // 안 보이는 gfx라도 scale은 맞춰둔다 — 실제로 안 그리는 쪽에 잔여 스케일이 남지 않게 한다.
+      entry.gfx.setVisible(false).setScale(entry.baseScale);
       return;
     }
 
+    entry.baseScale = scale; // 발사 반동의 스케일 펀치가 여기 곱해진다(tickRecoil)
     entry.sprite.setVisible(false);
     entry.gfx.clear().setVisible(true).setScale(scale);
 
+    // Graphics엔 origin이 없어서, 그리기 전에 로컬 좌표를 절반만큼 밀어(translateCanvas) 스프라이트의
+    // setOrigin(0.5,1)과 같은 효과를 낸다 — 모든 실루엣이 원점(0,0) 중심으로 그려지므로(§상단 SILHOUETTES
+    // 규칙) fit/2만큼 올려 그리면 로컬 최하단(y=+fit/2)이 정확히 entry.baseY(셀 하단)에 온다.
+    // save/restore로 감싸 이 이동이 다음 프레임 redraw에 누적되지 않게 한다.
+    entry.gfx.save();
+    entry.gfx.translateCanvas(0, -fit / 2);
+
     // 실루엣 밑에 얇은 기준 원 하나 — 어떤 모양이든 "여기 서 있다"는 발판 표시가 통일되게
     entry.gfx.lineStyle(1, VIEW.towerStrokeColor, VIEW.towerStrokeAlpha);
-    entry.gfx.strokeCircle(0, 0, size * 0.55);
+    entry.gfx.strokeCircle(0, 0, fit * 0.55);
 
     entry.gfx.fillStyle(color, 1);
     const draw = SILHOUETTES[objId];
-    if (draw) draw(entry.gfx, size);
-    else entry.gfx.fillRect(-size / 2, -size / 2, size, size);
+    if (draw) draw(entry.gfx, fit);
+    else entry.gfx.fillRect(-fit / 2, -fit / 2, fit, fit);
+
+    entry.gfx.restore();
   }
 
   // ────────────────────────────────────────── 발사 반동 (§ 상단 주석 참고)
