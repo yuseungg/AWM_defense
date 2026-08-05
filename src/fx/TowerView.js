@@ -123,6 +123,18 @@ export class TowerView {
     this.onUpdate = (time) => this.tickRecoil(time);
     scene.events.on(Phaser.Scenes.Events.UPDATE, this.onUpdate, this);
 
+    // GameCore.ensureNSeoulTower가 objectBuilt를 발행하지 않아 여기서 getState로 보정.
+    // 로직 쪽에서 이벤트 발행 시 이 블록 제거 가능. (N서울타워는 buildTower()를 안 거치고
+    // 모듈 로드 시 WaveManager에 직접 추가되는 상시 지형물이라, create()의 유일한 트리거인
+    // objectBuilt를 영원히 못 받는다 — 씬 진입 시 1회 조회는 D18이 허용하는 예외와 동일 패턴.)
+    const nst = core.getState().towers.find(t => t.id === 'nseoulTower');
+    if (nst) {
+      this.create({ kind: 'tower', id: 'nseoulTower', instanceId: nst.instanceId, x: nst.x, y: nst.y });
+      // create()는 항상 level 0으로 그린다(정상 objectBuilt 경로는 그 순간이 실제로 항상 Lv1이라
+      // 맞는 가정이지만, 여기 보정 경로는 씬이 나중에 만들어질 수도 있어 이미 강화된 상태일 수 있다).
+      if (nst.level > 0) this.applyLevel(nst.instanceId, nst.level);
+    }
+
     scene.events.once('shutdown', () => this.destroy());
   }
 

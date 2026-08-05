@@ -18,9 +18,11 @@
  *   걸로 오판해 항상 실패한다. GameCore.canRelocate/relocate는 GridSystem.canPlace에
  *   excludeInstanceId를 넘겨 이 오판을 막는다(GameCore.js 참고).
  *
- * ★ N서울타워는 드래그 대상에서 제외한다(`hitTest`) — map.json 고정 좌표의 상시 지형물이라
- *   `buildTower()`를 안 거치고 자동 배치돼서 TowerView에 그려진 실체(고스트로 옮길 스프라이트)가
- *   없다. 옮기면 좌표만 바뀌고 SeoulTowerLight가 그리는 조명 원은 원래 자리에 그대로 남는다.
+ * ★ N서울타워는 클릭(패널 열기)은 되지만 드래그(재배치)는 handlePointerMove에서 id로 막는다
+ *   — map.json 고정 좌표의 상시 지형물이라 옮기면 좌표만 바뀌고 SeoulTowerLight가 그리는 조명
+ *   원은 원래 자리에 그대로 남아 어긋난다. hitTest 자체는 이제 N서울타워도 후보에 포함한다
+ *   (TowerView가 씬 진입 시 getState로 보정 생성해줘서 드래그할 실체 자체는 생겼다 — 다만
+ *   "생겼다고 옮겨도 되는 건 아니다"라 승격만 별도로 막는다).
  *
  * ★ ESC 우선순위: DraftOverlay가 열려 있으면(this.scene.draft.current) 이 컴포넌트는 ESC에
  *   반응하지 않는다 — 드래프트가 항상 우선이다(HANDOFF.md §5에 근거 기록). 드래그 중엔 ESC/우클릭이
@@ -135,7 +137,7 @@ export class UpgradeUI {
     const hit = this.hitTest(pointer.x, pointer.y);
     if (hit) {
       // 클릭(패널 열기)인지 드래그(재배치)인지는 여기서 정하지 않는다 — pointerup/pointermove가 가른다.
-      this.dragCandidate = { instanceId: hit.instanceId, kind: hit.kind, downX: pointer.x, downY: pointer.y };
+      this.dragCandidate = { instanceId: hit.instanceId, kind: hit.kind, id: hit.id, downX: pointer.x, downY: pointer.y };
       return;
     }
 
@@ -147,7 +149,9 @@ export class UpgradeUI {
 
     if (this.dragCandidate) {
       const d = Math.hypot(pointer.x - this.dragCandidate.downX, pointer.y - this.dragCandidate.downY);
-      if (d > DRAG_THRESHOLD) this.beginDrag();
+      // N서울타워는 아무리 끌어도 드래그로 승격하지 않는다 — pointerup 시 자연히 "클릭"으로
+      // 처리돼 패널만 열린다(상시 지형물이라 옮기면 조명 위치와 어긋난다, § 상단 주석).
+      if (d > DRAG_THRESHOLD && this.dragCandidate.id !== 'nseoulTower') this.beginDrag();
     }
   }
 
@@ -236,12 +240,16 @@ export class UpgradeUI {
     setGridVisible(false);
   }
 
+  /**
+   * N서울타워도 이제 후보에 포함한다 — TowerView가 씬 진입 시 getState로 보정 생성해줘서
+   * 실체가 생겼다(TowerView.js 생성자 참고). 클릭(패널 열기)은 허용하되, 드래그 승격은
+   * handlePointerMove에서 id로 따로 막는다(§ 상단 주석 — 조명 위치와 어긋나는 문제 방지).
+   */
   hitTest(x, y) {
     const state = this.core.getState();
     const candidates = [
-      // N서울타워는 제외 — TowerView에 그려진 실체가 없어 드래그 대상이 될 수 없다(§ 상단 주석).
-      ...state.towers.filter(t => t.id !== 'nseoulTower').map(t => ({ instanceId: t.instanceId, kind: 'tower', x: t.x, y: t.y })),
-      ...state.supports.map(s => ({ instanceId: s.instanceId, kind: 'support', x: s.x, y: s.y })),
+      ...state.towers.map(t => ({ instanceId: t.instanceId, kind: 'tower', id: t.id, x: t.x, y: t.y })),
+      ...state.supports.map(s => ({ instanceId: s.instanceId, kind: 'support', id: s.id, x: s.x, y: s.y })),
     ];
     return candidates.find(c => Math.hypot(c.x - x, c.y - y) <= HIT_RADIUS) ?? null;
   }
@@ -340,7 +348,7 @@ export class UpgradeUI {
     }
 
     // 재배치는 이제 버튼이 아니라 드래그다(맵 위 건물을 직접 잡아서 옮긴다, § 상단 주석) — 여기선
-    // 안내 한 줄만 보여준다. N서울타워는 hitTest()에서 애초에 드래그 대상 후보에서 빠진다.
+    // 안내 한 줄만 보여준다. N서울타워는 handlePointerMove에서 드래그 승격 자체를 막는다.
     if (obj.id !== 'nseoulTower') {
       addLine('맵 위 건물을 드래그하면 옮길 수 있습니다', UPGRADE.relocateHintColor, UPGRADE.statFontSize);
     }
