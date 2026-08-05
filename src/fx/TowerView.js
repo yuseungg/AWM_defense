@@ -26,9 +26,9 @@
  * 넣거나 빼는 것만으로 코드 변경 없이 반영된다(§6 자동 교체 파이프라인).
  *
  * ── 표시 크기 · 앵커 (렌더 전용 — 격자·판정·좌표는 절대 안 건드림) ─────────
- * 배치 판정(GridSystem)은 타워·서포터를 2×2 footprint로 점유하지만, 화면에 그리는 크기는
- * 그 절반도 안 되는 셀(40px) 하나 기준으로 맞춘다(`SPRITE.towerWidth` 등 = `GridSystem.cell ×
- * VIEW.towerFitRatio`, UITheme.js) — footprint를 꽉 채우면 인접 건물끼리 변이 붙어 버린다.
+ * 화면에 그리는 크기는 그 종류가 점유하는 footprint(타워·서포터 2×2, 장애물 1×1)의 일정
+ * 비율만 채운다(`SPRITE.towerWidth` 등 = `GridSystem.cell × FOOTPRINT[kind] × VIEW.towerFitRatio`,
+ * UITheme.js) — 비율 1.0(footprint 통째로)이면 인접 건물끼리 변이 붙고 옆 칸·경로까지 넘친다.
  * 텍스처는 `fitSpriteWidth`(SpriteScale.js)가 "가로세로비 유지한 목표 폭" 하나로 정규화한다
  * (원본이 정사각형이 아니어도 억지로 채우지 않는다). 앵커는 중앙이 아니라 셀 하단(스프라이트는
  * `fitSpriteWidth`의 origin(0.5,1) / 실루엣은 `translateCanvas`로 동일 효과)이라 "바닥이 셀에
@@ -54,8 +54,8 @@ import obstaclesData from '../../data/obstacles.json';
 
 const DATA_BY_KIND = { tower: towersData, support: supportsData, obstacle: obstaclesData };
 const ASSET_KEY = (kind, id) => `${kind}_${id}`;
-// kind → UITheme.SPRITE의 목표 폭 키. 3종 다 GridSystem.cell × VIEW의 fitRatio에서 도출된
-// 값이라(배치 footprint와는 무관) 하나의 매핑으로 충분하다.
+// kind → UITheme.SPRITE의 목표 폭 키. 3종 다 GridSystem.cell × FOOTPRINT[kind] × VIEW의
+// fitRatio에서 도출된 값이라 하나의 매핑으로 충분하다.
 const SPRITE_WIDTH_KEY = { tower: 'towerWidth', support: 'supportWidth', obstacle: 'obstacleWidth' };
 
 /** 랜드마크별 실루엣 — 전부 원점(0,0) 기준으로 그린다. docs/ASSET_GUIDE.md 실루엣 규칙과 1:1 대응 */
@@ -265,8 +265,8 @@ export class TowerView {
    * 타워는 towers.json의 levels[].tint/scale을 그대로 쓴다. 서포터/장애물은 데이터에 그
    * 필드가 없어서(§4) VIEW.objectColor 고정색 + 레벨당 완만한 확대(1 + level*0.15)로 대신한다.
    *
-   * 표시 크기는 항상 셀(40px) 하나 기준(`SPRITE.*Width`)이다 — 배치 footprint(타워·서포터
-   * 2×2)와는 별개라, footprint를 다 채워서 옆 칸·경로를 침범하는 일이 없다(파일 상단 주석 참고).
+   * 표시 크기는 footprint의 일정 비율(`SPRITE.*Width`, 파일 상단 주석 참고)이다 — 비율이
+   * 1.0에 가까울수록 footprint를 다 채워 옆 칸·경로를 침범하니 여유를 둔다.
    */
   redraw(entry, level) {
     const { kind, objId } = entry;
@@ -284,7 +284,7 @@ export class TowerView {
       color = VIEW.objectColor[objId] ?? VIEW.towerStrokeColor;
     }
 
-    const fit = SPRITE[SPRITE_WIDTH_KEY[kind]]; // 셀(40px) 하나 기준 목표 폭(위 docstring 참고)
+    const fit = SPRITE[SPRITE_WIDTH_KEY[kind]]; // footprint 비율 기준 목표 폭(위 docstring 참고)
 
     // 타워는 레벨별 이미지가 있을 수 있다(지금은 nseoulTower만 실제로 있음, 나머지는 자동 폴백).
     // tower_<id>_<level+1>을 먼저 찾고 없으면 tower_<id>. level은 0-index(Tower.js this.level을

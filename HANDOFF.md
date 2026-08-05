@@ -223,7 +223,7 @@ CSS `'0.18em'` 같은 문자열을 그대로 넣으면 파싱이 깨져서 그 T
 | 이미 지은 유니크 타워 슬롯이 안 흐려 보인다 | `BUILD.builtAlpha` ↓ |
 | 적이 안 보인다/너무 작다 | `VIEW.swarmRadius`/`VIEW.fastSize`/`VIEW.tankSize`/`VIEW.bossRadius` ↑ |
 | 적 색이 구분 안 된다 | `VIEW.enemyColors` (타입별 hex) |
-| 타워·서포터·장애물이 셀을 벗어나거나 서로 겹친다 | `VIEW.towerFitRatio`/`VIEW.supportFitRatio`/`VIEW.obstacleFitRatio` ↓ (CELL(40px) 기준 비율. 배치 footprint와는 별개 — 1.0이면 셀에 꽉 차서 인접 건물과 변이 붙는다) |
+| 타워·서포터·장애물이 너무 작다/크다(옆 칸·경로를 침범하거나 겹친다) | `VIEW.towerFitRatio`/`VIEW.supportFitRatio`/`VIEW.obstacleFitRatio` (그 종류 footprint(타워·서포터 2×2, 장애물 1×1)를 채우는 비율. 1.0 = footprint 꽉 참 = 인접 건물과 변이 붙음) |
 | 타워가 위로 붕 떠 보이거나 아래가 경로를 덮는다 | `VIEW.towerAnchorY` (셀 하단 앵커 오프셋. ↓ 내리면 위로 올라간다) |
 | 타워 테두리가 안 보인다 | `VIEW.towerStrokeColor`, `VIEW.towerStrokeAlpha` ↑ |
 | 타이틀 글자가 작다/위치가 안 맞는다 | `TITLE.titleFontSize`/`titleY`, `TITLE.dateY`/`descY`/`bestY`/`buttonY`/`hintY` |

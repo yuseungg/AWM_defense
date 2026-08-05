@@ -10,7 +10,7 @@
  * UI 쪽을 전혀 import하지 않아 순환 참조가 안 생긴다. mapView.js는 반대로 UITheme.js를
  * 이미 참조하고 있어서(순환 위험) 여기서 CELL을 가져오는 건 피한다.
  */
-import GridSystem from '../game/GridSystem.js';
+import GridSystem, { FOOTPRINT } from '../game/GridSystem.js';
 
 export const COLOR = {
   bg:        0x11141a,   // 맵 배경 (배경 이미지가 없을 때의 폴백)
@@ -332,18 +332,19 @@ export const VIEW = {
     boss:  0x8e44ad,
   },
 
-  // 타워 — towers.json id별 색(levels[].tint) 구분. 사거리와 무관하게 셀(40px) 안에 들어와야 함
-  // TowerView.redraw()가 CELL(40px) × 이 비율로 표시 크기를 계산한다(배치 footprint(2×2)와는
-  // 별개 — footprint를 다 채우면 옆 칸·경로까지 넘친다, HANDOFF.md §3 참고).
-  towerFitRatio:  0.82,  // ↑ 올리면 타워가 커진다(1.0이면 셀에 꽉 참 = 인접 타워와 변이 붙음)
+  // 타워 — towers.json id별 색(levels[].tint) 구분. 표시 크기는 footprint(타워·서포터 2×2)의
+  // 이 비율만큼(SPRITE.towerWidth = GridSystem.cell × FOOTPRINT.tower × towerFitRatio, UITheme.js
+  // 하단 SPRITE 블록·HANDOFF.md §3 참고). 1.0(=예전 기본값)은 footprint를 꽉 채워 옆 칸·경로까지
+  // 침범했고, 0.41(cell 1개만 기준으로 삼았던 중간 시도)은 반대로 너무 작아 보였다 — 그 중간값.
+  towerFitRatio:  0.7,   // ↑ 올리면 타워가 커진다(1.0 = footprint 꽉 참 = 인접 타워와 변이 붙음)
   towerAnchorY:   0,     // 셀 하단 앵커 미세조정(px). ↓ 내리면 타워가 위로 올라간다
   towerStrokeColor: 0xf2f4f8,
   towerStrokeAlpha: 0.6,
 
   // 서포터/장애물 — supports.json/obstacles.json엔 타워와 달리 색 필드(tint)가 없어서
   // docs/ASSET_GUIDE.md §6에서 B가 새로 배정한 색을 그대로 가져와 코드-문서 값을 일치시킨다.
-  supportFitRatio:   0.82,
-  obstacleFitRatio:  0.7,   // 경로 위 마커라 타워보다 작게 — 경로 자체를 가리지 않아야 함
+  supportFitRatio:   0.7,   // 서포터도 2×2 footprint라 타워와 동일 비율
+  obstacleFitRatio:  0.7,   // 장애물은 footprint가 1×1이라 같은 비율이어도 결과는 훨씬 작다(경로 마커)
   objectColor: {
     sewoon:       0x8c7ae6,
     cityHall:     0x5b7c99,
@@ -367,13 +368,13 @@ export const SPRITE = {
     tank:  30,  // trash
     boss:  56,  // 위압감이 나야 함 — 작아 보이면 여기부터 키운다
   },
-  // ⚠️ FOOTPRINT(배치 점유 2×2/1×1)를 그대로 목표 폭으로 쓰면 안 된다 — 타워·서포터가 80px
-  // 통짜로 그려져서 옆 칸·경로까지 침범한다(footprint는 "얼마나 넓게 점유하는가"고, 표시 크기는
-  // "셀 하나 안에서 얼마나 채우는가"라 서로 다른 값이다). 그래서 GridSystem.cell(40) × VIEW의
-  // fitRatio로만 계산한다 — footprint는 전혀 관여하지 않는다.
-  towerWidth:    GridSystem.cell * VIEW.towerFitRatio,     // 40 × 0.82 ≈ 33
-  supportWidth:  GridSystem.cell * VIEW.supportFitRatio,   // 40 × 0.82 ≈ 33
-  obstacleWidth: GridSystem.cell * VIEW.obstacleFitRatio,  // 40 × 0.7  = 28 — 경로 마커라 더 작게
+  // 목표 폭 = 그 종류가 실제로 점유하는 footprint(GridSystem.cell × FOOTPRINT[kind]) × VIEW의
+  // fitRatio — footprint를 그대로(비율 1.0) 쓰면 타워·서포터가 80px 통짜로 그려져서 옆 칸·
+  // 경로까지 침범하고, footprint를 무시하고 cell 1개만 기준으로 삼으면(과거 시도) 반대로 너무
+  // 작아 보인다. 그래서 "그 건물이 차지하는 땅의 몇 %를 채우는가"로 표현한다.
+  towerWidth:    GridSystem.cell * FOOTPRINT.tower    * VIEW.towerFitRatio,    // 40×2×0.7 = 56
+  supportWidth:  GridSystem.cell * FOOTPRINT.support  * VIEW.supportFitRatio,  // 40×2×0.7 = 56
+  obstacleWidth: GridSystem.cell * FOOTPRINT.obstacle * VIEW.obstacleFitRatio, // 40×1×0.7 = 28
 };
 
 /**
