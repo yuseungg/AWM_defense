@@ -66,7 +66,13 @@ export class GameScene extends Phaser.Scene {
     // 배경 사진(낮/밤) — 없으면 loaderror만 나고 mapView.js가 COLOR.bg 단색으로 조용히 폴백한다.
     this.load.image('bg_day', 'bg/day.jpg');
     this.load.image('bg_night', 'bg/night.jpg');
-    Object.keys(towersData).forEach(id => this.load.image(`tower_${id}`, `towers/${id}.png`));
+    Object.keys(towersData).forEach(id => {
+      this.load.image(`tower_${id}`, `towers/${id}.png`);
+      // 레벨별 이미지(지금은 nseoulTower_1/_2/_3만 실제로 있음) — 나머지 5종×3단계는 404로
+      // 조용히 무시된다(위 loaderror 안전장치). TowerView.redraw()가 tower_<id>_<level+1>을
+      // 먼저 찾고 없으면 tower_<id>로 폴백한다.
+      [1, 2, 3].forEach(n => this.load.image(`tower_${id}_${n}`, `towers/${id}_${n}.png`));
+    });
     Object.keys(enemiesData).forEach(type => this.load.image(`enemy_${type}`, `enemies/${type}.png`));
     // 서포터/장애물은 아직 화면에 그리는 렌더러가 없다(§0 알려진 미완성) — 텍스처는 미리 로드해둬서
     // 나중에 렌더러가 생기면 preload() 수정 없이 바로 쓸 수 있게 한다.

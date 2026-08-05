@@ -33,8 +33,9 @@
 
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
-import { VIEW, EASE, ANIM } from '../ui/UITheme.js';
+import { VIEW, EASE, ANIM, SPRITE } from '../ui/UITheme.js';
 import { FOOTPRINT } from '../game/GridSystem.js';
+import { fitSpriteWidth } from './SpriteScale.js';
 import towersData from '../../data/towers.json';
 import supportsData from '../../data/supports.json';
 import obstaclesData from '../../data/obstacles.json';
@@ -178,15 +179,20 @@ export class TowerView {
    * 배치 "쿵" — redraw()가 세팅한 자연 스케일을 목표값으로 삼아 찌그러진 상태에서 튕겨 돌아온다.
    * 이 튠 도중엔 tickRecoil()이 매 프레임 scale을 건드리면 안 된다(둘 다 같은 scaleX/Y를
    * 놓고 싸우면 squash가 그대로 씹힌다) — entry.squashing으로 그 창을 표시해서 tickRecoil이 넘어가게 한다.
+   *
+   * 목표값은 entry.gfx.scaleX가 아니라 entry.baseScale에서 읽는다 — 텍스처 분기(redraw())는
+   * gfx.setScale()을 아예 안 부르고 return하기 때문에(도형을 안 그리니까), gfx.scaleX엔 실제
+   * 스프라이트 목표 스케일과 무관한 잔여값이 남아있다. baseScale은 두 분기 모두에서 항상
+   * 올바른 "지금 적용해야 할 스케일"을 담고 있는 유일한 소스다(tickRecoil()과 동일 원칙).
    */
   playBuildSquash(entry) {
-    const targetX = entry.gfx.scaleX, targetY = entry.gfx.scaleY;
+    const target = entry.baseScale;
     entry.squashing = true;
-    entry.gfx.setScale(targetX * 1.4, targetY * 0.4);
-    entry.sprite.setScale(targetX * 1.4, targetY * 0.4);
+    entry.gfx.setScale(target * 1.4, target * 0.4);
+    entry.sprite.setScale(target * 1.4, target * 0.4);
     this.scene.tweens.add({
       targets: [entry.gfx, entry.sprite],
-      scaleX: targetX, scaleY: targetY,
+      scaleX: target, scaleY: target,
       duration: VIEW.buildSquashMs, ease: EASE.pop,
       onComplete: () => { entry.squashing = false; },
     });
@@ -240,12 +246,26 @@ export class TowerView {
     const baseSize = kind === 'tower' ? VIEW.towerSize : kind === 'support' ? VIEW.supportSize : VIEW.obstacleSize;
     const size = baseSize * (FOOTPRINT[kind] ?? 1);
 
-    entry.baseScale = scale; // 발사 반동의 스케일 펀치가 여기 곱해진다(tickRecoil)
+    entry.baseScale = scale; // 발사 반동의 스케일 펀치가 여기 곱해진다(tickRecoil) — 텍스처 타워는 아래서 폭 정규화까지 곱해 덮어쓴다
 
-    const key = ASSET_KEY(kind, objId);
+    // 타워는 레벨별 이미지가 있을 수 있다(지금은 nseoulTower만 실제로 있음, 나머지 5종은 자동 폴백).
+    // tower_<id>_<level+1>을 먼저 찾고 없으면 tower_<id>. level은 0-index(Tower.js this.level을
+    // GameCore.js가 그대로 emit — 확인 완료: Lv1=0/Lv2=1/Lv3=2)라 파일명(_1/_2/_3, 1-index)과
+    // 맞추려면 +1이 필요하다.
+    const leveledKey = kind === 'tower' ? `${ASSET_KEY(kind, objId)}_${level + 1}` : null;
+    const key = (leveledKey && this.scene.textures.exists(leveledKey)) ? leveledKey : ASSET_KEY(kind, objId);
+
     if (this.scene.textures.exists(key)) {
       entry.gfx.setVisible(false);
-      entry.sprite.setTexture(key).setVisible(true).setScale(scale);
+      entry.sprite.setTexture(key).setVisible(true);
+      if (kind === 'tower') {
+        // 목표 폭(FOOTPRINT 유래 80px) 정규화 × 레벨 배율을 곱해서 entry.baseScale 하나로
+        // 합친다 — tickRecoil()·playBuildSquash()가 전부 이 값만 읽으므로(§B 함정 수정) 여기서만
+        // 정확히 계산해두면 나머지는 자동으로 옳다. 서포터/장애물은 아직 폭 정규화 대상 밖(다음 턴)
+        // 이라 위에서 이미 넣어둔 scale(레벨 배율만)을 그대로 쓴다.
+        entry.baseScale = fitSpriteWidth(entry.sprite, SPRITE.towerWidth) * scale;
+      }
+      entry.sprite.setScale(entry.baseScale);
       return;
     }
 

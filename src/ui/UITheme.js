@@ -5,7 +5,12 @@
  *    로직 파일(SeoulTowerLight / DamageNumber / DraftOverlay)은 건드리지 않는다.
  *
  * 증상 → 고칠 상수 매핑은 HANDOFF.md 참조.
+ *
+ * GridSystem.js를 import하는 이유(SPRITE.towerWidth) — GridSystem.js는 map.json만 참조하고
+ * UI 쪽을 전혀 import하지 않아 순환 참조가 안 생긴다. mapView.js는 반대로 UITheme.js를
+ * 이미 참조하고 있어서(순환 위험) 여기서 CELL을 가져오는 건 피한다.
  */
+import GridSystem, { FOOTPRINT } from '../game/GridSystem.js';
 
 export const COLOR = {
   bg:        0x11141a,   // 맵 배경 (배경 이미지가 없을 때의 폴백)
@@ -358,7 +363,10 @@ export const SPRITE = {
     tank:  30,  // trash
     boss:  56,  // 위압감이 나야 함 — 작아 보이면 여기부터 키운다
   },
-  // towerWidth / supportWidth / obstacleWidth — 다음 턴에 여기 추가
+  // 타워는 전부 FOOTPRINT.tower(2×2) 슬롯이라 종류별로 다르게 줄 이유가 없다 — 80(=2×40).
+  // 매직넘버 대신 FOOTPRINT·GridSystem.cell에서 도출.
+  towerWidth: FOOTPRINT.tower * GridSystem.cell,
+  // supportWidth / obstacleWidth — 다음 턴에 여기 추가
 };
 
 /**
