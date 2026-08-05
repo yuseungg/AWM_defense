@@ -363,10 +363,11 @@ export const SPRITE = {
     tank:  30,  // trash
     boss:  56,  // 위압감이 나야 함 — 작아 보이면 여기부터 키운다
   },
-  // 타워는 전부 FOOTPRINT.tower(2×2) 슬롯이라 종류별로 다르게 줄 이유가 없다 — 80(=2×40).
-  // 매직넘버 대신 FOOTPRINT·GridSystem.cell에서 도출.
-  towerWidth: FOOTPRINT.tower * GridSystem.cell,
-  // supportWidth / obstacleWidth — 다음 턴에 여기 추가
+  // 타워·서포터는 2×2, 장애물은 1×1 — 전부 FOOTPRINT·GridSystem.cell에서 도출(매직넘버 없음).
+  // 종류별로 다르게 줄 이유가 없다(같은 footprint면 같은 목표 폭).
+  towerWidth:    FOOTPRINT.tower    * GridSystem.cell, // 80
+  supportWidth:  FOOTPRINT.support  * GridSystem.cell, // 80
+  obstacleWidth: FOOTPRINT.obstacle * GridSystem.cell, // 40 — 타워/서포터의 절반
 };
 
 /**

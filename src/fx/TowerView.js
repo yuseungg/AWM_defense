@@ -42,6 +42,9 @@ import obstaclesData from '../../data/obstacles.json';
 
 const DATA_BY_KIND = { tower: towersData, support: supportsData, obstacle: obstaclesData };
 const ASSET_KEY = (kind, id) => `${kind}_${id}`;
+// kind → UITheme.SPRITE의 목표 폭 키. 3종 다 FOOTPRINT에서 도출된 값이라 하나의 매핑으로 충분하다
+// (예전엔 kind === 'tower' 하드코딩이라 서포터·장애물엔 폭 정규화가 아예 안 걸렸다).
+const SPRITE_WIDTH_KEY = { tower: 'towerWidth', support: 'supportWidth', obstacle: 'obstacleWidth' };
 
 /** 랜드마크별 실루엣 — 전부 원점(0,0) 기준으로 그린다. docs/ASSET_GUIDE.md 실루엣 규칙과 1:1 대응 */
 const SILHOUETTES = {
@@ -258,25 +261,25 @@ export class TowerView {
     const baseSize = kind === 'tower' ? VIEW.towerSize : kind === 'support' ? VIEW.supportSize : VIEW.obstacleSize;
     const size = baseSize * (FOOTPRINT[kind] ?? 1);
 
-    entry.baseScale = scale; // 발사 반동의 스케일 펀치가 여기 곱해진다(tickRecoil) — 텍스처 타워는 아래서 폭 정규화까지 곱해 덮어쓴다
+    entry.baseScale = scale; // 발사 반동의 스케일 펀치가 여기 곱해진다(tickRecoil) — 텍스처면 아래서 폭 정규화까지 곱해 덮어쓴다
 
-    // 타워는 레벨별 이미지가 있을 수 있다(지금은 nseoulTower만 실제로 있음, 나머지 5종은 자동 폴백).
+    // 타워는 레벨별 이미지가 있을 수 있다(지금은 nseoulTower만 실제로 있음, 나머지는 자동 폴백).
     // tower_<id>_<level+1>을 먼저 찾고 없으면 tower_<id>. level은 0-index(Tower.js this.level을
     // GameCore.js가 그대로 emit — 확인 완료: Lv1=0/Lv2=1/Lv3=2)라 파일명(_1/_2/_3, 1-index)과
-    // 맞추려면 +1이 필요하다.
+    // 맞추려면 +1이 필요하다. 서포터/장애물은 레벨별 이미지 개념이 없어서(§4 데이터 스키마상
+    // tint/label 필드 자체가 없음) 항상 고정 키만 쓴다.
     const leveledKey = kind === 'tower' ? `${ASSET_KEY(kind, objId)}_${level + 1}` : null;
     const key = (leveledKey && this.scene.textures.exists(leveledKey)) ? leveledKey : ASSET_KEY(kind, objId);
 
     if (this.scene.textures.exists(key)) {
       entry.gfx.setVisible(false);
       entry.sprite.setTexture(key).setVisible(true);
-      if (kind === 'tower') {
-        // 목표 폭(FOOTPRINT 유래 80px) 정규화 × 레벨 배율을 곱해서 entry.baseScale 하나로
-        // 합친다 — tickRecoil()·playBuildSquash()가 전부 이 값만 읽으므로(§B 함정 수정) 여기서만
-        // 정확히 계산해두면 나머지는 자동으로 옳다. 서포터/장애물은 아직 폭 정규화 대상 밖(다음 턴)
-        // 이라 위에서 이미 넣어둔 scale(레벨 배율만)을 그대로 쓴다.
-        entry.baseScale = fitSpriteWidth(entry.sprite, SPRITE.towerWidth) * scale;
-      }
+      // 목표 폭(FOOTPRINT 유래) 정규화 × 레벨 배율을 곱해서 entry.baseScale 하나로 합친다 —
+      // tickRecoil()·playBuildSquash()가 전부 이 값만 읽으므로(§B 함정 수정) 여기서만 정확히
+      // 계산해두면 나머지는 자동으로 옳다. kind → SPRITE 목표 폭 키 매핑 하나로 3종 다 처리
+      // (예전엔 kind === 'tower' 하드코딩이라 서포터·장애물엔 이 줄 자체가 안 탔다).
+      const widthKey = SPRITE_WIDTH_KEY[kind];
+      if (widthKey) entry.baseScale = fitSpriteWidth(entry.sprite, SPRITE[widthKey]) * scale;
       entry.sprite.setScale(entry.baseScale);
       return;
     }
