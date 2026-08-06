@@ -316,7 +316,11 @@ export class UpgradeUI {
       cy += Math.max(UPGRADE.lineHeight, t.height + 6);
     };
 
-    addLine(`${def.name} · ${lvl.label}`, '#f2f4f8', UPGRADE.titleFontSize);
+    // 타워(towers.json)는 levels[]마다 역사 변천 라벨(예: "복개도로")이 있지만, 서포터
+    // (supports.json)는 levels[]에 statMul/costMul만 있고 label 필드가 없다 — 그대로 붙이면
+    // "서울시청 · undefined"가 뜬다. 있을 때만 붙인다.
+    const title = lvl.label ? `${def.name} · ${lvl.label}` : def.name;
+    addLine(title, '#f2f4f8', UPGRADE.titleFontSize);
 
     const stat = this.statLine(kind, def, obj.level, state.perks);
     addLine(
