@@ -24,6 +24,10 @@ export function createEconomy(startGold = waves.startGold ?? DEFAULT_START_GOLD)
     goldMul = mul;
   }
 
+  function getGoldMul() {
+    return goldMul;
+  }
+
   function add(amount) {
     gold += amount;
     EventBus.emit(EV.goldChanged, { gold, delta: amount });
@@ -56,6 +60,7 @@ export function createEconomy(startGold = waves.startGold ?? DEFAULT_START_GOLD)
     addWaveClearBonus,
     addInstantWaveBonus,
     setGoldMul,
+    getGoldMul,
   };
 }
 

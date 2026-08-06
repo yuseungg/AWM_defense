@@ -103,8 +103,12 @@ export function createWaveManager({ perksProvider, getLevel } = {}) {
 
   /** 퍼크는 Combat.js가 매 히트 PerkSystem.get()을 직접 읽어서 캐싱이 필요 없다. */
   function applyGlobalEffects() {
-    const cityHall = supports.find(s => s.def.effect.type === 'globalGold');
-    Economy.setGoldMul(cityHall ? 1 + cityHall.effectiveValue : 1);
+    // 서울시청은 sewoon(오라, 위 filter 루프)과 달리 원래 .find()라 2개 이상 지어도 첫 번째만
+    // 반영됐다 — 서포터 다중 설치가 의도된 동작이 된 이후엔 버그였다. 전부 합산(상한 없음)으로 수정.
+    const goldBonus = supports
+      .filter(s => s.def.effect.type === 'globalGold')
+      .reduce((sum, s) => sum + s.effectiveValue, 0);
+    Economy.setGoldMul(1 + goldBonus);
 
     // 도심 녹지(towerRangeMul)는 "반경 무제한 오라"와 수학적으로 같아서 기존 applyBuff를 재사용한다.
     const rangeMul = PolicySystem.getMul('towerRangeMul', 'all');

@@ -33,6 +33,7 @@ class Mock {
   constructor() {
     this.state = {
       gold: waves.startGold,
+      goldMul: 1, // 실제 GameCore.getState() 키 일관성용 — Mock은 서울시청 합산을 흉내내지 않는다
       xp: 0,
       level: 1,
       xpToNext: xpToNext(1),

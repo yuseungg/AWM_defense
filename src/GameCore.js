@@ -318,6 +318,7 @@ function getState() {
   const wm = WaveManager.getState();
   return {
     gold: Economy.getGold(),
+    goldMul: Economy.getGoldMul(), // 서울시청 합산 배율(1 + 모든 인스턴스 effectiveValue 합, 상한 없음)
     xp: LevelSystem.getXp(),
     level: LevelSystem.getLevel(),
     xpToNext: LevelSystem.getXpToNext(),
