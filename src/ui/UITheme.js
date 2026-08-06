@@ -477,6 +477,12 @@ export const UPGRADE = {
 
   relocateHintColor: '#3fa7d6', // "이동할 위치를 고르세요" 안내문 색 (BUILD.rangeColor와 동일 — 배치 계열 신호)
 
+  // 크리·관통처럼 "이 타워만의" 값이 아니라 전군 공통(퍼크)인 스탯 라벨 색 — 세운상가(VIEW.objectColor.sewoon)와
+  // 같은 보라 계열로, "건물 고유 스탯이 아니라 시스템 버프"라는 느낌을 색으로도 구분한다.
+  globalBuffColor: '#8c7ae6',
+  dividerColor: 0xffffff,
+  dividerAlpha: 0.15,   // 타워 고유 스탯 / 전역 버프 구간을 가르는 얇은 선
+
   rejectToastMs: 1400,  // 강화/재배치 실패 문구 유지 시간. BUILD.rejectToastMs와 동일 값
 };
 

@@ -82,8 +82,14 @@ export class UpgradeUI {
       if (action === 'upgrade' || action === 'relocate' || action === 'clone') this.showToast(message);
     };
     this.onBuffsRecalculated = () => this.refreshRangeCircle();
+    // 드래프트 퍼크(공격력/크리/관통)는 recalculateBuffs()를 안 거친다(Combat.js가 매 히트
+    // PerkSystem.get()을 직접 읽어서 캐싱이 필요 없어서) — buffsRecalculated만 구독하면 카드를
+    // 고른 직후 패널이 안 바뀐다. cardPicked를 따로 구독해서 패널이 열려 있으면 다시 그린다
+    // (어떤 카드든 상관없이 재렌더는 무해하다 — 카드 종류를 가릴 필요가 없다).
+    this.onCardPicked = () => { if (this.current) this.render(); };
     EventBus.on(EV.actionRejected, this.onRejected, this);
     EventBus.on(EV.buffsRecalculated, this.onBuffsRecalculated, this);
+    EventBus.on(EV.cardPicked, this.onCardPicked, this);
 
     this.onPointerMove = p => this.handlePointerMove(p);
     this.onPointerDown = p => this.handlePointerDown(p);
@@ -306,13 +312,27 @@ export class UpgradeUI {
 
     addLine(`${def.name} · ${lvl.label}`, '#f2f4f8', UPGRADE.titleFontSize);
 
-    const stat = this.statLine(kind, def, obj.level);
+    const stat = this.statLine(kind, def, obj.level, state.perks);
     addLine(
       stat.next ? `${stat.label} ${stat.cur} → ${stat.next}` : `${stat.label} ${stat.cur} (최대)`,
       stat.next ? '#f2f4f8' : UPGRADE.maxLevelColor,
     );
 
     this.infoLines(kind, def, obj).forEach(line => addLine(line, '#8a919e'));
+
+    // 크리·관통은 이 타워만의 스탯이 아니라 전군 공통(퍼크) 값이라 구분선 아래 별도 소제목으로
+    // 뗀다 — 안 그러면 "이 타워의 크리 확률"처럼 보여서 타워마다 다른 값인 줄 오해한다.
+    if (kind === 'tower') {
+      cy += 4;
+      const divider = this.scene.add.rectangle(x + w / 2, cy, w - UPGRADE.padding * 2, 1, UPGRADE.dividerColor, UPGRADE.dividerAlpha).setDepth(61);
+      this.panelGroup.push(divider);
+      cy += 8;
+
+      addLine('전역 버프', UPGRADE.globalBuffColor, UPGRADE.statFontSize);
+      const critPct = Math.round(Math.min(1, state.perks.globalCrit) * 100); // Combat.js와 동일한 100% 상한
+      addLine(`크리 ${critPct}% (전역) · 크리 시 피해 ×2`, UPGRADE.globalBuffColor);
+      addLine(`관통 ${state.perks.globalPierce} (전역) — 적 방어력 -${state.perks.globalPierce}`, UPGRADE.globalBuffColor);
+    }
 
     cy += 6;
 
@@ -366,12 +386,19 @@ export class UpgradeUI {
     this.drawRangeCircle(obj, kind);
   }
 
-  /** 타워는 damage(statMul), 서포터는 effect.value(statMul)만 레벨에 반영된다 — 그 외 고정값. */
-  statLine(kind, def, level) {
+  /**
+   * 타워는 damage(statMul), 서포터는 effect.value(statMul)만 레벨에 반영된다 — 그 외 고정값.
+   * 타워 피해엔 perks.globalDamage도 곱한다(Combat.js §5-1 ①③ 순서) — cur/next 둘 다 곱해서
+   * 화살표의 기존 의미("현재 레벨 → 다음 레벨" 강화 미리보기)는 그대로 두고 실전투 값과 맞춘다.
+   * 상성 특효(②)는 적마다 달라 여기 못 넣는다(infoLines에 별도 표기). 크리(④)·방어력차감(⑤)은
+   * 확률적이거나 적 컨텍스트가 필요해서 이 줄엔 안 넣고 render()가 별도 줄로 보여준다.
+   */
+  statLine(kind, def, level, perks) {
     const hasNext = level < def.levels.length - 1;
     if (kind === 'tower') {
-      const cur = Math.round(def.damage * def.levels[level].statMul);
-      const next = hasNext ? Math.round(def.damage * def.levels[level + 1].statMul) : null;
+      const dmgMul = 1 + (perks?.globalDamage ?? 0);
+      const cur = Math.round(def.damage * def.levels[level].statMul * dmgMul);
+      const next = hasNext ? Math.round(def.damage * def.levels[level + 1].statMul * dmgMul) : null;
       return { label: '피해', cur: String(cur), next: next != null ? String(next) : null };
     }
     const fmt = v => `+${Math.round(v * 100)}%`;
@@ -396,8 +423,12 @@ export class UpgradeUI {
     (def.effects || []).forEach(e => {
       if (e.type === 'slow') lines.push(`슬로우 ${Math.round(e.amount * 100)}%, ${e.duration}초`);
     });
+    // 상성 특효는 위 "피해" 줄(statLine)에 안 곱혀 있다 — 특정 적 종에만 붙는 배율이라 단일
+    // 숫자로 못 박으면 다른 적한테도 적용되는 것처럼 오해한다. 대신 "적중 시 곱연산"임을 문구로 밝힌다.
     const strong = Object.entries(def.strongAgainst || {});
-    if (strong.length) lines.push('상성: ' + strong.map(([k, v]) => `${enemiesData[k]?.name ?? k} ×${v}`).join(', '));
+    if (strong.length) {
+      lines.push('상성: ' + strong.map(([k, v]) => `${enemiesData[k]?.name ?? k} ×${v}`).join(', ') + ' (적중 시 피해에 곱연산)');
+    }
     return lines;
   }
 
@@ -486,6 +517,7 @@ export class UpgradeUI {
   destroy() {
     EventBus.off(EV.actionRejected, this.onRejected, this);
     EventBus.off(EV.buffsRecalculated, this.onBuffsRecalculated, this);
+    EventBus.off(EV.cardPicked, this.onCardPicked, this);
     this.scene.input.off('pointermove', this.onPointerMove);
     this.scene.input.off('pointerdown', this.onPointerDown);
     this.scene.input.off('pointerup', this.onPointerUp);
