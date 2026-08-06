@@ -81,7 +81,13 @@ export class UpgradeUI {
     this.onRejected = ({ action, message }) => {
       if (action === 'upgrade' || action === 'relocate' || action === 'clone') this.showToast(message);
     };
-    this.onBuffsRecalculated = () => this.refreshRangeCircle();
+    // recalculateBuffs()가 서울시청 goldMul도 이 안에서 재계산해서(applyGlobalEffects) 끝에
+    // buffsRecalculated를 발행한다 — buildSupport()/upgrade() 둘 다 이걸 거치므로 "cityHall을
+    // 새로 짓거나 강화한 모든 경우"와 정확히 일치한다. 패널이 열려 있으면 통째로 다시 그린다
+    // (render()가 끝에서 drawRangeCircle도 부르니 사거리 갱신 기능은 그대로 유지됨).
+    this.onBuffsRecalculated = () => {
+      if (this.current && !this.dragging) this.render();
+    };
     // 드래프트 퍼크(공격력/크리/관통)는 recalculateBuffs()를 안 거친다(Combat.js가 매 히트
     // PerkSystem.get()을 직접 읽어서 캐싱이 필요 없어서) — buffsRecalculated만 구독하면 카드를
     // 고른 직후 패널이 안 바뀐다. cardPicked를 따로 구독해서 패널이 열려 있으면 다시 그린다
@@ -332,6 +338,20 @@ export class UpgradeUI {
       const critPct = Math.round(Math.min(1, state.perks.globalCrit) * 100); // Combat.js와 동일한 100% 상한
       addLine(`크리 ${critPct}% (전역) · 크리 시 피해 ×2`, UPGRADE.globalBuffColor);
       addLine(`관통 ${state.perks.globalPierce} (전역) — 적 방어력 -${state.perks.globalPierce}`, UPGRADE.globalBuffColor);
+    } else if (obj.id === 'cityHall') {
+      // 위 "처치 골드 +N% → +M%"(statLine)는 이 인스턴스 하나만의 강화 미리보기다 — 서울시청을
+      // 여러 개 지으면(§5-7 서포터는 인스턴스당 제한 없음, WaveManager.js 확인) 실제 골드 배율은
+      // 전부 합산된다(state.goldMul, GameCore가 이미 계산해서 준다 — 여기서 재계산 안 함).
+      // 그 합계를 별도 줄로 보여줘야 "내 서울시청은 +20%인데 왜 처치 골드는 더 늘었지" 오해가 없다.
+      cy += 4;
+      const divider = this.scene.add.rectangle(x + w / 2, cy, w - UPGRADE.padding * 2, 1, UPGRADE.dividerColor, UPGRADE.dividerAlpha).setDepth(61);
+      this.panelGroup.push(divider);
+      cy += 8;
+
+      const cityHallCount = state.supports.filter(s => s.id === 'cityHall').length;
+      const totalPct = Math.round((state.goldMul - 1) * 100);
+      const suffix = cityHallCount > 1 ? ` · 서울시청 ${cityHallCount}개 합산` : '';
+      addLine(`실제 적용 중: 처치 골드 +${totalPct}% (전역)${suffix}`, UPGRADE.globalBuffColor);
     }
 
     cy += 6;
@@ -477,14 +497,6 @@ export class UpgradeUI {
       this.rangeGfx.fillCircle(x, y, def.effect.radius);
       this.rangeGfx.strokeCircle(x, y, def.effect.radius);
     }
-  }
-
-  refreshRangeCircle() {
-    if (!this.current || this.dragging) return;
-    const state = this.core.getState();
-    const obj = (this.current.kind === 'tower' ? state.towers : state.supports)
-      .find(o => o.instanceId === this.current.instanceId);
-    if (obj) this.drawRangeCircle(obj, this.current.kind);
   }
 
   // ────────────────────────────────────────── 실패 토스트
