@@ -31,26 +31,26 @@
     "name": "서울시청",
     "effect": {
       "type": "globalGold",
-      "value": 0.25,
+      "value": 0.10,
       "radius": 0
     },
     "unique": true,
     "upgradeBaseCost": 100,
     "levels": [
       {
-        "statMul": 1.0,
+        "statMul": 1,
         "costMul": 1.0
       },
       {
-        "statMul": 1.6,
+        "statMul": 2,
         "costMul": 1.5
       },
       {
-        "statMul": 2.4,
+        "statMul": 3,
         "costMul": 2.5
       }
     ],
     "codex": "대기질 정책의 컨트롤타워. 행정과 자금이 모이는 곳이라 처치 골드가 늘어난다.",
-    "desc": "처치 골드 +25%(전역) — 대기질 정책을 총괄하는 행정·자금의 중심지다."
+    "desc": "처치 골드 +10%(전역, 강화 1단계당 +10%p) — 대기질 정책을 총괄하는 행정·자금의 중심지다."
   }
 }
