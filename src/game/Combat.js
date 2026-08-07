@@ -54,6 +54,7 @@ function applyHit(tower, enemy, perks) {
 
   // 6) 최종 (최소 피해 1)
   const finalDamage = Math.max(1, Math.round(dmg) - armor);
+  tower.totalDamage += finalDamage;
 
   enemy.takeDamage(finalDamage);
 

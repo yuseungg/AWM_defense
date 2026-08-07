@@ -37,6 +37,7 @@ export class Tower {
     this.level = 0;
     this.rangeMul = 1;
     this.cooldownRemaining = 0;
+    this.totalDamage = 0; // 세션 통계(누적 총 피해량). 저장 안 함 — 새 게임마다 0부터
   }
 
   relocate(cellX, cellY) {
