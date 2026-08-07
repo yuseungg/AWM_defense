@@ -71,6 +71,9 @@ export class UpgradeUI {
     this._lastDragCx = null;
     this._lastDragCy = null;
 
+    this.damageTimer = null;     // 누적 피해 실시간 갱신 타이머(타워 패널이 열려 있을 때만 존재)
+    this.damageStatText = null;  // "누적 피해 N" 줄의 Text 참조 — 매 틱 전체 render() 없이 이것만 setText
+
     this.rangeGfx = scene.add.graphics().setDepth(45);
     this.relocateGfx = scene.add.graphics().setDepth(50);
     this.toast = scene.add.text(0, 0, '', {
@@ -118,6 +121,7 @@ export class UpgradeUI {
     this.locked = !enabled;
     if (this.locked) {
       // buildUI 잠금/해제는 DraftOverlay가 직접 소유한다 — 여긴 내 패널 표시만 지운다.
+      this.stopDamageTimer(); // close()를 거치지 않는 경로라 여기서도 직접 정리해야 한다
       this.current = null;
       if (this.dragging) this.cancelDrag();
       this.dragCandidate = null;
@@ -273,13 +277,23 @@ export class UpgradeUI {
 
   // ────────────────────────────────────────── 열기/닫기
   open(instanceId, kind) {
+    // open()은 close() 없이 다른 건물로 바로 넘어올 수 있다(패널이 열린 채 다른 건물 클릭) —
+    // 그래서 여기서 먼저 정리해야 타이머가 안 쌓인다.
+    this.stopDamageTimer();
     this.current = { instanceId, kind };
     this.relocateGfx.clear();
     this.scene.buildUI?.setInputEnabled(false);
     this.render();
+    if (kind === 'tower') {
+      this.damageTimer = this.scene.time.addEvent({
+        delay: UPGRADE.damageRefreshMs, loop: true,
+        callback: () => this.refreshDamageStat(),
+      });
+    }
   }
 
   close() {
+    this.stopDamageTimer();
     this.current = null;
     this.relocateGfx.clear();
     this.rangeGfx.clear();
@@ -288,10 +302,18 @@ export class UpgradeUI {
     setGridVisible(false);
   }
 
+  stopDamageTimer() {
+    if (this.damageTimer) {
+      this.damageTimer.remove();
+      this.damageTimer = null;
+    }
+  }
+
   clearPanel() {
     this.panelGroup.forEach(o => o.destroy());
     this.panelGroup = [];
     this.panelBounds = null;
+    this.damageStatText = null; // 위 destroy()로 이미 죽은 참조 — 다음 render()가 있으면 새로 잡는다
   }
 
   // ────────────────────────────────────────── 렌더링
@@ -314,6 +336,7 @@ export class UpgradeUI {
       }).setDepth(61);
       this.panelGroup.push(t);
       cy += Math.max(UPGRADE.lineHeight, t.height + 6);
+      return t;
     };
 
     // 타워(towers.json)는 levels[]마다 역사 변천 라벨(예: "복개도로")이 있지만, 서포터
@@ -329,6 +352,14 @@ export class UpgradeUI {
     );
 
     this.infoLines(kind, def, obj).forEach(line => addLine(line, '#8a919e'));
+
+    // 세션 통계(전투 중 누적, Combat.js가 매 히트마다 tower.totalDamage에 더한다) — 저장 안 함,
+    // 게임 시작마다 0부터. 0/undefined면 줄 자체를 숨긴다(세운상가·서울시청 등 kind!=='tower'는
+    // 애초에 이 블록에 안 들어온다). 참조를 잡아둬서 refreshDamageStat()이 전체 재렌더 없이
+    // 텍스트만 갱신할 수 있게 한다.
+    if (kind === 'tower' && Number.isFinite(obj.totalDamage) && obj.totalDamage > 0) {
+      this.damageStatText = addLine(`누적 피해 ${obj.totalDamage.toLocaleString()}`, '#8a919e');
+    }
 
     // 크리·관통은 이 타워만의 스탯이 아니라 전군 공통(퍼크) 값이라 구분선 아래 별도 소제목으로
     // 뗀다 — 안 그러면 "이 타워의 크리 확률"처럼 보여서 타워마다 다른 값인 줄 오해한다.
@@ -489,6 +520,26 @@ export class UpgradeUI {
     this.render();
   }
 
+  /**
+   * damageTimer 콜백(0.5~1초 주기, §5-2 취지대로 매 프레임 getState 금지). 보통은 이미 떠 있는
+   * damageStatText를 setText만 해서 끝낸다(전체 render() 없이 부하 최소화) — 단, 0/undefined라
+   * 줄이 아예 없던 타워가 첫 타격으로 처음 양수가 되는 순간엔 줄 자체가 새로 생겨야 해서
+   * 그 한 번만 render()로 레이아웃을 다시 잡는다(이후엔 다시 텍스트만 갱신).
+   */
+  refreshDamageStat() {
+    if (!this.current || this.current.kind !== 'tower') return;
+    const state = this.core.getState();
+    const obj = state.towers.find(t => t.instanceId === this.current.instanceId);
+    if (!obj) return;
+    const dmg = obj.totalDamage;
+    if (!Number.isFinite(dmg) || dmg <= 0) return;
+    if (this.damageStatText) {
+      this.damageStatText.setText(`누적 피해 ${dmg.toLocaleString()}`);
+    } else {
+      this.render();
+    }
+  }
+
   // ────────────────────────────────────────── 사거리/오라 원
   /** x,y 생략 시 obj의 실제 현재 위치 — 드래그 미리보기는 목표 셀 중심을 명시로 넘겨서 재사용한다. */
   drawRangeCircle(obj, kind, x = obj.x, y = obj.y) {
@@ -535,6 +586,7 @@ export class UpgradeUI {
   }
 
   destroy() {
+    this.stopDamageTimer();
     EventBus.off(EV.actionRejected, this.onRejected, this);
     EventBus.off(EV.buffsRecalculated, this.onBuffsRecalculated, this);
     EventBus.off(EV.cardPicked, this.onCardPicked, this);

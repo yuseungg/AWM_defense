@@ -484,6 +484,8 @@ export const UPGRADE = {
   dividerAlpha: 0.15,   // 타워 고유 스탯 / 전역 버프 구간을 가르는 얇은 선
 
   rejectToastMs: 1400,  // 강화/재배치 실패 문구 유지 시간. BUILD.rejectToastMs와 동일 값
+
+  damageRefreshMs: 700, // 누적 피해 실시간 갱신 주기(0.5~1초 요건). MockGameCore.fakeCombat 주기와 같아 ?mock=1 확인이 쉽다
 };
 
 /** 타이틀 화면 — 심사자가 보는 첫 화면. 3초 안에 시작 가능해야 한다(멋 부리지 않는다). */
