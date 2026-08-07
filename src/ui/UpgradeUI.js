@@ -443,6 +443,10 @@ export class UpgradeUI {
 
     const buffed = Math.round(obj.effectiveRange) !== def.range;
     const lines = [buffed ? `사거리 ${def.range} → ${Math.round(obj.effectiveRange)}` : `사거리 ${def.range}`];
+    // def.attackSpeed = 발사 간격(초, Tower.js가 쿨다운에 그대로 씀) — 초당 공격 횟수로 환산해
+    // 보여준다. 버프하는 퍼크·정책이 없고 레벨과도 무관한 고정값(Tower.js 자체 문서화)이라
+    // 타워 고유 스탯 자리에 그대로 표기(전역 버프 아니라서 "(전역)" 라벨 없음).
+    lines.push(`초당 공격 ${(1 / def.attackSpeed).toFixed(1)}회`);
     if (def.aoeRadius > 0) lines.push(`광역 반경 ${def.aoeRadius}`);
     (def.effects || []).forEach(e => {
       if (e.type === 'slow') lines.push(`슬로우 ${Math.round(e.amount * 100)}%, ${e.duration}초`);
