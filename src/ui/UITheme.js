@@ -534,6 +534,26 @@ export const BOSS = {
   leakFadeMs:      280,
 };
 
+/**
+ * 투사체 이펙트(ProjectileFx.js) — towerId별 모양·색·속도는 PROJECTILE_CONFIG(그 파일 안)가
+ * 갖고, 여기는 튜닝 숫자만 둔다. arrowSpeedPxS는 연출용 값이라 Projectile.js(로직, 900px/s)와
+ * 굳이 맞출 필요 없다 — 눈으로 보고 조정한다.
+ *
+ * 호밍(EnemyPool 폴링) — 과속차량(385px/s)처럼 빠른 적은 화살(700px/s) 비행 중에도 꽤 움직여서
+ * 직진이면 스치는 경우가 잦다. arrowTurnRateDegPerSec는 "1초에 최대 몇 도까지 방향을 꺾을 수
+ * 있는가" — 낮추면 뻣뻣해서 빠른 적을 놓치고, 너무 높으면 순간적으로 홱 꺾여 부자연스럽다.
+ * maxLifeMs는 안전판(회전 제한 때문에 이론상 영원히 목표에 못 닿는 경우 대비 강제 소멸).
+ */
+export const PROJECTILE_FX = {
+  poolSize: 30,           // 광화문 attackSpeed 0.6s(초당 1.7회) 기준 여유분. 타워 추가되면 올린다
+  arrowSpeedPxS: 700,
+  arrowColor: 0xc9a86a,   // 광화문 최대 레벨(목조 복원) tint와 맞춘 색
+  arrowLength: 18,
+  arrowWidth: 4,
+  arrowTurnRateDegPerSec: 900, // ↑ 올리면 더 급하게 꺾인다(즉응형 호밍) · ↓ 낮추면 더 뻣뻣해진다
+  maxLifeMs: 2000,             // 회전 제한으로 계속 못 따라잡는 극단적 상황의 강제 소멸 시한
+};
+
 /** BGM — 낮/밤 크로스페이드(SoundManager.js). SFX는 이 블록을 안 쓴다(각자 play() 호출부에 볼륨 직접 지정). */
 export const SOUND = {
   bgmVolume:      0.3,   // 크로스페이드 목표 볼륨(기존 단일 BGM과 동일선상)
