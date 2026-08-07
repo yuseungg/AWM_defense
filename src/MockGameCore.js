@@ -161,6 +161,10 @@ class Mock {
     const x = rnd(100, 1100), y = pick([140, 340, 540]);
     EventBus.emit(EV.enemyDamaged, { id: `e${this.enemySeq}`, amount, x, y, isEffective, isCrit });
 
+    // 실제 로직 없음(§6-3) — 어느 타워가 때렸는지는 모르니 지어진 타워 중 하나를 무작위로 골라
+    // 흉내만 낸다. UpgradeUI의 누적 피해 실시간 표시(?mock=1) 검증용.
+    if (s.towers.length) pick(s.towers).totalDamage += amount;
+
     // 보스 체력바
     if (this.bossHp > 0) {
       this.bossHp = Math.max(0, this.bossHp - amount);
@@ -309,7 +313,8 @@ function place(kind, dataset, id, cellX, cellY) {
   const instanceId = `${id}#${++mock.seq}`;
   const x = cellX * CELL + CELL / 2;
   const y = cellY * CELL + CELL / 2;
-  list.push({ instanceId, id, kind, cellX, cellY, x, y, level: 0 });
+  // totalDamage는 타워만 — 실제 GameCore(Tower.js)와 동일하게 UI 쪽 totalDamage 표시(?mock=1) 검증용
+  list.push({ instanceId, id, kind, cellX, cellY, x, y, level: 0, ...(kind === 'tower' ? { totalDamage: 0 } : {}) });
 
   if (kind === 'obstacle') {
     mock.obstaclePicksById.set(id, mock.obstaclePicksById.get(id) - 1);
