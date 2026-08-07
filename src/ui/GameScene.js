@@ -79,9 +79,12 @@ export class GameScene extends Phaser.Scene {
     Object.keys(supportsData).forEach(id => this.load.image(`support_${id}`, `supports/${id}.png`));
     Object.keys(obstaclesData).forEach(id => this.load.image(`obstacle_${id}`, `obstacles/${id}.png`));
 
-    // 사운드도 같은 폴백 원칙 — 음원 파일이 아직 없다(/docs/CREDITS.md 참고). loaderror만 조용히
+    // 사운드도 같은 폴백 원칙 — SFX 음원은 아직 없다(/docs/CREDITS.md 참고). loaderror만 조용히
     // 나고 SoundManager.play()가 scene.cache.audio.exists()로 확인 후 재생하니 파일만 나중에 넣으면 된다.
-    ['fire', 'kill', 'warning', 'levelup', 'gameover', 'bgm'].forEach(key => this.load.audio(key, `sounds/${key}.mp3`));
+    ['fire', 'kill', 'warning', 'levelup', 'gameover'].forEach(key => this.load.audio(key, `sounds/${key}.mp3`));
+    // BGM — 낮/밤 2곡(assets/bgm/bgm_day.mp3, bgm_night.mp3). 배경 사진과 같은 "5웨이브 주기"로 크로스페이드.
+    this.load.audio('bgm_day', 'bgm/bgm_day.mp3');
+    this.load.audio('bgm_night', 'bgm/bgm_night.mp3');
   }
 
   async create() {

@@ -533,3 +533,9 @@ export const BOSS = {
   leakSquashScale: 0.6,   // bossLeaked 소멸 시 찌그러지는 정도. ↓ 낮추면 더 납작해진다
   leakFadeMs:      280,
 };
+
+/** BGM — 낮/밤 크로스페이드(SoundManager.js). SFX는 이 블록을 안 쓴다(각자 play() 호출부에 볼륨 직접 지정). */
+export const SOUND = {
+  bgmVolume:      0.3,   // 크로스페이드 목표 볼륨(기존 단일 BGM과 동일선상)
+  bgmCrossfadeMs: 1500,  // 낮↔밤 전환 시 페이드 인/아웃 길이
+};

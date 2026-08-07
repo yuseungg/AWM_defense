@@ -1,22 +1,35 @@
 /**
- * SoundManager.js — 최소 사운드 세트: 발사·처치·조명 하강 경고·레벨업·게임오버·BGM 1
+ * SoundManager.js — 최소 사운드 세트: 발사·처치·조명 하강 경고·레벨업·게임오버 + 낮/밤 BGM 크로스페이드
  *
- * ⚠️ 음원 파일은 아직 없다(팀이 아직 안 만듦/안 구함 — /docs/CREDITS.md에 규칙만 적어뒀다).
+ * ⚠️ SFX 음원은 아직 없다(팀이 아직 안 만듦/안 구함 — /docs/CREDITS.md에 규칙만 적어뒀다).
  *   Phaser 로더가 없는 파일에 loaderror만 내고 조용히 넘어가게 만들어서(GameScene.preload()의
  *   기존 이미지 폴백과 동일 패턴), 재생 직전에 scene.cache.audio.exists()로 존재를 확인한다.
  *   나중에 assets/sounds/<key>.mp3만 넣으면 코드 변경 없이 소리가 난다.
  *
  * 음소거는 Phaser 내장 scene.sound.mute를 그대로 쓴다(Controls.js가 토글 버튼만 붙인다) —
- * 이 클래스는 별도 mute 상태를 안 만든다. play()가 매번 scene.sound.play()를 거치기 때문에
- * mute 여부는 Phaser가 알아서 반영한다.
+ * 이 클래스는 별도 mute 상태를 안 만든다. SFX·BGM 전부 scene.sound API를 거치므로 mute
+ * 여부는 Phaser가 알아서 전역으로 반영한다.
  *
  * "발사" 이벤트가 EventBus에 따로 없다(타워가 쏠 때가 아니라 맞았을 때만 안다) — enemyDamaged를
  * 근사치로 쓴다. AOE 한 방이 여러 마리를 동시에 맞히면 여러 번 트리거될 수 있어서 짧게 스로틀한다.
+ *
+ * ── BGM(낮/밤 크로스페이드) ──
+ * SFX(hit/kill/...)는 scene.sound.play(key)로 "쏘고 잊는다" — 재생 중인 인스턴스를 안 들고 있어도
+ * 된다. BGM은 반대로 볼륨을 나중에 트윈해야 해서 scene.sound.add(key)로 지속 참조(this.bgmSound,
+ * this.bgmSounds)를 들고 있는다. 자동재생 정책은 이미 해결돼 있다 — TitleScene.js가 시작 버튼
+ * 클릭 시 AudioContext를 resume()한 뒤에 GameScene로 넘어오므로 여기선 추가 처리가 필요 없다.
+ *
+ * 낮/밤 판정(bgKeyForWave)은 mapView.js가 배경 사진 전환에 쓰는 것과 동일 함수를 그대로
+ * import한다 — "5웨이브 주기"라는 매직넘버를 두 곳에 따로 두지 않기 위해서다. ?bg=day|night
+ * 강제 파라미터가 있으면 bgKeyForWave가 항상 같은 값을 돌려주므로, waveStarted가 와도
+ * 크로스페이드가 저절로 트리거되지 않는다(별도 분기 불필요).
  */
 
 import { EventBus, EV } from '../EventBus.js';
+import { SOUND } from '../ui/UITheme.js';
+import { bgKeyForWave } from '../ui/mapView.js';
 
-const KEYS = { hit: 'fire', kill: 'kill', warning: 'warning', levelup: 'levelup', gameover: 'gameover', bgm: 'bgm' };
+const KEYS = { hit: 'fire', kill: 'kill', warning: 'warning', levelup: 'levelup', gameover: 'gameover' };
 const HIT_THROTTLE_MS = 80;
 
 export class SoundManager {
@@ -36,7 +49,16 @@ export class SoundManager {
     EventBus.on(EV.levelUp, this.onLevelUp, this);
     EventBus.on(EV.gameOver, this.onGameOver, this);
 
-    this.play(KEYS.bgm, { volume: 0.3, loop: true });
+    // bgmKey: 현재 재생 중인 트랙의 낮/밤 키('day'|'night'). bgmSound: 그 Sound 인스턴스(볼륨 트윈 대상).
+    // bgmSounds: scene.sound.add()로 만든 모든 BGM Sound 인스턴스(크로스페이드로 페이드아웃 중인
+    // 이전 트랙 포함) — scene.sound는 씬 범위가 아니라 게임 전역이라(scene.tweens와 다름) 씬이
+    // 죽어도 자동 정리가 안 된다. 여기 다 넣어둬야 destroy()에서 죽은 참조 없이 전부 정리된다.
+    this.bgmKey = null;
+    this.bgmSound = null;
+    this.bgmSounds = new Set();
+    this.onWaveStarted = ({ wave }) => this.setBgmKey(bgKeyForWave(wave));
+    EventBus.on(EV.waveStarted, this.onWaveStarted, this);
+    this.setBgmKey(bgKeyForWave(0)); // 첫 진입(wave=0) — 이전 트랙 없이 목표 볼륨까지 페이드인
 
     scene.events.once('shutdown', () => this.destroy());
   }
@@ -53,12 +75,49 @@ export class SoundManager {
     this.play(key, config);
   }
 
+  /** dayOrNight: 'day'|'night'. 이미 그 트랙이면 아무것도 안 한다(중복 크로스페이드 방지). */
+  setBgmKey(dayOrNight) {
+    if (dayOrNight === this.bgmKey) return;
+    const fullKey = `bgm_${dayOrNight}`;
+    if (!this.scene.cache.audio.exists(fullKey)) return; // 파일 없음 — 조용히 스킵(SFX와 동일 원칙)
+
+    const prevSound = this.bgmSound;
+    const nextSound = this.scene.sound.add(fullKey, { loop: true, volume: 0 });
+    this.bgmSounds.add(nextSound);
+    nextSound.play();
+    this.scene.tweens.add({ targets: nextSound, volume: SOUND.bgmVolume, duration: SOUND.bgmCrossfadeMs });
+
+    if (prevSound) {
+      this.scene.tweens.add({
+        targets: prevSound, volume: 0, duration: SOUND.bgmCrossfadeMs,
+        onComplete: () => {
+          this.bgmSounds.delete(prevSound);
+          prevSound.destroy(); // stop() 없이 destroy()만 해도 재생이 멈춘다(Phaser 내장 동작)
+        },
+      });
+    }
+
+    this.bgmKey = dayOrNight;
+    this.bgmSound = nextSound;
+  }
+
   destroy() {
     EventBus.off(EV.enemyDamaged, this.onDamaged, this);
     EventBus.off(EV.enemyKilled, this.onKilled, this);
     EventBus.off(EV.cityDamaged, this.onCityDamaged, this);
     EventBus.off(EV.levelUp, this.onLevelUp, this);
     EventBus.off(EV.gameOver, this.onGameOver, this);
-    this.scene.sound.stopByKey(KEYS.bgm);
+    EventBus.off(EV.waveStarted, this.onWaveStarted, this);
+
+    // scene.sound는 씬 범위가 아니라 게임 전역이라(scene.tweens와 달리) 씬이 죽어도 자동 정리가
+    // 안 된다 — bgmSounds에 쌓아둔 걸(크로스페이드 도중이면 페이드아웃 중인 이전 트랙까지) 전부
+    // killTweensOf 후 stop+destroy해야 죽은 참조 없이 정리된다.
+    this.bgmSounds.forEach(sound => {
+      this.scene.tweens.killTweensOf(sound);
+      sound.stop();
+      sound.destroy();
+    });
+    this.bgmSounds.clear();
+    this.bgmSound = null;
   }
 }

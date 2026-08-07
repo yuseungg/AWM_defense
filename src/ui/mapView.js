@@ -37,8 +37,11 @@ let bgWaveHandler = null;
 /**
  * 웨이브 5개마다 낮↔밤 전환. wave 1~5=낮, 6~10=밤, 11~15=낮 ... (wave 0은 1로 취급).
  * ?bg=day|night면 웨이브와 무관하게 그 값으로 고정(촬영용).
+ *
+ * export하는 이유: SoundManager.js(BGM 낮/밤 크로스페이드)도 같은 "5웨이브 주기" 판정이
+ * 필요하다. 매직넘버(5)를 두 곳에 따로 두지 않고 이 함수 하나로 공유한다.
  */
-function bgKeyForWave(wave) {
+export function bgKeyForWave(wave) {
   if (BG_PARAM === 'day' || BG_PARAM === 'night') return BG_PARAM;
   const w = Math.max(1, wave);
   return Math.floor((w - 1) / BG_WAVES_PER_CYCLE) % 2 === 0 ? 'day' : 'night';
