@@ -51,7 +51,14 @@ import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
 import { AURA_FX } from '../ui/UITheme.js';
 
-/** towerId → 오오라 설정(색만). 여기 없는 타워는 무시한다(필터 방식). */
+/**
+ * towerId → 오오라 설정(색만). 여기 없는 타워는 무시한다(필터 방식).
+ *
+ * 청계천(cc)은 여기 안 둔다 — "상시 범위 표시"는 서울숲처럼 지속딜/오라형 타워에만 맞는
+ * 컨셉이고, 청계천은 공격 순간에만 광역이 터지는 타워라 AoeCircleFx.js(타격 순간 원, ImpactFx
+ * 위임)가 맞다. 반경 소스도 다르다 — 오오라는 effectiveRange(사거리), 청계천 광역은 aoeRadius
+ * (착탄 반경, 레벨·버프 영향 없음)라 같은 컴포넌트에 억지로 합치면 오히려 헷갈린다.
+ */
 const AURA_CONFIG = {
   seoulForest: { color: 0x5fa04a }, // towers.json seoulForest 최대 레벨 tint와 동일 — 연녹색
 };

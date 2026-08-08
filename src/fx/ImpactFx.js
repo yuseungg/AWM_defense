@@ -61,16 +61,21 @@ export class ImpactFx {
     return this.radialFree.pop() ?? { gfx: this.scene.add.graphics().setVisible(false) };
   }
 
-  spawnRadial(x, y, color, maxRadius, lifeMs, filled) {
+  /**
+   * baseAlpha(기본 1) — 그리는 시점에 채워/그리는 자체 알파(도형에 구워짐). tick()의 setAlpha(1-t)는
+   * GameObject 전체 알파라 이것과 곱연산으로 겹친다 — baseAlpha를 낮추면 "시작부터 반투명"하게
+   * 나타났다 페이드되고(AoeCircleFx.js의 청계천 채운 원), 기본값 1이면 기존 섬광/링과 동일하다.
+   */
+  spawnRadial(x, y, color, maxRadius, lifeMs, filled, baseAlpha = 1) {
     if (this.radialActive.length >= IMPACT_FX.poolSize) this.evictOldestRadial();
 
     const p = this.acquireRadial();
     const g = p.gfx.clear();
     if (filled) {
-      g.fillStyle(color, 1);
+      g.fillStyle(color, baseAlpha);
       g.fillCircle(0, 0, 1);
     } else {
-      g.lineStyle(IMPACT_FX.ringWidth, color, 1);
+      g.lineStyle(IMPACT_FX.ringWidth, color, baseAlpha);
       g.strokeCircle(0, 0, 1);
     }
     g.setPosition(x, y).setScale(0).setAlpha(1).setVisible(true);

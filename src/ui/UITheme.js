@@ -623,6 +623,18 @@ export const AURA_FX = {
   pulseMs: 250,             // 펄스가 0으로 감쇠하는 시간
 };
 
+/**
+ * 광역 타격 원(AoeCircleFx.js) — 청계천처럼 "공격 순간에만" 착탄 지점에 뜨는 채운 원.
+ * 상시 오오라(AURA_FX)와 달리 반경은 aoeRadius(레벨·버프 영향 없는 고정값)라 배율이 없고,
+ * 대신 alphaMulByLevel로 밝기만 강화한다. ImpactFx.spawnRadial(반경 0→N, 성장+페이드)을
+ * baseAlpha만 낮춰서 그대로 재사용한다(새 애니메이션 없음).
+ */
+export const AOE_FX = {
+  fadeMs: 350,                      // "확 나타났다 0.3~0.4초에 사라짐" 요건
+  baseAlpha: 0.35,                  // 반투명 채운 원 기준 밝기
+  alphaMulByLevel: [1, 1.25, 1.5],  // aoeRadius가 고정이라 밝기로 강화 표현
+};
+
 /** BGM — 낮/밤 크로스페이드(SoundManager.js). SFX는 이 블록을 안 쓴다(각자 play() 호출부에 볼륨 직접 지정). */
 export const SOUND = {
   bgmVolume:      0.3,   // 크로스페이드 목표 볼륨(기존 단일 BGM과 동일선상)

@@ -21,6 +21,7 @@ import { ProjectileFx } from '../fx/ProjectileFx.js';
 import { LaserFx } from '../fx/LaserFx.js';
 import { ImpactFx } from '../fx/ImpactFx.js';
 import { AuraFx } from '../fx/AuraFx.js';
+import { AoeCircleFx } from '../fx/AoeCircleFx.js';
 import { TowerLevelTracker } from '../fx/TowerLevelTracker.js';
 import { SoundManager } from '../fx/SoundManager.js';
 import { HUD } from './HUD.js';
@@ -160,6 +161,9 @@ export class GameScene extends Phaser.Scene {
     // 상시 오오라(서울숲) — 발사 이펙트와 달리 타워가 존재하는 동안 계속 떠있는 Map 관리(풀 아님).
     // 반경은 obj.effectiveRange(사거리 원과 동일 소스, 레벨 무관) — towerLevel 불필요
     this.auraFx = new AuraFx(this, this.core);
+
+    // 광역 타격 원(청계천 등) — 공격 순간에만 착탄 지점에 뜬다. 그리기는 impactFx.spawnRadial()에 위임
+    this.aoeCircleFx = new AoeCircleFx(this, this.impactFx, this.towerLevel);
 
     // 보스 등장/체력/코어 도달 연출 — bossSpawned·bossHpChanged·bossLeaked·bossKilled를 알아서 구독한다
     this.bossAlert = new BossAlert(this);
