@@ -144,15 +144,15 @@ export class GameScene extends Phaser.Scene {
     // 데미지 숫자 — enemyDamaged를 알아서 구독한다. 타워/적 도형 위에 떠야 하므로 그 다음에 만든다
     this.dmg = new DamageNumber(this);
 
-    // 타워별 공격 이펙트(발사~이동~소멸) — towerFired를 알아서 구독한다. PROJECTILE_CONFIG에
-    // 설정된 타워만 그린다(지금은 광화문 화살만). core 불필요(§ ProjectileFx.js 상단 주석)
-    this.projectileFx = new ProjectileFx(this);
-
     // 피격/처치 파편·팝업 + 상태이상 마커 + 장애물 발동/쿨다운 게이지 (Particles+StatusFx 통합)
     this.fx = new FxLayer(this, this.core);
 
-    // 명중 임팩트(섬광+링+불똥) — 공용, LaserFx뿐 아니라 앞으로 DDP 폭발 등도 재사용한다
+    // 명중 임팩트(섬광+링+불똥) — 공용, LaserFx·ProjectileFx(DDP 착탄)가 재사용하므로 그 앞에 만든다
     this.impactFx = new ImpactFx(this);
+
+    // 타워별 공격 이펙트(발사~이동~소멸) — towerFired를 알아서 구독한다. PROJECTILE_CONFIG에
+    // 설정된 타워만 그린다(광화문 화살·DDP 포탄). DDP는 착탄 시 impactFx로 폭발을 재사용한다.
+    this.projectileFx = new ProjectileFx(this, this.towerLevel, this.impactFx);
 
     // 즉시히트 레이저(발사~페이드, 이동 없음) — LASER_CONFIG에 설정된 타워만(롯데월드타워·N서울타워).
     // 레벨별 색/두께는 towerLevel에서, 명중 임팩트는 impactFx.spawnImpact()를 그대로 재사용한다.

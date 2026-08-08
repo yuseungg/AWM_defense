@@ -2,8 +2,19 @@
  * ProjectileFx.js — 발사~이동~소멸 투사체 이펙트(오브젝트 풀링, FxLayer 패턴)
  *
  * towerFired를 구독하되, PROJECTILE_CONFIG에 설정이 있는 타워만 그린다 — 'gwanghwamun' 같은
- * 하드코딩 분기 대신 "그 towerId의 설정이 있는가"로 필터한다. 나중에 DDP 포탄 등을 추가할 때
- * 이 맵에 항목만 더하면 된다(코드 구조 변경 없음).
+ * 하드코딩 분기 대신 "그 towerId의 설정이 있는가"로 필터한다.
+ *
+ * ── 착탄 폭발(DDP) ────────────────────────────────────────────────────
+ * towerFired 페이로드엔 정확한 착탄 좌표가 없지만(WaveManager가 onHit 콜백의 x/y를 버림 — 이전
+ * 조사에서 확인한 구멍), 호밍 투사체는 도착 판정을 FX가 직접 한다 — tick()의 `step >= dist`
+ * 분기에서 쓰는 p.destX/destY가 바로 "이 투사체가 실제로 도착한 지점"이다. 화살(광화문)은 이
+ * 지점에서 그냥 소멸하지만, DDP처럼 cfg.impactColor가 있는 설정은 같은 지점에서
+ * ImpactFx.spawnImpact()(섬광+링+스파크) + ImpactFx.spawnRadial()(aoeRadius 광역 원, 기존
+ * AOE_FX 상수 재사용)를 동시에 터뜨린다 — 로직 수정 없이 FX만으로 해결된다.
+ *
+ * maxLifeMs 안전판(회전 제한으로 못 따라잡는 극단 상황)으로 강제 소멸할 때는 폭발을 안 터뜨린다
+ * — 목표에 실제로 도달 못 한 채 엉뚱한 위치에서 터지면 안 되므로, 정상 도착(step>=dist) 분기에서만
+ * 트리거한다.
  *
  * ── 호밍(EnemyPool 폴링) ──────────────────────────────────────────────
  * towerFired 페이로드엔 targetX/targetY(발사 순간 스냅샷 좌표)만 있고 어느 적인지 식별자가
@@ -37,8 +48,9 @@
 
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
-import { PROJECTILE_FX } from '../ui/UITheme.js';
+import { PROJECTILE_FX, AOE_FX } from '../ui/UITheme.js';
 import EnemyPool from '../game/EnemyPool.js';
+import towersData from '../../data/towers.json';
 
 const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
 const TURN_RATE_RAD_S = Phaser.Math.DegToRad(PROJECTILE_FX.arrowTurnRateDegPerSec);
@@ -52,8 +64,18 @@ const PROJECTILE_CONFIG = {
     width: PROJECTILE_FX.arrowWidth,
     speed: PROJECTILE_FX.arrowSpeedPxS,
   },
-  // ddp: { shape: 'cannonball', ... } — 다음 이펙트 작업에서 추가
+  ddp: {
+    shape: 'shell',
+    color: PROJECTILE_FX.shellColor,
+    radius: PROJECTILE_FX.shellRadius,
+    speed: PROJECTILE_FX.shellSpeedPxS,
+    impactColor: 0xff5722, // 착탄 시 폭발색(주황) — 롯데(보라)·청계천(청록)과 구분
+  },
 };
+
+function byLevel(arr, level) {
+  return arr[Math.min(level, arr.length - 1)];
+}
 
 /** 로컬 좌표계(+x = 진행 방향)에 모양을 딱 한 번 그린다. 이후엔 setPosition/setRotation만 갱신한다. */
 function drawShape(gfx, cfg) {
@@ -66,6 +88,9 @@ function drawShape(gfx, cfg) {
         -cfg.length / 2, -cfg.width / 2,
         -cfg.length / 2, cfg.width / 2,
       );
+      break;
+    case 'shell':
+      gfx.fillCircle(0, 0, cfg.radius); // 원형이라 회전은 시각적으로 무의미하지만 로직은 공유한다
       break;
     default:
       if (DEBUG) console.warn(`[ProjectileFx] 알 수 없는 shape: ${cfg.shape}`);
@@ -92,8 +117,10 @@ function turnToward(current, desired, maxDelta) {
 }
 
 export class ProjectileFx {
-  constructor(scene) {
+  constructor(scene, levelTracker, impactFx) {
     this.scene = scene;
+    this.levelTracker = levelTracker;
+    this.impactFx = impactFx;
     this.free = [];
     this.active = [];
 
@@ -110,7 +137,7 @@ export class ProjectileFx {
     return this.free.pop() ?? { gfx: this.scene.add.graphics().setVisible(false) };
   }
 
-  spawn({ towerId, x, y, targetX, targetY }) {
+  spawn({ instanceId, towerId, x, y, targetX, targetY }) {
     const cfg = PROJECTILE_CONFIG[towerId];
     if (!cfg) return; // 설정 없는 타워 — 조용히 무시
 
@@ -126,6 +153,10 @@ export class ProjectileFx {
     p.targetId = findNearestEnemyId(targetX, targetY); // null이면 스냅샷 좌표로 직진
     p.speed = cfg.speed;
     p.born = this.scene.time.now;
+    // 착탄 폭발용 — impactColor 있는 설정만 도착 시 사용(화살은 없어서 자연히 안 탄다)
+    p.impactColor = cfg.impactColor ?? null;
+    p.aoeRadius = towersData[towerId]?.aoeRadius ?? 0;
+    p.level = this.levelTracker ? this.levelTracker.getLevel(instanceId) : 0;
     this.active.push(p);
   }
 
@@ -145,6 +176,13 @@ export class ProjectileFx {
     this.active[index] = this.active[this.active.length - 1];
     this.active.pop();
     this.free.push(item);
+  }
+
+  /** 착탄 폭발 — 섬광+링+스파크(ImpactFx) + aoeRadius 광역 원(기존 AOE_FX 재사용, 새 상수 없음) */
+  triggerImpact(p) {
+    this.impactFx.spawnImpact(p.destX, p.destY, p.impactColor, p.level);
+    const alpha = Math.min(1, AOE_FX.baseAlpha * byLevel(AOE_FX.alphaMulByLevel, p.level));
+    this.impactFx.spawnRadial(p.destX, p.destY, p.impactColor, p.aoeRadius, AOE_FX.fadeMs, true, alpha);
   }
 
   tick(time, dt) {
@@ -169,7 +207,12 @@ export class ProjectileFx {
       const dist = Math.hypot(dx, dy);
       const step = p.speed * dt;
 
-      if (step >= dist) { p.gfx.setPosition(p.destX, p.destY); this.despawn(i); continue; }
+      if (step >= dist) {
+        p.gfx.setPosition(p.destX, p.destY);
+        if (p.impactColor) this.triggerImpact(p); // 정상 도착 시에만 — maxLifeMs 강제소멸은 위에서 이미 continue됨
+        this.despawn(i);
+        continue;
+      }
 
       if (dist > 0) {
         const desired = Math.atan2(dy, dx);

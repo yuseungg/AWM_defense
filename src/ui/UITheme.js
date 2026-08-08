@@ -562,6 +562,11 @@ export const PROJECTILE_FX = {
   arrowWidth: 4,
   arrowTurnRateDegPerSec: 900, // ↑ 올리면 더 급하게 꺾인다(즉응형 호밍) · ↓ 낮추면 더 뻣뻣해진다
   maxLifeMs: 2000,             // 회전 제한으로 계속 못 따라잡는 극단적 상황의 강제 소멸 시한
+
+  // DDP 포탄 — shape만 다른 shell. 회전 속도·수명 안전판은 화살과 공유(같은 호밍 로직)
+  shellSpeedPxS: 420,     // 화살(700)보다 느리게 — "묵직한 포탄" 느낌
+  shellRadius: 7,
+  shellColor: 0x5a5f66,   // DDP 몸체(회색 계열)와 맞춘 탄체 색 — 착탄색(주황)과는 별개
 };
 
 /**
