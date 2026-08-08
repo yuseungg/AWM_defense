@@ -18,6 +18,7 @@ import { TowerView } from '../fx/TowerView.js';
 import { BossAlert } from '../fx/BossAlert.js';
 import { FxLayer } from '../fx/FxLayer.js';
 import { ProjectileFx } from '../fx/ProjectileFx.js';
+import { LaserFx } from '../fx/LaserFx.js';
 import { SoundManager } from '../fx/SoundManager.js';
 import { HUD } from './HUD.js';
 import { DraftOverlay } from './DraftOverlay.js';
@@ -138,6 +139,9 @@ export class GameScene extends Phaser.Scene {
     // 타워별 공격 이펙트(발사~이동~소멸) — towerFired를 알아서 구독한다. PROJECTILE_CONFIG에
     // 설정된 타워만 그린다(지금은 광화문 화살만). core 불필요(§ ProjectileFx.js 상단 주석)
     this.projectileFx = new ProjectileFx(this);
+
+    // 즉시히트 레이저(발사~페이드, 이동 없음) — LASER_CONFIG에 설정된 타워만(지금은 롯데월드타워)
+    this.laserFx = new LaserFx(this);
 
     // 피격/처치 파편·팝업 + 상태이상 마커 + 장애물 발동/쿨다운 게이지 (Particles+StatusFx 통합)
     this.fx = new FxLayer(this, this.core);

@@ -554,6 +554,19 @@ export const PROJECTILE_FX = {
   maxLifeMs: 2000,             // 회전 제한으로 계속 못 따라잡는 극단적 상황의 강제 소멸 시한
 };
 
+/**
+ * 즉시히트 레이저(LaserFx.js) — 화살(ProjectileFx)과 달리 이동이 없어 두께·페이드·풀만
+ * 공통으로 둔다. 색은 타워마다 다르므로 LaserFx.js의 LASER_CONFIG 맵에 따로 둔다.
+ */
+export const LASER_FX = {
+  poolSize: 20,     // 화살보다 여유롭지만(롯데 attackSpeed 2.0s) 이후 타워 추가 대비 넉넉히
+  fadeMs: 150,       // ↑ 올리면 더 오래 남는다("즉시"라는 느낌이 흐려짐)
+  coreWidth: 3,
+  coreAlpha: 0.9,
+  glowWidth: 10,     // ↑ 올리면 빛이 더 퍼져 보인다
+  glowAlpha: 0.25,
+};
+
 /** BGM — 낮/밤 크로스페이드(SoundManager.js). SFX는 이 블록을 안 쓴다(각자 play() 호출부에 볼륨 직접 지정). */
 export const SOUND = {
   bgmVolume:      0.3,   // 크로스페이드 목표 볼륨(기존 단일 BGM과 동일선상)
