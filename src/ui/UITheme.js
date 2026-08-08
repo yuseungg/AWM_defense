@@ -557,6 +557,9 @@ export const PROJECTILE_FX = {
 /**
  * 즉시히트 레이저(LaserFx.js) — 화살(ProjectileFx)과 달리 이동이 없어 두께·페이드·풀만
  * 공통으로 둔다. 색은 타워마다 다르므로 LaserFx.js의 LASER_CONFIG 맵에 따로 둔다.
+ *
+ * *ByLevel 배열은 인덱스 0/1/2 = Lv1/2/3(TowerLevelTracker가 주는 level과 그대로 대응, Tower.js
+ * this.level이 0-index라 towers.json levels[]와도 이미 같은 규칙 — TowerView.js 참고).
  */
 export const LASER_FX = {
   poolSize: 20,     // 화살보다 여유롭지만(롯데 attackSpeed 2.0s) 이후 타워 추가 대비 넉넉히
@@ -565,6 +568,41 @@ export const LASER_FX = {
   coreAlpha: 0.9,
   glowWidth: 10,     // ↑ 올리면 빛이 더 퍼져 보인다
   glowAlpha: 0.25,
+
+  widthByLevel:     [1, 1.4, 1.9],   // 코어·글로우 두께 배율 — 레벨 높을수록 더 굵게
+  glowAlphaByLevel: [1, 1.3, 1.7],   // 글로우 알파 배율 — 레벨 높을수록 더 진하게
+};
+
+/**
+ * 명중 임팩트(ImpactFx.js) — 레이저 전용이 아니라 공용이다(DDP 폭발 등도 재사용 예정이라
+ * LASER_FX가 아니라 여기 둔다). flash(섬광)·ring(링)은 "반경 0→N, 알파 1→0"로 같은 애니메이션
+ * 모델이라 ImpactFx 안에서 풀 하나(radial)를 공유하고 filled 플래그로만 구분한다. spark(불똥)는
+ * 방사형으로 튀며 중력을 받는 별도 풀이다.
+ *
+ * flash·spark는 색을 고정한다(흰색/연노랑) — 레이저 색과 같으면 그 위에서 안 보인다. ring만
+ * 호출자가 넘기는 색(그 타워의 레이저 색)을 그대로 써서 "흰 코어 + 무기색 테두리"를 만든다.
+ *
+ * *ByLevel 배열은 LASER_FX와 동일하게 인덱스 0/1/2 = Lv1/2/3.
+ */
+export const IMPACT_FX = {
+  poolSize: 24,   // 명중 1회당 flash 1 + ring 1 + spark N개가 한꺼번에 뜬다 — 화살/레이저 풀보다 넉넉히
+
+  flashColor: 0xffffff,
+  flashRadiusByLevel: [14, 18, 24],
+  flashMs: 120,     // ↓ 낮추면 더 순간적으로 "퍽"
+
+  ringRadiusByLevel: [22, 30, 40],
+  ringWidth: 2,
+  ringMs: 180,
+
+  sparkColor: 0xfff3c4,
+  sparkCountByLevel: [5, 8, 12],
+  sparkSpeedMin: 220,
+  sparkSpeedMax: 380,
+  sparkLength: 6,
+  sparkWidth: 2,
+  sparkLifeMs: 180,
+  sparkGravityPxS2: 500,  // ↑ 올리면 더 빨리 아래로 처진다("튀었다 떨어지는" 느낌)
 };
 
 /** BGM — 낮/밤 크로스페이드(SoundManager.js). SFX는 이 블록을 안 쓴다(각자 play() 호출부에 볼륨 직접 지정). */

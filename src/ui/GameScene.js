@@ -19,6 +19,8 @@ import { BossAlert } from '../fx/BossAlert.js';
 import { FxLayer } from '../fx/FxLayer.js';
 import { ProjectileFx } from '../fx/ProjectileFx.js';
 import { LaserFx } from '../fx/LaserFx.js';
+import { ImpactFx } from '../fx/ImpactFx.js';
+import { TowerLevelTracker } from '../fx/TowerLevelTracker.js';
 import { SoundManager } from '../fx/SoundManager.js';
 import { HUD } from './HUD.js';
 import { DraftOverlay } from './DraftOverlay.js';
@@ -120,6 +122,10 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
+    // instanceId → 강화 레벨(공용) — ProjectileFx/LaserFx 등 여러 이펙트가 같이 조회한다.
+    // core가 방금 정해졌으니 그 이후에 만든다(N서울타워 부트스트랩에 getState() 필요).
+    this.towerLevel = new TowerLevelTracker(this, this.core);
+
     // 배속/일시정지/즉시웨이브. DraftOverlay가 pause 소유권을 조회하므로 draft보다 먼저 만든다
     this.controls = new Controls(this, this.core);
 
@@ -140,11 +146,15 @@ export class GameScene extends Phaser.Scene {
     // 설정된 타워만 그린다(지금은 광화문 화살만). core 불필요(§ ProjectileFx.js 상단 주석)
     this.projectileFx = new ProjectileFx(this);
 
-    // 즉시히트 레이저(발사~페이드, 이동 없음) — LASER_CONFIG에 설정된 타워만(지금은 롯데월드타워)
-    this.laserFx = new LaserFx(this);
-
     // 피격/처치 파편·팝업 + 상태이상 마커 + 장애물 발동/쿨다운 게이지 (Particles+StatusFx 통합)
     this.fx = new FxLayer(this, this.core);
+
+    // 명중 임팩트(섬광+링+불똥) — 공용, LaserFx뿐 아니라 앞으로 DDP 폭발 등도 재사용한다
+    this.impactFx = new ImpactFx(this);
+
+    // 즉시히트 레이저(발사~페이드, 이동 없음) — LASER_CONFIG에 설정된 타워만(롯데월드타워·N서울타워).
+    // 레벨별 색/두께는 towerLevel에서, 명중 임팩트는 impactFx.spawnImpact()를 그대로 재사용한다.
+    this.laserFx = new LaserFx(this, this.towerLevel, this.impactFx);
 
     // 보스 등장/체력/코어 도달 연출 — bossSpawned·bossHpChanged·bossLeaked·bossKilled를 알아서 구독한다
     this.bossAlert = new BossAlert(this);
