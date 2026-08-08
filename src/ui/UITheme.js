@@ -605,6 +605,24 @@ export const IMPACT_FX = {
   sparkGravityPxS2: 500,  // ↑ 올리면 더 빨리 아래로 처진다("튀었다 떨어지는" 느낌)
 };
 
+/**
+ * 상시 오오라(AuraFx.js) — 화살·레이저·임팩트처럼 "떴다 사라지는" 풀 모델이 아니라, 타워가
+ * 존재하는 동안 계속 떠있는 Map 기반 관리다(§ AuraFx.js 상단 주석). depth는 y 기반이 아니라
+ * 고정값 — mapView.js의 경로·격자 그래픽이 전부 depth 미지정(기본 0)이고 타워·적은 depth=y
+ * (대략 100 이상)를 쓰므로, 그 사이에 안정적으로 끼우는 낮은 고정값이면 된다.
+ *
+ * 반경은 상수가 아니라 obj.effectiveRange(사거리 원과 동일 소스)를 그대로 쓴다 — range는
+ * 레벨과 무관한 고정값이라(Tower.js 문서화) 여기 레벨별 반경 배율은 없다.
+ */
+export const AURA_FX = {
+  depth: 10,
+  baseAlpha: 0.12,          // 평상시 은은한 밝기
+  breatheAmplitude: 0.06,   // 맥동 폭 — 알파가 baseAlpha±이 값 사이를 오간다
+  breatheMs: 2200,          // 맥동 한 주기 길이
+  pulseBoost: 0.25,         // towerFired 순간 추가되는 밝기(감쇠 시작값)
+  pulseMs: 250,             // 펄스가 0으로 감쇠하는 시간
+};
+
 /** BGM — 낮/밤 크로스페이드(SoundManager.js). SFX는 이 블록을 안 쓴다(각자 play() 호출부에 볼륨 직접 지정). */
 export const SOUND = {
   bgmVolume:      0.3,   // 크로스페이드 목표 볼륨(기존 단일 BGM과 동일선상)

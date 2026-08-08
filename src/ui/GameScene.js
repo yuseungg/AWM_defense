@@ -20,6 +20,7 @@ import { FxLayer } from '../fx/FxLayer.js';
 import { ProjectileFx } from '../fx/ProjectileFx.js';
 import { LaserFx } from '../fx/LaserFx.js';
 import { ImpactFx } from '../fx/ImpactFx.js';
+import { AuraFx } from '../fx/AuraFx.js';
 import { TowerLevelTracker } from '../fx/TowerLevelTracker.js';
 import { SoundManager } from '../fx/SoundManager.js';
 import { HUD } from './HUD.js';
@@ -155,6 +156,10 @@ export class GameScene extends Phaser.Scene {
     // 즉시히트 레이저(발사~페이드, 이동 없음) — LASER_CONFIG에 설정된 타워만(롯데월드타워·N서울타워).
     // 레벨별 색/두께는 towerLevel에서, 명중 임팩트는 impactFx.spawnImpact()를 그대로 재사용한다.
     this.laserFx = new LaserFx(this, this.towerLevel, this.impactFx);
+
+    // 상시 오오라(서울숲) — 발사 이펙트와 달리 타워가 존재하는 동안 계속 떠있는 Map 관리(풀 아님).
+    // 반경은 obj.effectiveRange(사거리 원과 동일 소스, 레벨 무관) — towerLevel 불필요
+    this.auraFx = new AuraFx(this, this.core);
 
     // 보스 등장/체력/코어 도달 연출 — bossSpawned·bossHpChanged·bossLeaked·bossKilled를 알아서 구독한다
     this.bossAlert = new BossAlert(this);
