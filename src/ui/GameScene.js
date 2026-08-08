@@ -23,7 +23,7 @@ import { ImpactFx } from '../fx/ImpactFx.js';
 import { AuraFx } from '../fx/AuraFx.js';
 import { AoeCircleFx } from '../fx/AoeCircleFx.js';
 import { TowerLevelTracker } from '../fx/TowerLevelTracker.js';
-import { SoundManager } from '../fx/SoundManager.js';
+import { SoundManager, SFX_BY_TOWER } from '../fx/SoundManager.js';
 import { HUD } from './HUD.js';
 import { DraftOverlay } from './DraftOverlay.js';
 import { Controls } from './Controls.js';
@@ -91,6 +91,8 @@ export class GameScene extends Phaser.Scene {
     // BGM — 낮/밤 2곡(assets/bgm/bgm_day.mp3, bgm_night.mp3). 배경 사진과 같은 "5웨이브 주기"로 크로스페이드.
     this.load.audio('bgm_day', 'bgm/bgm_day.mp3');
     this.load.audio('bgm_night', 'bgm/bgm_night.mp3');
+    // 타워 발사음 — SoundManager.SFX_BY_TOWER를 그대로 써서 타워id→파일명 매핑이 한 곳에만 있게 한다
+    Object.values(SFX_BY_TOWER).forEach(key => this.load.audio(key, `sounds/${key}.mp3`));
   }
 
   async create() {

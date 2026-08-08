@@ -650,8 +650,14 @@ export const AOE_FX = {
   alphaMulByLevel: [1, 1.25, 1.5],  // aoeRadius가 고정이라 밝기로 강화 표현
 };
 
-/** BGM — 낮/밤 크로스페이드(SoundManager.js). SFX는 이 블록을 안 쓴다(각자 play() 호출부에 볼륨 직접 지정). */
+/**
+ * BGM + 타워 발사음(SoundManager.js). 기존 hit/kill/warning/levelup/gameover SFX는 이 블록을
+ * 안 쓴다(각자 play() 호출부에 볼륨 직접 지정) — 타워 발사음만 여기로 새로 뺐다.
+ */
 export const SOUND = {
   bgmVolume:      0.3,   // 크로스페이드 목표 볼륨(기존 단일 BGM과 동일선상)
   bgmCrossfadeMs: 1500,  // 낮↔밤 전환 시 페이드 인/아웃 길이
+
+  sfxVolume: 0.3,               // 타워 발사음 공통 볼륨
+  sfxMaxConcurrentPerKey: 2,    // 같은 발사음이 이 개수 넘게 겹치면 가장 오래된 것부터 끊는다
 };

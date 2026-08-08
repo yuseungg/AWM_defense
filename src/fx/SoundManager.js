@@ -23,6 +23,18 @@
  * import한다 — "5웨이브 주기"라는 매직넘버를 두 곳에 따로 두지 않기 위해서다. ?bg=day|night
  * 강제 파라미터가 있으면 bgKeyForWave가 항상 같은 값을 돌려주므로, waveStarted가 와도
  * 크로스페이드가 저절로 트리거되지 않는다(별도 분기 불필요).
+ *
+ * ── 타워 발사음 ──────────────────────────────────────────────────────
+ * towerFired를 구독해 SFX_BY_TOWER에 있는 타워만 재생한다(필터 방식 — 다른 이펙트들과 동일 원칙,
+ * 서울숲은 항목이 없어 자연히 무음). GameScene.js의 preload()도 이 맵의 값을 그대로 가져다 써서
+ * 타워id→파일명 매핑이 한 곳에만 있다.
+ *
+ * DDP(1.9초)·청계천(1.26초)처럼 효과음 길이가 공격 주기(attackSpeed)보다 길면 자기 자신과
+ * 항상 겹친다 — "이미 재생 중이면 스킵"은 청계천처럼 쿨다운이 짧은 타워를 거의 매번 건너뛰게
+ * 만들어 "가끔만 소리 나는" 버그처럼 들린다. 대신 키별 동시 재생 개수를 제한(voice limit)해서
+ * 넘으면 가장 오래된 것부터 끊는다 — FxLayer/ImpactFx/ProjectileFx가 이미 쓰는 "풀 고갈 시
+ * 가장 오래된 것부터 밀어내기"와 같은 원칙이다. 이러려면 재생 중인 인스턴스를 붙잡고 있어야
+ * 해서(끊으려면 참조가 필요) hit/kill 같은 1회성 play(key)가 아니라 BGM과 같은 add() 방식을 쓴다.
  */
 
 import { EventBus, EV } from '../EventBus.js';
@@ -31,6 +43,15 @@ import { bgKeyForWave } from '../ui/mapView.js';
 
 const KEYS = { hit: 'fire', kill: 'kill', warning: 'warning', levelup: 'levelup', gameover: 'gameover' };
 const HIT_THROTTLE_MS = 80;
+
+/** towerId → 발사음 로드 키. 여기 없는 타워는 무음(서울숲) — GameScene.preload()도 이 맵을 그대로 쓴다. */
+export const SFX_BY_TOWER = {
+  gwanghwamun: 'sfx_gwanghwamun',
+  cheonggyecheon: 'sfx_cheonggyecheon',
+  ddp: 'sfx_ddp',
+  nseoulTower: 'sfx_nseoulTower',
+  lotteWorldTower: 'sfx_lotteWorldTower',
+};
 
 export class SoundManager {
   constructor(scene) {
@@ -48,6 +69,14 @@ export class SoundManager {
     EventBus.on(EV.cityDamaged, this.onCityDamaged, this);
     EventBus.on(EV.levelUp, this.onLevelUp, this);
     EventBus.on(EV.gameOver, this.onGameOver, this);
+
+    // key → 그 발사음의 활성 Sound 인스턴스 배열(voice limit 판정·정리용)
+    this.towerSfxByKey = new Map();
+    this.onTowerFired = ({ towerId }) => {
+      const key = SFX_BY_TOWER[towerId];
+      if (key) this.playTowerSfx(key);
+    };
+    EventBus.on(EV.towerFired, this.onTowerFired, this);
 
     // bgmKey: 현재 재생 중인 트랙의 낮/밤 키('day'|'night'). bgmSound: 그 Sound 인스턴스(볼륨 트윈 대상).
     // bgmSounds: scene.sound.add()로 만든 모든 BGM Sound 인스턴스(크로스페이드로 페이드아웃 중인
@@ -73,6 +102,30 @@ export class SoundManager {
     if (now - (this._lastPlayedAt[key] ?? -Infinity) < minGapMs) return;
     this._lastPlayedAt[key] = now;
     this.play(key, config);
+  }
+
+  /** voice limit 있는 재생 — 같은 key가 sfxMaxConcurrentPerKey개 넘게 겹치면 가장 오래된 것부터 끊는다. */
+  playTowerSfx(key) {
+    if (!this.scene.cache.audio.exists(key)) return; // 파일 없음 — 조용히 무시(기존 원칙과 동일)
+
+    const list = this.towerSfxByKey.get(key) ?? [];
+    if (list.length >= SOUND.sfxMaxConcurrentPerKey) {
+      const oldest = list.shift();
+      oldest.stop();
+      oldest.destroy();
+    }
+
+    const sound = this.scene.sound.add(key, { volume: SOUND.sfxVolume });
+    sound.once('complete', () => {
+      const l = this.towerSfxByKey.get(key);
+      const idx = l?.indexOf(sound) ?? -1;
+      if (idx !== -1) l.splice(idx, 1);
+      sound.destroy(); // add()로 만든 인스턴스는 자연 종료돼도 자동 파괴되지 않는다 — 직접 정리
+    });
+
+    list.push(sound);
+    this.towerSfxByKey.set(key, list);
+    sound.play();
   }
 
   /** dayOrNight: 'day'|'night'. 이미 그 트랙이면 아무것도 안 한다(중복 크로스페이드 방지). */
@@ -108,6 +161,7 @@ export class SoundManager {
     EventBus.off(EV.levelUp, this.onLevelUp, this);
     EventBus.off(EV.gameOver, this.onGameOver, this);
     EventBus.off(EV.waveStarted, this.onWaveStarted, this);
+    EventBus.off(EV.towerFired, this.onTowerFired, this);
 
     // scene.sound는 씬 범위가 아니라 게임 전역이라(scene.tweens와 달리) 씬이 죽어도 자동 정리가
     // 안 된다 — bgmSounds에 쌓아둔 걸(크로스페이드 도중이면 페이드아웃 중인 이전 트랙까지) 전부
@@ -119,5 +173,9 @@ export class SoundManager {
     });
     this.bgmSounds.clear();
     this.bgmSound = null;
+
+    // 타워 발사음도 같은 이유(scene.sound 전역) — 아직 재생 중인 것 전부 정리
+    this.towerSfxByKey.forEach(list => list.forEach(sound => { sound.stop(); sound.destroy(); }));
+    this.towerSfxByKey.clear();
   }
 }
