@@ -192,11 +192,21 @@ export class FxLayer {
       g.fillStyle(STATUS_FX.dotColor, 0.35 + blink * 0.65);
       g.fillCircle(0, 0, 5);
     } else if (marker.type === 'slow') {
-      g.fillStyle(STATUS_FX.slowColor, 0.8);
+      // 클래식 물방울(눈물방울) — 둥근 몸통(원) + 뾰족한 위(삼각형)를 겹쳐 그린다
+      const s = STATUS_FX.slowSize;
+      g.fillStyle(STATUS_FX.slowColor, STATUS_FX.slowAlpha);
+      g.fillCircle(0, s * STATUS_FX.slowDropBulgeMul, s * STATUS_FX.slowDropRadiusMul);
       g.fillTriangle(
-        -STATUS_FX.slowSize, -STATUS_FX.slowSize * 0.6,
-        STATUS_FX.slowSize, -STATUS_FX.slowSize * 0.6,
-        0, STATUS_FX.slowSize * 0.8,
+        0, -s * STATUS_FX.slowDropTipMul,
+        -s * STATUS_FX.slowDropShoulderMul, 0,
+        s * STATUS_FX.slowDropShoulderMul, 0,
+      );
+      // 작은 흰 하이라이트 — 물방울다움을 살리는 반짝임 하나
+      g.fillStyle(STATUS_FX.slowDropHighlightColor, STATUS_FX.slowDropHighlightAlpha);
+      g.fillCircle(
+        -s * STATUS_FX.slowDropHighlightOffsetMul,
+        s * STATUS_FX.slowDropBulgeMul - s * STATUS_FX.slowDropHighlightOffsetMul,
+        s * STATUS_FX.slowDropHighlightRadiusMul,
       );
     }
   }

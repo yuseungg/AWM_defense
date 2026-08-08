@@ -152,6 +152,16 @@ export const STATUS_FX = {
 
   slowColor: 0x3fa7d6,
   slowSize:  6,
+  slowAlpha: 0.8,
+  // 물방울 실루엣 비율(slowSize 기준 배율) — 몸통(둥근 아래) 원 + 뾰족한 위 삼각형을 겹쳐 그린다
+  slowDropRadiusMul:    0.75,  // 몸통 반지름
+  slowDropBulgeMul:     0.35,  // 몸통 중심을 아래로 내리는 정도(위로 갈수록 좁아지는 느낌)
+  slowDropTipMul:       1.1,   // 뾰족한 끝이 위로 얼마나 올라가는지
+  slowDropShoulderMul:  0.62,  // 삼각형 밑변 폭(몸통과 이어지는 지점)
+  slowDropHighlightColor: 0xffffff,
+  slowDropHighlightAlpha: 0.8,
+  slowDropHighlightRadiusMul: 0.16,
+  slowDropHighlightOffsetMul: 0.28,
 };
 
 /** 장애물 발동 이펙트 + 쿨다운 게이지 — 이게 없으면 통나무·소독약이 작동하는지 알 방법이 없다 */
