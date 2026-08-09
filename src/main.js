@@ -16,10 +16,15 @@
 import Phaser from 'phaser';
 import { COLOR } from './ui/UITheme.js';
 import { W, H } from './ui/mapView.js';
+import { loadCustomFonts } from './ui/FontLoader.js';
 import { TitleScene } from './ui/TitleScene.js';
 import { GameScene } from './ui/GameScene.js';
 import { MockScene } from './ui/MockScene.js';
 import { VerifyScene } from './ui/VerifyScene.js';
+
+// 해금 화면(UnlockOverlay.js) 커스텀 폰트 — 타이틀 화면을 보는 동안 백그라운드로 받아지도록
+// 최대한 일찍 시작한다. 결과를 기다리지 않는다(실패해도 게임은 안 멈춘다, FontLoader.js 참고).
+loadCustomFonts();
 // Debug.js는 자기완결형이다 — window keydown을 스스로 등록하고 ?debug=1도 스스로 확인한다.
 // 여기서는 모듈을 로드만 시켜준다(부수효과 목적 import). CLAUDE.md §7.
 import './game/Debug.js';

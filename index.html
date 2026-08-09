@@ -5,6 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>서울 디펜스</title>
   <style>
+    /* 해금 화면(UnlockOverlay.js) 전용 커스텀 폰트 — 실제 로드 보장은 FontLoader.js가
+       document.fonts.load()/ready로 한다(캔버스 fillText는 @font-face 참조만으로는 다운로드가
+       안정적으로 안 트리거될 수 있어서). 이 선언은 브라우저가 폰트 소스를 찾을 자리만 준다. */
+    @font-face {
+      font-family: 'HancomSans';
+      src: url('/fonts/HancomSans-SemiBold_0.ttf') format('truetype');
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'HancomPetroglyph';
+      src: url('/fonts/HancomUljuCheonjeonriPetroglyph.woff2') format('woff2'),
+           url('/fonts/HancomUljuCheonjeonriPetroglyph.ttf') format('truetype');
+      font-display: swap;
+    }
+
     html, body { margin: 0; padding: 0; background: #0b0d12; overflow: hidden; }
     #game { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
     canvas { display: block; max-width: 100%; max-height: 100%; }

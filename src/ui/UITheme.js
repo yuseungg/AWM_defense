@@ -11,6 +11,7 @@
  * 이미 참조하고 있어서(순환 위험) 여기서 CELL을 가져오는 건 피한다.
  */
 import GridSystem, { FOOTPRINT } from '../game/GridSystem.js';
+import { FONT_FAMILY } from './FontLoader.js';
 
 export const COLOR = {
   bg:        0x11141a,   // 맵 배경 (배경 이미지가 없을 때의 폴백)
@@ -187,6 +188,49 @@ export const CARD = {
 };
 
 /**
+ * 타워 해금 화면(UnlockOverlay.js) — 카드(스프라이트+스탯) + 플레이버 2단 레이아웃.
+ * "글씨가 안 읽힌다"는 기존 미니 배너 피드백 반영 — CARD보다 폰트를 전반적으로 키우고 밝은
+ * 색을 쓴다. panelX/Y는 UnlockOverlay.js가 Phaser.Math.Clamp로 화면 경계 안에 고정한다
+ * (내용이 고정 레이아웃이라 원래도 넘칠 일은 없지만, 방어적으로 clamp한다).
+ *
+ * 좌우 컬럼 폭은 panelW/panelPadding/colGap에서 산술로 유도한다(CARD.width*count+gap*(count-1)
+ * 와 같은 방식) — 별도 컬럼 폭 상수를 안 둔다.
+ */
+export const UNLOCK = {
+  bannerY: 70,
+  bannerFontSize: 36,
+  bannerColor: '#3fa7d6',
+
+  panelX: 140, panelY: 130, panelW: 1000, panelH: 500, // 140+1000=1140<1280, 130+500=630<720
+  panelPadding: 40,
+  colGap: 40,
+
+  spriteWidth: 180,
+  spriteY: 340,      // 패널 안 절대 y(스프라이트 중심)
+
+  titleY: 175,
+  titleFontSize: 28,
+  titleColor: '#f2f4f8',
+
+  statStartY: 450,
+  statLineHeight: 32,
+  statFontSize: 18,   // ↑ CARD.fontSize(18)와 동급이지만 화면이 커서 체감 크기는 더 크다
+  statLabelColor: '#f2f4f8',
+  statValueColor: '#ffd54f',
+  iconSize: 9,
+  iconGap: 14,        // 아이콘과 라벨 텍스트 사이 간격
+
+  flavorFontSize: 26,
+  flavorColor: '#f2f4f8',
+
+  hintY: 660,
+  hintFontSize: 15,
+  hintColor: '#8a919e',
+
+  slideInMs: 260,
+};
+
+/**
  * 애니메이션 — 에셋 없이 코드만으로 타격감·생동감을 만든다. 전부 순수 렌더 오프셋/회전/스케일이고,
  * 논리 좌표(enemy.x/y, PathSystem 소유)는 절대 건드리지 않는다(EnemyView.js §절대 제약).
  * 개체마다 tween을 만들지 않는다 — update(time, delta)에서 시간 기반으로 직접 계산한다
@@ -262,6 +306,11 @@ export const PANEL = {
  * 자동 폴백된다(브라우저가 @font-face 로드 실패 시 알아서 처리 — 코드에서 존재 여부를 검사할
  * 필요가 없다). 숫자/라벨을 분리하는 이유: 숫자는 자간을 좁혀 조밀하게, 라벨은 넓혀 작게 —
  * 미래도시 HUD 특유의 위계.
+ *
+ * unlockTitle/unlockFlavor/unlockStat — 해금 화면(UnlockOverlay.js) 전용. 실제 이름
+ * (FONT_FAMILY)은 FontLoader.js 한 곳에만 있고 여기서 폴백 스택으로 조합만 한다(같은
+ * 문자열을 두 파일에 따로 안 둔다). flavor는 이 한 줄만 바꾸면 각석체→산스로 전환된다
+ * (요청 사항 — 삐뚤함이 거슬리면 unlockStat과 같은 값으로만 바꾸면 됨).
  */
 export const FONT = {
   ui:     '"Pretendard", "Malgun Gothic", sans-serif',
@@ -274,6 +323,10 @@ export const FONT = {
   labelLetterSpacingEm:  0.18,
   labelSize:             9,
   labelColor:            '#8a919e',
+
+  unlockTitle:  `"${FONT_FAMILY.petroglyph}", "Pretendard", serif`,
+  unlockFlavor: `"${FONT_FAMILY.petroglyph}", "Pretendard", serif`, // ← 이 줄만 바꾸면 산스로 전환
+  unlockStat:   `"${FONT_FAMILY.sans}", "Pretendard", sans-serif`,
 };
 
 /**

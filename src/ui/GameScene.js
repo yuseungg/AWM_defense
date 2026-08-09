@@ -177,6 +177,12 @@ export class GameScene extends Phaser.Scene {
     // 직접 호출하므로 core가 준비된 뒤에 만든다.
     this.draft = new DraftOverlay(this, this.core);
 
+    // 청계천은 레벨업 해금이 아니라 원래부터 해금돼 있는 타워라 levelUp을 안 탄다 — 게임 진입
+    // 완료 직후(첫 웨이브 전) 1회만 소개 화면을 큐에 넣는다. create()는 세션당 1번만 실행되니
+    // 별도 플래그·저장 없이 "게임당 1회"가 보장되고, 재시작은 location.reload()라(GameOverScene.js
+    // 참고) 전체 상태가 새로 시작돼 자연히 리셋된다.
+    this.draft.enqueueUnlock('cheonggyecheon');
+
     // 결과 화면 — gameOver를 알아서 구독한다
     this.gameOverScene = new GameOverScene(this, this.core);
 

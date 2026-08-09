@@ -1,17 +1,18 @@
 /**
- * DraftOverlay.js — 레벨업 드래프트 3장 / 보스 정책 3장 / 타워 해금 배너 (D14: UI 한 벌로 처리)
+ * DraftOverlay.js — 레벨업 드래프트 3장 / 보스 정책 3장 / 타워 해금 화면 (D14: UI 한 벌로 처리)
  *
- * 큐 관리(정렬·중복 조회)는 OverlayQueue.js가 맡고, 이 클래스는 "지금 뭘 보여줄지·언제
- * 일시정지할지·화면을 어떻게 그릴지"만 담당한다(표시 담당). 우선순위(해금1/드래프트2/정책3)는
- * OverlayQueue의 OVERLAY_PRIORITY 하나에만 있다.
+ * 큐 관리(정렬·중복 조회)는 OverlayQueue.js가, 해금 화면 그리기는 UnlockOverlay.js가 맡고,
+ * 이 클래스는 "지금 뭘 보여줄지·언제 일시정지할지"만 담당한다(오케스트레이션). 우선순위
+ * (해금1/드래프트2/정책3)는 OverlayQueue의 OVERLAY_PRIORITY 하나에만 있다.
  *
- * ── 해금 배너는 독립 오버레이 항목이다 ──────────────────────────────
+ * ── 해금 화면은 독립 오버레이 항목이다 ──────────────────────────────
  * EV.levelUp 페이로드엔 unlockedTower와 draftCards가 같이 실려 오지만, 화면은 분리한다 —
  * unlockedTower가 있으면 'unlock' 항목과 'draft' 항목을 각각 큐에 넣어 순서대로(해금 먼저)
- * 하나씩 보여준다. 카드 모양은 MockGameCore가 정의한 스펙 그대로: { cardId, kind, name, desc }.
- * desc는 이미 "효과 + 실제 근거" 한 줄로 각 json(perks/obstacles/supports/policies)에
- * 들어있다 — 별도 포맷터를 만들지 않는다. 카드 효과 수치를 바꾸면 해당 json의 desc도
- * 같이 고쳐야 한다(HANDOFF.md에 기록).
+ * 하나씩 보여준다. enqueueUnlock()이 공개 메서드라 levelUp 없이도(청계천의 "게임 시작 1회
+ * 소개") 외부(GameScene)에서 그대로 재사용한다. 카드 모양은 MockGameCore가 정의한 스펙
+ * 그대로: { cardId, kind, name, desc }. desc는 이미 "효과 + 실제 근거" 한 줄로 각
+ * json(perks/obstacles/supports/policies)에 들어있다 — 별도 포맷터를 만들지 않는다.
+ * 카드 효과 수치를 바꾸면 해당 json의 desc도 같이 고쳐야 한다(HANDOFF.md에 기록).
  *
  * "일시정지"는 GameCore.setPaused(bool) 하나로만 처리한다(§6-2 유일한 pause API).
  * Phaser 씬 자체는 pause하지 않는다 — 그러면 오버레이 자신의 클릭·트윈도 멈춰버린다.
@@ -27,7 +28,7 @@ import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
 import { COLOR, CARD } from './UITheme.js';
 import { OverlayQueue } from './OverlayQueue.js';
-import towersData from '../../data/towers.json';
+import { buildUnlockScreen } from './UnlockOverlay.js';
 
 const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
 const W = 1280, H = 720;
@@ -46,11 +47,7 @@ export class DraftOverlay {
     this.visuals = [];
 
     this.onLevelUp = ({ unlockedTower, draftCards }) => {
-      // 같은 타워 해금이 큐에 이미 대기 중이거나 지금 화면에 떠 있으면 또 넣지 않는다(중복 방지).
-      // 정상 흐름에선 unlockLevel이 타워마다 고유·단조증가라 안 생기지만, 방어적으로 막아둔다.
-      if (unlockedTower && !this.isUnlockQueuedOrShown(unlockedTower)) {
-        this.queue.enqueue('unlock', { unlockedTower });
-      }
+      if (unlockedTower) this.enqueueUnlock(unlockedTower);
       this.queue.enqueue('draft', { draftCards });
       this.tryShowNext();
     };
@@ -65,6 +62,18 @@ export class DraftOverlay {
   isUnlockQueuedOrShown(towerId) {
     if (this.current?.type === 'unlock' && this.current.payload.unlockedTower === towerId) return true;
     return this.queue.some(item => item.type === 'unlock' && item.payload.unlockedTower === towerId);
+  }
+
+  /**
+   * 해금 화면을 큐에 넣는 공개 진입점 — onLevelUp이 이걸 쓰고, GameScene도 "게임 시작 시
+   * 청계천 소개"처럼 levelUp 없이 직접 해금 화면을 띄우고 싶을 때 그대로 재사용한다.
+   * 같은 타워 해금이 이미 큐에 대기 중이거나 지금 화면에 떠 있으면 또 넣지 않는다(중복 방지) —
+   * 정상적인 levelUp 흐름에선 unlockLevel이 타워마다 고유·단조증가라 안 생기지만 방어적으로 막아둔다.
+   */
+  enqueueUnlock(towerId) {
+    if (this.isUnlockQueuedOrShown(towerId)) return;
+    this.queue.enqueue('unlock', { unlockedTower: towerId });
+    this.tryShowNext();
   }
 
   /** 큐에서 우선순위 1등을 꺼내 보여준다. 이미 뭔가 떠 있으면 손대지 않고 기다린다. */
@@ -107,29 +116,9 @@ export class DraftOverlay {
     else this.render(type, payload, cards);
   }
 
-  /**
-   * 타워 해금 — 카드 없이 배너 하나만 보여주는 독립 화면이다. 지금은 최소 기능(배너 + 클릭해서
-   * 계속)만 만든다 — "예시 이미지 같은 큰 해금 화면"으로 바꾸는 건 다음 작업(A) 몫이라 여기서는
-   * 큐 항목 자체를 독립시켜두는 것까지만 한다(비주얼 확장이 이 함수 하나만 손보면 되게).
-   */
+  /** 타워 해금 — 카드+스프라이트+스탯+플레이버 그리기는 전부 UnlockOverlay.js 몫이다. */
   renderUnlock({ unlockedTower }) {
-    const t = towersData[unlockedTower];
-    const label = t ? t.name : unlockedTower;
-
-    const dim = this.scene.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6).setInteractive().setDepth(OVERLAY_DEPTH);
-    const banner = this.scene.add.text(W / 2, H / 2 - 20, `${label} 해금!`, {
-      fontSize: `${CARD.fontSize + 12}px`, color: '#3fa7d6', fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(OVERLAY_DEPTH);
-    const hint = this.scene.add.text(W / 2, H / 2 + 40, '클릭해서 계속', {
-      fontSize: `${CARD.reasonSize}px`, color: '#8a919e',
-    }).setOrigin(0.5).setDepth(OVERLAY_DEPTH);
-
-    const group = [dim, banner, hint];
-    group.forEach(o => { o.alpha = 0; });
-    this.scene.tweens.add({ targets: group, alpha: 1, duration: CARD.slideInMs, ease: 'Cubic.easeOut' });
-
-    dim.on('pointerdown', () => this.dismissUnlock());
-    this.visuals.push(...group);
+    this.visuals.push(...buildUnlockScreen(this.scene, unlockedTower, () => this.dismissUnlock()));
   }
 
   dismissUnlock() {
