@@ -233,7 +233,9 @@ CSS `'0.18em'` 같은 문자열을 그대로 넣으면 파싱이 깨져서 그 T
 | 보스 체력바가 작다/위치가 겹친다 | `BOSS.hpBarWidth`/`hpBarHeight`/`hpBarY` |
 | 보스 코어 도달 임팩트가 약하다 | `SHAKE.bossLeaked` ↑, `BOSS.leakSquashScale` ↓ |
 | 강화 패널이 다른 UI(HUD·Controls·건설 바)와 겹친다 | `UPGRADE.panelX`/`panelY` — 패널 높이는 내용에 따라 자동(`panelHeight`는 초기 추정값일 뿐) |
+| 강화 패널이 화면 아래쪽(y가 큰) 타워를 클릭하면 그 타워에 가려진다 | **depth 문제, 폰트/좌표 아님** — `DEPTH`(UITheme.js 신규 블록)가 유일한 소유처. `TowerView`가 `DEPTH.objects + y`로 그려서 화면 아래쪽 타워는 depth가 800대까지 간다 — 패널 쪽 요소가 `DEPTH.panel`(3000)보다 낮으면 재발한다. 개별 파일에 숫자 하드코딩 금지 |
 | 강화 패널 글자가 작다/잘린다 | `UPGRADE.statFontSize` ↑, `UPGRADE.panelWidth` ↑ |
+| 강화 패널 맨 위 타워 이름(제목)이 위쪽이 살짝 잘려 보인다 | `UPGRADE.titleFontSize` ↓(한글 글리프 상단 획이 Phaser 캔버스 텍스트 자동 계산에서 가끔 안 잡힌다 — 크기를 낮추면 회피됨). 원점(origin)·y좌표 문제가 아니라 폰트 크기 자체가 원인이었다(`addLine()`은 origin (0,0) 고정) |
 | 골드 부족 표시가 안 눈에 띈다 | `UPGRADE.costShortColor` |
 | 강화/재배치 버튼이 작다 | `UPGRADE.buttonWidth`/`buttonHeight`/`buttonFontSize` |
 | 재배치 안내 문구 색이 배치 미리보기와 안 맞는다 | `UPGRADE.relocateHintColor` (기본은 `BUILD.rangeColor`와 동일 계열) |

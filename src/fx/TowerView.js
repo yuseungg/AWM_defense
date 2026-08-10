@@ -32,8 +32,8 @@
  * 텍스처는 `fitSpriteWidth`(SpriteScale.js)가 "가로세로비 유지한 목표 폭" 하나로 정규화한다
  * (원본이 정사각형이 아니어도 억지로 채우지 않는다). 앵커는 중앙이 아니라 셀 하단(스프라이트는
  * `fitSpriteWidth`의 origin(0.5,1) / 실루엣은 `translateCanvas`로 동일 효과)이라 "바닥이 셀에
- * 놓인" 것처럼 보인다. depth는 y값 그대로 써서 아래쪽(가까운) 건물이 위쪽 건물 위로 그려지게
- * 한다 — 항상 경로 띠·격자보다는 위, HUD보다는 아래.
+ * 놓인" 것처럼 보인다. depth는 `DEPTH.objects + y`(UITheme.js)를 써서 아래쪽(가까운) 건물이
+ * 위쪽 건물 위로 그려지게 한다 — 항상 경로 띠·격자보다는 위, HUD·패널·오버레이보다는 아래.
  *
  * ── 발사 반동(recoil) ──────────────────────────────────────────────
  * `towerFired` 이벤트(SYNC.md §3 C8)로 발사 순간을 직접 받는다 — payload의 x/y/targetX/targetY로
@@ -45,7 +45,7 @@
 
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
-import { VIEW, EASE, ANIM, SPRITE } from '../ui/UITheme.js';
+import { VIEW, EASE, ANIM, SPRITE, DEPTH } from '../ui/UITheme.js';
 import GridSystem from '../game/GridSystem.js';
 import { fitSpriteWidth } from './SpriteScale.js';
 import towersData from '../../data/towers.json';
@@ -171,10 +171,12 @@ export class TowerView {
     this.redraw(entry, 0);
     this.playBuildSquash(entry);
 
-    // 아래쪽(y가 큰) 건물이 위쪽 건물보다 앞에 그려지게 — 경로 띠·격자(depth 0대)보다는 항상 위,
-    // HUD·카드류(depth 40+)보다는 항상 아래로 유지되도록 맵 높이 안쪽 값만 쓴다(y 자체가 그 범위).
-    gfx.setDepth(ay);
-    sprite.setDepth(ay);
+    // 아래쪽(y가 큰) 건물이 위쪽 건물보다 앞에 그려지게 — DEPTH.objects(UITheme.js)를 더해서
+    // 경로 띠·격자(DEPTH.map/path/grid)보다는 항상 위, HUD·패널·오버레이보다는 항상 아래에
+    // 고정한다. y를 그대로 쓰면(옛 버전) 화면 아래쪽 타워가 UpgradeUI 패널보다 큰 depth를 갖게
+    // 돼 패널이 타워에 가려지는 버그가 났다.
+    gfx.setDepth(DEPTH.objects + ay);
+    sprite.setDepth(DEPTH.objects + ay);
   }
 
   /** 셀 하단 앵커 픽셀 — payload의 x,y(footprint 중심)를 셀(40px) 하나 기준 바닥 라인으로 내린다. */
@@ -256,8 +258,8 @@ export class TowerView {
     const { ax, ay } = this.anchorPosition(obj.x, obj.y);
     entry.baseX = ax;
     entry.baseY = ay;
-    entry.gfx.setPosition(ax, ay).setDepth(ay);
-    entry.sprite.setPosition(ax, ay).setDepth(ay);
+    entry.gfx.setPosition(ax, ay).setDepth(DEPTH.objects + ay);
+    entry.sprite.setPosition(ax, ay).setDepth(DEPTH.objects + ay);
   }
 
   /**

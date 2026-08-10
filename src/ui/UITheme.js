@@ -13,6 +13,34 @@
 import GridSystem, { FOOTPRINT } from '../game/GridSystem.js';
 import { FONT_FAMILY } from './FontLoader.js';
 
+/**
+ * 렌더 depth 레이어 — 이 파일 하나가 유일한 소유처다. 개별 파일에서 임의 숫자를 넣지 않는다
+ * (2026-08-11 버그: TowerView가 setDepth(y)를 그대로 써서 화면 아래쪽 타워가 UpgradeUI 패널
+ * 보다 큰 depth를 갖고, 패널이 타워에 가려지는 문제가 있었다 — 같은 문제가 재발하지 않게
+ * 이 블록을 신설했다).
+ *
+ * `objects`(타워·적)는 y좌표를 그대로 더해 쓴다(`DEPTH.objects + y`) — "아래쪽(가까운) 오브젝트가
+ * 위쪽 오브젝트 위에 그려진다"는 의사-원근감을 맵 높이(720) 안에서 유지하면서, 그 전체 범위가
+ * 항상 map/path/grid보다 위·fx보다 아래에 오도록 최소 100의 여백을 둔다.
+ * `fx`(데미지 숫자·파티클)는 objects 범위(100~820) 위, HUD/패널보다는 아래여야 피격 이펙트가
+ * 오브젝트를 가리면서도 UI를 가리지 않는다.
+ * `hud`/`panel`/`overlay`는 전부 화면 좌표 고정 UI라 y와 무관하게 완전히 위 계층에 산다.
+ *
+ * ⚠️ 아직 이 시스템으로 옮기지 않은 레거시 상수도 있다(BossAlert 9000번대·GameOverScene 9999·
+ * DraftOverlay/UnlockOverlay의 OVERLAY_DEPTH=500) — 전부 DEPTH.panel(3000)보다 커서 순서는
+ * 깨지지 않지만, 새로 만드는 화면은 이 블록 값을 쓴다.
+ */
+export const DEPTH = {
+  map:     0,
+  path:    10,
+  grid:    20,
+  objects: 100,   // 타워·적 — TowerView가 setDepth(DEPTH.objects + y)로 쓴다
+  fx:      1000,  // 데미지 숫자·파티클
+  hud:     2000,  // HUD·Controls·BuildUI
+  panel:   3000,  // UpgradeUI 패널
+  overlay: 4000,  // DraftOverlay·UnlockOverlay (신규 화면 전용 — 위 ⚠️ 참고)
+};
+
 export const COLOR = {
   bg:        0x11141a,   // 맵 배경 (배경 이미지가 없을 때의 폴백)
   path:      0x3a4356,   // 경로 — 배경 사진 위에서도 도로가 도드라지게 원래(#2a3040)보다 밝게 조정
@@ -246,7 +274,11 @@ export const UNLOCK = {
   // 그 자리에 계산한다(비율 하드코딩 없음) — UnlockOverlay.js가 사용.
   cardTopY: 173,    // 배너 틀(15~158) 아래 여유. cardTopY+cardHeight=643 < panelY+panelH(670)
   cardHeight: 470,
-  cardInset: 32,    // 이중선 테두리·모서리 문양을 안 침범하는 안전영역 여백(카드 실제 폭 기준)
+  // 이중선 테두리·모서리 문양을 안 침범하는 안전영역 여백(카드 실제 폭 기준) — 아이콘·라벨·값이
+  // 전부 이 값 하나로 safeLeft/safeRight를 유도해 쓴다(UnlockOverlay.js). 32px일 때 스탯 줄
+  // 아이콘이 테두리 장식선에 거의 붙어 보여서 "스페이스바 2칸"(≈14px)만큼 46으로 올렸다.
+  // wordWrap 폭도 safeRight - labelX로 이 상수에서 자동 유도되니 여기 숫자만 바꾸면 양쪽 다 반영된다.
+  cardInset: 46,
 
   cardTitleOffsetY: 50,   // 카드 top 기준 — 제목(각석체) y
   titleFontSize: 26,
@@ -584,7 +616,12 @@ export const UPGRADE = {
   panelHeight: 300,   // ↑ 올리면 하단 여백이 늘어난다(내용은 항상 위에서부터 채움)
   padding:     14,
 
-  titleFontSize: 16,
+  // 한글은 Phaser의 캔버스 텍스트 폭/높이 자동 계산이 글리프 상단 획(ㅌ·ㅍ 등)을 살짝 못 잡는
+  // 경우가 있어 16px에서 맨 위 줄(타워 이름)이 미세하게 잘려 보였다. 1px만 낮춰서 회피 —
+  // origin은 addLine()이 기본값 (0,0)을 그대로 쓰고(패널 상단으로 삐져나가지 않음), 시작 y도
+  // panelY+padding(154)이라 패널 위 여백 안이라 이 폰트 크기 자체가 원인이었다. 긴 이름(예:
+  // "롯데월드타워 · 복원 하천", wordWrap으로 2줄) 기준으로 확인함 — ?fxtest=1 U키.
+  titleFontSize: 15,
   statFontSize:  13,   // ↑ 올리면 스탯 줄이 더 잘 읽힌다
   lineHeight:    20,   // 스탯 줄 사이 간격
 

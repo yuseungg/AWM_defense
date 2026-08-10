@@ -36,7 +36,7 @@
 
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
-import { COLOR, BUILD, UPGRADE, EASE } from './UITheme.js';
+import { COLOR, BUILD, UPGRADE, EASE, DEPTH } from './UITheme.js';
 import { CELL, W, H, setGridVisible } from './mapView.js';
 import { FOOTPRINT } from '../game/GridSystem.js';
 import towersData from '../../data/towers.json';
@@ -333,7 +333,7 @@ export class UpgradeUI {
       const t = this.scene.add.text(x + UPGRADE.padding, cy, text, {
         fontSize: `${fontSize}px`, color,
         wordWrap: { width: w - UPGRADE.padding * 2 }, lineSpacing: 4,
-      }).setDepth(61);
+      }).setDepth(DEPTH.panel + 2);
       this.panelGroup.push(t);
       cy += Math.max(UPGRADE.lineHeight, t.height + 6);
       return t;
@@ -365,7 +365,7 @@ export class UpgradeUI {
     // 뗀다 — 안 그러면 "이 타워의 크리 확률"처럼 보여서 타워마다 다른 값인 줄 오해한다.
     if (kind === 'tower') {
       cy += 4;
-      const divider = this.scene.add.rectangle(x + w / 2, cy, w - UPGRADE.padding * 2, 1, UPGRADE.dividerColor, UPGRADE.dividerAlpha).setDepth(61);
+      const divider = this.scene.add.rectangle(x + w / 2, cy, w - UPGRADE.padding * 2, 1, UPGRADE.dividerColor, UPGRADE.dividerAlpha).setDepth(DEPTH.panel + 2);
       this.panelGroup.push(divider);
       cy += 8;
 
@@ -379,7 +379,7 @@ export class UpgradeUI {
       // 전부 합산된다(state.goldMul, GameCore가 이미 계산해서 준다 — 여기서 재계산 안 함).
       // 그 합계를 별도 줄로 보여줘야 "내 서울시청은 +20%인데 왜 처치 골드는 더 늘었지" 오해가 없다.
       cy += 4;
-      const divider = this.scene.add.rectangle(x + w / 2, cy, w - UPGRADE.padding * 2, 1, UPGRADE.dividerColor, UPGRADE.dividerAlpha).setDepth(61);
+      const divider = this.scene.add.rectangle(x + w / 2, cy, w - UPGRADE.padding * 2, 1, UPGRADE.dividerColor, UPGRADE.dividerAlpha).setDepth(DEPTH.panel + 2);
       this.panelGroup.push(divider);
       cy += 8;
 
@@ -428,9 +428,13 @@ export class UpgradeUI {
       addLine('맵 위 건물을 드래그하면 옮길 수 있습니다', UPGRADE.relocateHintColor, UPGRADE.statFontSize);
     }
 
+    // 패널 배경·텍스트·구분선·버튼 전부 DEPTH.panel 기준(UITheme.js) — TowerView가 DEPTH.objects+y로
+    // 그려서(맵 아래쪽 타워는 800대까지 간다) 옛 depth 59~62로는 화면 아래쪽 타워를 클릭했을 때
+    // 패널이 그 타워에 가려졌다. panel 자체는 맨 뒤(DEPTH.panel), 그 위 내용물은 +2/+3으로
+    // 살짝 띄워 패널 안에서의 상대 순서(배경 → 글자/버튼 배경 → 버튼 글자)만 유지한다.
     const panelH = cy - UPGRADE.panelY + UPGRADE.padding;
     const bg = this.scene.add.rectangle(x + w / 2, UPGRADE.panelY + panelH / 2, w, panelH, COLOR.slot, 0.95)
-      .setStrokeStyle(2, COLOR.accent, 0.8).setDepth(59);
+      .setStrokeStyle(2, COLOR.accent, 0.8).setDepth(DEPTH.panel);
     this.panelGroup.unshift(bg);
     this.panelBounds = { x, y: UPGRADE.panelY, w, h: panelH };
 
@@ -495,10 +499,10 @@ export class UpgradeUI {
 
   makeButton(cx, cy, width, label, enabled, onClick) {
     const rect = this.scene.add.rectangle(cx, cy, width, UPGRADE.buttonHeight, COLOR.slot)
-      .setStrokeStyle(2, COLOR.accent, 0.7).setDepth(61);
+      .setStrokeStyle(2, COLOR.accent, 0.7).setDepth(DEPTH.panel + 2);
     const text = this.scene.add.text(cx, cy, label, {
       fontSize: `${UPGRADE.buttonFontSize}px`, color: '#f2f4f8',
-    }).setOrigin(0.5).setDepth(62);
+    }).setOrigin(0.5).setDepth(DEPTH.panel + 3);
     const group = [rect, text];
     if (!enabled) {
       group.forEach(o => o.setAlpha(0.35));
