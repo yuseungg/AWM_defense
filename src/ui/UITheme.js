@@ -225,7 +225,10 @@ export const UNLOCK = {
 
   cardTitleOffsetY: 50,   // 카드 top 기준 — 제목(각석체) y
   titleFontSize: 26,
-  titleColor: '#f2f4f8',
+  // 카드 틀(card_frame.png)이 밝은 양피지 배경이라, 카드 "안"(제목·스탯 라벨·값)만 어두운
+  // 먹색 계열로 쓴다. 카드 "밖"(배너·플레이버, 어두운 딤 배경 위)은 계속 밝은 색을 유지한다 —
+  // 아래 bannerColor/flavorColor는 이 이유로 건드리지 않는다.
+  titleColor: '#2e2013',
 
   spriteWidth: 130,        // 카드가 좁아진 만큼(구 180 → 130) 축소
   cardSpriteOffsetY: 160,  // 카드 top 기준 — 스프라이트 중심 y
@@ -233,13 +236,15 @@ export const UNLOCK = {
   cardStatStartOffsetY: 300, // 카드 top 기준 — 첫 스탯 줄 y. 4줄까지 안전영역 안에 들어감(계산 확인)
   statLineHeight: 26,
   statFontSize: 16,   // 카드가 좁아져서 구 18에서 축소(가로 폭 여유 확보, 산스라 이 크기도 충분히 읽힘)
-  statLabelColor: '#f2f4f8',
-  statValueColor: '#ffd54f',
+  statLabelColor: '#2e2013',
+  // 값은 원래 밝은 노랑(#ffd54f)이었는데 양피지 위에서 대비가 약해 짙은 금색(먹색과 구분되는
+  // 강조색)으로 낮췄다 — 값이 굵게(fontStyle bold)도 처리돼 있어 라벨과는 이미 구분된다.
+  statValueColor: '#a3661d',
   iconSize: 8,
   iconGap: 10,        // 아이콘과 라벨 텍스트 사이 간격
 
   flavorFontSize: 26,
-  flavorColor: '#f2f4f8',
+  flavorColor: '#f2f4f8', // 카드 밖(어두운 딤 배경 위) — 밝은 색 유지
 
   // 플레이버 문구 위/아래 금색 장식(assets/ui/flavor_divider_top/bottom.png, 각 1536×300,
   // 원본에서 픽셀 밝기 스캔으로 정확히 잘라낸 조각). 문구 실제 렌더 높이(줄 수에 따라 다름)를
