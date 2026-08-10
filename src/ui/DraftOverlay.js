@@ -10,9 +10,13 @@
  * unlockedTower가 있으면 'unlock' 항목과 'draft' 항목을 각각 큐에 넣어 순서대로(해금 먼저)
  * 하나씩 보여준다. enqueueUnlock()이 공개 메서드라 levelUp 없이도(청계천의 "게임 시작 1회
  * 소개") 외부(GameScene)에서 그대로 재사용한다. 카드 모양은 MockGameCore가 정의한 스펙
- * 그대로: { cardId, kind, name, desc }. desc는 이미 "효과 + 실제 근거" 한 줄로 각
- * json(perks/obstacles/supports/policies)에 들어있다 — 별도 포맷터를 만들지 않는다.
+ * 그대로: { cardId, kind, name, desc }. desc는 각 json(perks/obstacles/supports/policies)에
+ * "효과|근거" 형태로 파이프(|) 하나로 나눠 들어있다 — buildCard()가 split('|')로 두 줄(효과
+ * 강조·근거는 흐리게)로 그린다. 파이프 없는 값도 안 깨지게 근거는 빈 문자열로 폴백한다.
  * 카드 효과 수치를 바꾸면 해당 json의 desc도 같이 고쳐야 한다(HANDOFF.md에 기록).
+ *
+ * 카드 틀(assets/cards/card_bg.png, 520×780 한 장)을 3장 전부에 공통으로 깐다 — 카드마다
+ * 다른 그림이 아니다. 로드 실패 시 기존 도형 카드로 조용히 폴백한다(buildCard() 참고).
  *
  * "일시정지"는 GameCore.setPaused(bool) 하나로만 처리한다(§6-2 유일한 pause API).
  * Phaser 씬 자체는 pause하지 않는다 — 그러면 오버레이 자신의 클릭·트윈도 멈춰버린다.
@@ -26,7 +30,7 @@
 
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
-import { COLOR, CARD } from './UITheme.js';
+import { COLOR, CARD, FONT } from './UITheme.js';
 import { OverlayQueue } from './OverlayQueue.js';
 import { buildUnlockScreen } from './UnlockOverlay.js';
 
@@ -36,6 +40,9 @@ const W = 1280, H = 720;
 // 카드 위로 비쳐 보이던 문제(depth 미지정 시 기본값 0이라 오라 레이어보다 아래에 깔림).
 // BossAlert(9000대)·GameOverScene(9999)보다는 아래로 남겨서 그쪽이 항상 최우선이 되게 한다.
 const OVERLAY_DEPTH = 500;
+
+// card.kind(§6-1 MockGameCore/DraftSystem 공용 스펙) → 카드 상단 타입 뱃지 한글 라벨
+const TYPE_LABEL = { perk: '퍼크', support: '서포터', obstacle: '장애물', policy: '정책' };
 
 export class DraftOverlay {
   constructor(scene, core) {
@@ -144,23 +151,50 @@ export class DraftOverlay {
     });
   }
 
+  /**
+   * 카드 틀(assets/cards/card_bg.png, 520×780 한 장, 3장 전부 공통)을 setDisplaySize(260×390)로
+   * 깐다. 없으면(파일 없음 등) 기존 도형 카드로 조용히 폴백 — 틀 유무에 따라 배경 밝기가
+   * 정반대라 글자 색도 세트째로 뒤집는다(틀=밝은 하늘색→어두운 남색 글자,
+   * 폴백=어두운 COLOR.slot→밝은 글자, CARD.xxxColor vs CARD.fallbackXxxColor, UITheme.js).
+   * desc는 "효과|근거"로 저장돼 있어(각 json 텍스트 필드) split('|')로 나눠 두 줄로 그린다.
+   */
   buildCard(card, type, x, y) {
-    const bg = this.scene.add.rectangle(x, y + CARD.height / 2, CARD.width, CARD.height, COLOR.slot)
-      .setStrokeStyle(2, COLOR.accent, 0.6)
-      .setInteractive({ useHandCursor: true })
-      .setDepth(OVERLAY_DEPTH);
+    const hasFrame = this.scene.textures.exists('card_bg');
+    const col = hasFrame
+      ? { type: CARD.typeColor, name: CARD.nameColor, effect: CARD.effectColor, reason: CARD.reasonColor }
+      : { type: CARD.fallbackTypeColor, name: CARD.fallbackNameColor, effect: CARD.fallbackEffectColor, reason: CARD.fallbackReasonColor };
 
-    const title = this.scene.add.text(x, y + CARD.padding, card.name, {
-      fontSize: `${CARD.fontSize}px`, color: '#f2f4f8', fontStyle: 'bold',
-      wordWrap: { width: CARD.width - CARD.padding * 2 }, align: 'center',
+    const bg = hasFrame
+      ? this.scene.add.image(x, y + CARD.height / 2, 'card_bg').setDisplaySize(CARD.width, CARD.height)
+      : this.scene.add.rectangle(x, y + CARD.height / 2, CARD.width, CARD.height, COLOR.slot).setStrokeStyle(2, COLOR.accent, 0.6);
+    bg.setInteractive({ useHandCursor: true }).setDepth(OVERLAY_DEPTH);
+
+    const wrapWidth = CARD.width - CARD.padding * 2;
+    const [effectText, reasonText = ''] = String(card.desc ?? '').split('|');
+
+    const typeBadge = this.scene.add.text(x, y + CARD.padding, TYPE_LABEL[card.kind] ?? card.kind, {
+      fontFamily: FONT.card, fontSize: `${CARD.typeFontSize}px`, color: col.type,
+      wordWrap: { width: wrapWidth }, align: 'center',
     }).setOrigin(0.5, 0).setDepth(OVERLAY_DEPTH);
 
-    const desc = this.scene.add.text(x, y + CARD.padding + 56, card.desc, {
-      fontSize: `${CARD.reasonSize}px`, color: '#8a919e',
-      wordWrap: { width: CARD.width - CARD.padding * 2 }, align: 'center', lineSpacing: 4,
+    const title = this.scene.add.text(x, y + CARD.padding + 22, card.name, {
+      fontFamily: FONT.card, fontSize: `${CARD.nameFontSize}px`, color: col.name, fontStyle: 'bold',
+      wordWrap: { width: wrapWidth }, align: 'center', lineSpacing: 2,
     }).setOrigin(0.5, 0).setDepth(OVERLAY_DEPTH);
 
-    const group = [bg, title, desc];
+    // ★ 카드 안에서 가장 눈에 띄어야 하는 줄 — 위계상 이름 다음, 가장 큰 실질 정보
+    const effect = this.scene.add.text(x, y + CARD.padding + 84, effectText, {
+      fontFamily: FONT.card, fontSize: `${CARD.effectFontSize}px`, color: col.effect, fontStyle: 'bold',
+      wordWrap: { width: wrapWidth }, align: 'center', lineSpacing: 3,
+    }).setOrigin(0.5, 0).setDepth(OVERLAY_DEPTH);
+
+    // 근거는 카드 하단에 고정 — "실제 근거 한 줄" (교육 2층), 가장 흐리게
+    const reason = this.scene.add.text(x, y + CARD.height - CARD.padding, reasonText, {
+      fontFamily: FONT.card, fontSize: `${CARD.reasonFontSize}px`, color: col.reason,
+      wordWrap: { width: wrapWidth }, align: 'center', lineSpacing: 3,
+    }).setOrigin(0.5, 1).setDepth(OVERLAY_DEPTH);
+
+    const group = [bg, typeBadge, title, effect, reason];
     group.forEach(o => { o.alpha = 0; });
     this.scene.tweens.add({ targets: group, alpha: 1, duration: CARD.slideInMs, ease: 'Cubic.easeOut' });
 

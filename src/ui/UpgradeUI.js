@@ -470,7 +470,9 @@ export class UpgradeUI {
    * 버프 후 값을 화살표로 같이 보여준다.
    */
   infoLines(kind, def, obj) {
-    if (kind === 'support') return [def.desc];
+    // desc는 "효과|근거"(DraftOverlay.js와 동일한 필드 재사용, CLAUDE.md §3 텍스트 필드=B 소유).
+    // 파이프로 나눠서 두 줄로 보여준다 — 안 나누면 강화 패널에 파이프 문자가 그대로 찍힌다.
+    if (kind === 'support') return String(def.desc ?? '').split('|');
 
     const buffed = Math.round(obj.effectiveRange) !== def.range;
     const lines = [buffed ? `사거리 ${def.range} → ${Math.round(obj.effectiveRange)}` : `사거리 ${def.range}`];

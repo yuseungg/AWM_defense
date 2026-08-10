@@ -5,18 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>서울 디펜스</title>
   <style>
-    /* 해금 화면(UnlockOverlay.js) 전용 커스텀 폰트 — 실제 로드 보장은 FontLoader.js가
-       document.fonts.load()/ready로 한다(캔버스 fillText는 @font-face 참조만으로는 다운로드가
-       안정적으로 안 트리거될 수 있어서). 이 선언은 브라우저가 폰트 소스를 찾을 자리만 준다. */
+    /* 해금 화면(UnlockOverlay.js) · 드래프트 카드(DraftOverlay.js) 공용 커스텀 폰트 — 실제 로드
+       보장은 FontLoader.js가 document.fonts.load()/ready로 한다(캔버스 fillText는 @font-face
+       참조만으로는 다운로드가 안정적으로 안 트리거될 수 있어서). 이 선언은 브라우저가 폰트
+       소스를 찾을 자리만 준다.
+       ⚠️ url()에 선행 슬래시를 붙이면 안 된다 — publicDir이 assets/라 배포 URL은
+       "fonts/..."(=/AWM_defense/fonts/...)인데, "/fonts/..."로 쓰면 base('/AWM_defense/')를
+       건너뛰고 사이트 루트를 가리켜 404가 난다(dev 서버로 직접 찔러서 확인함 — 원래 절대경로였던
+       걸 상대경로로 고침, SYNC.md §2). */
     @font-face {
       font-family: 'HancomSans';
-      src: url('/fonts/HancomSans-SemiBold_0.ttf') format('truetype');
+      src: url('fonts/HancomSans-SemiBold_0.ttf') format('truetype');
       font-display: swap;
     }
     @font-face {
       font-family: 'HancomPetroglyph';
-      src: url('/fonts/HancomUljuCheonjeonriPetroglyph.woff2') format('woff2'),
-           url('/fonts/HancomUljuCheonjeonriPetroglyph.ttf') format('truetype');
+      src: url('fonts/HancomUljuCheonjeonriPetroglyph.woff2') format('woff2'),
+           url('fonts/HancomUljuCheonjeonriPetroglyph.ttf') format('truetype');
       font-display: swap;
     }
 

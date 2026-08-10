@@ -339,6 +339,47 @@ drawRangeCircle`)은 실제로 커졌다** — `obj.effectiveRange`를 이미 �
 호출부만 제거하면 원래 동작(인스턴스 제한 없음)으로 복원됨. `UpgradeUI.js` 라벨도 원래 문자열로
 되돌리면 끝.
 
+### 🚨 [중요] N12 · B · 2026-08-10 — 드래프트 카드 틀·전용 폰트 작업 중 23커밋 격차 발견 → `origin/main` 기준으로 재작업
+
+**발생 경위:** `feat/ui`에서 드래프트 카드(레벨업 3장/보스 정책 3장)에 공통 틀
+(`assets/cards/card_bg.png`) + 전용 폰트(`HancomUljuCheonjeonriPetroglyph`) + 효과/근거 분리를
+적용하고 로컬 커밋까지 마친 뒤 `git fetch`를 처음 돌렸다가, `origin/main`이 로컬보다 **23커밋
+앞서 있고** 그중 5개(`bf5ac25`~`5b36ee4`)가 **같은 날 거의 같은 시각에 거의 같은 작업**을 하고
+있었다는 걸 발견했다 — 타워 해금 화면(`UnlockOverlay.js`)에 같은 폰트 파일
+(`HancomUljuCheonjeonriPetroglyph`)과 카드 틀을 적용하면서 `main.js`/`index.html`/`UITheme.js`/
+`DraftOverlay.js`/`UpgradeUI.js`를 전부 건드려놨다. `DraftOverlay.js`는 구조 자체가
+`OverlayQueue.js`+`UnlockOverlay.js`로 분리돼 "해금!" 배너가 완전히 다른 파일로 옮겨간 상태였다.
+
+**처리:** `git merge`로 밀어붙이지 않고 `origin/main`을 새 베이스로 재작업했다.
+1. `git branch feat/ui-backup` — 기존 작업 보존(push 안 함)
+2. `git checkout -B feat/ui origin/main` — `origin/main` 기준으로 브랜치를 다시 팜
+3. 파일별로 최소 변경만 재적용:
+   - `index.html`: `origin/main` 채택 + `@font-face` url의 선행 슬래시 버그(`/fonts/...` → base
+     무시하고 404) 수정 — dev 서버에 직접 curl로 찔러서 확인한 실제 버그였다
+   - `main.js`: 내 `await document.fonts` 방식을 버리고 `origin/main`의 `FontLoader.js`(비차단,
+     이미 그려진 텍스트 재적용)를 그대로 채택
+   - `UITheme.js`: `FONT.unlockTitle/unlockFlavor/unlockStat` 등 유지, `CARD` 블록에 내 크기
+     (260×390)·색 4종·`FONT.card`만 추가
+   - `DraftOverlay.js`: `buildCard()`만 재작성(64줄), `OverlayQueue`/`UnlockOverlay` 분리 구조·
+     `render()`/`show()`/큐 로직은 손 안 댐
+   - `UpgradeUI.js`: `origin/main`이 이미 고쳐놓은 "세운상가 · undefined" 버그(515db54)는 그대로
+     두고, 그 위에 내 `infoLines()` 파이프 분리만 추가(둘은 서로 다른 버그였다)
+   - `data/supports.json`: `origin/main`이 `cityHall` desc를 골드 버프 25%→10% 조정에 맞춰 이미
+     갱신해놨던 것(`7cf20c0`)을 확인하고, 그 새 수치를 유지한 채로 파이프 분리만 적용 — 내
+     로컬의 옛 25% 텍스트로 덮어쓸 뻔한 걸 diff로 잡아냄
+   - `data/perks.json`/`obstacles.json`/`policies.json`: `origin/main`이 손 안 댄 걸 확인 후 원래
+     계획대로 적용
+4. `npm run build` + `?fxtest=1` D/F 브라우저 검증 — 해금 화면(청계천 카드) 정상, 드래프트/정책
+   카드 정상, UpgradeUI에 "undefined"·파이프 문자 없음, 콘솔 에러 0건
+
+**틀렸을 때 영향:** `feat/ui-backup` 브랜치에 원래(충돌 전) 버전이 그대로 남아있다 — 이번 재작업
+결과가 잘못됐으면 그 브랜치의 `buildCard()`/`UITheme.js` diff만 다시 참고하면 된다.
+
+**재발 방지:** 작업 시작 전 반드시 `git fetch`로 원격 상태를 확인한다. 이번엔 23커밋 격차 상태에서
+같은 파일(폰트·카드 UI)을 동시 작업해 충돌이 발생했다 — `CLAUDE.md` §10 "격차가 벌어지면 충돌이
+폭발한다"가 실제로 일어난 사례다. 특히 "커스텀 폰트 적용" 같은 공용 인프라성 작업은 시작 전에
+`SYNC.md`에 먼저 알리는 게 나았다(사후에라도 이 항목으로 기록).
+
 ### [기록] N0 · B · 2026-07-29 (D2) — main.js MockScene 교체
 
 **한 일:** `main.js`의 `MockScene`에 있던 임시 조명 로직(즉시 색 전환 원형)을 `SeoulTowerLight.js`(정식 구현, `/src/fx/`)로 교체했다.

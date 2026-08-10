@@ -173,18 +173,43 @@ export const OBSTACLE_FX = {
   gaugeFillColor: 0x3fa7d6,
 };
 
-/** 드래프트 오버레이 — 레벨업 3장 / 보스 정책 3장. 장수가 같아 레이아웃 한 벌로 끝난다 */
+/**
+ * 드래프트 오버레이 — 레벨업 3장 / 보스 정책 3장. 장수가 같아 레이아웃 한 벌로 끝난다.
+ *
+ * 틀 이미지(assets/cards/card_bg.png, 520×780 = 2:3)를 setDisplaySize(width, height)로 정확히
+ * 맞추려고 width/height를 2:3로 맞췄다(260×390 = 정확히 절반, 선명하게 나온다). 300×340이던
+ * 구 크기 그대로 얹으면 틀이 찌그러진다. 260*3 + 32*2 = 844px < 1280 ✓ / 390 < 720 ✓
+ */
 export const CARD = {
-  // 드래프트 = 3장 고정 (레벨업·보스 정책 동일). 300*3 + 32*2 = 964px < 1280 → 여백 충분
   count:      3,
-  width:      300,
-  height:     340,
+  width:      260,
+  height:     390,
   gap:        32,
-  padding:    20,
-  fontSize:   18,   // ↑ 올리면 카드가 1초 안에 읽힌다. 3장이라 5장 때보다 키울 수 있다
-  reasonSize: 13,   // "실제 근거 한 줄" (교육 2층)
+  // 틀의 장식 테두리가 가장자리에서 약 8% 안쪽이라(260폭 기준 ≈21px), 그보다 여유 있게 28로 잡아
+  // 글자가 테두리를 침범하지 않게 한다.
+  padding:    28,
   slideInMs:  260,
   hoverLift:  10,
+
+  // 카드 안 위계(위→아래): 타입 뱃지 → 이름 → 효과(★ 가장 눈에 띔) → 근거(흐리게)
+  typeFontSize:   11,
+  nameFontSize:   20,
+  effectFontSize: 17,
+  reasonFontSize: 13,
+
+  // 틀(card_bg.png) 위에서 읽히는 색 세트 — 틀이 밝은 하늘색이라 기존 흰색 계열 텍스트는 안 보인다.
+  // 어두운 남색 계열로 전부 뒤집는다. 실제 스크린샷으로 대비를 확인하고 조정한 값이다.
+  typeColor:   '#3a5578',
+  nameColor:   '#1a2a3a',
+  effectColor: '#1d4a6e',
+  reasonColor: '#4a6478',
+
+  // card_bg.png 로드 실패 시 폴백(도형 카드, COLOR.slot 배경)용 색 세트 — 배경이 어두우니
+  // 반대로 밝은 색이어야 읽힌다. 배경·타워 텍스처와 같은 "이미지 없으면 조용히 도형 폴백" 패턴.
+  fallbackTypeColor:   '#8a919e',
+  fallbackNameColor:   '#f2f4f8',
+  fallbackEffectColor: '#ffd54f',
+  fallbackReasonColor: '#8a919e',
 };
 
 /**
@@ -356,6 +381,10 @@ export const FONT = {
   unlockTitle:  `"${FONT_FAMILY.petroglyph}", "Pretendard", serif`,
   unlockFlavor: `"${FONT_FAMILY.petroglyph}", "Pretendard", serif`, // ← 이 줄만 바꾸면 산스로 전환
   unlockStat:   `"${FONT_FAMILY.sans}", "Pretendard", sans-serif`,
+
+  // 드래프트 카드(DraftOverlay.js) 전용 — 해금 화면과 같은 폰트 자산(FONT_FAMILY.petroglyph)을
+  // 재사용한다. ★ DraftOverlay.js에서만 쓴다 — HUD·Controls·BuildUI는 위 FONT.ui 계열 그대로.
+  card: `"${FONT_FAMILY.petroglyph}", "Pretendard", serif`,
 };
 
 /**

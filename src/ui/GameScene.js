@@ -76,6 +76,9 @@ export class GameScene extends Phaser.Scene {
     this.load.image('banner_frame', 'ui/banner_frame.png'); // 해금 화면 상단 배너 틀
     this.load.image('flavor_divider_top', 'ui/flavor_divider_top.png'); // 플레이버 문구 위 금색 장식
     this.load.image('flavor_divider_bottom', 'ui/flavor_divider_bottom.png'); // 플레이버 문구 아래 금색 장식
+    // 드래프트 카드(DraftOverlay.js) 공통 틀 — 3장 전부 이 한 장을 setDisplaySize로 깐다.
+    // 없으면 loaderror만 나고 DraftOverlay가 도형 카드로 조용히 폴백한다.
+    this.load.image('card_bg', 'cards/card_bg.png');
     Object.keys(towersData).forEach(id => {
       this.load.image(`tower_${id}`, `towers/${id}.png`);
       // 레벨별 이미지(지금은 nseoulTower_1/_2/_3만 실제로 있음) — 나머지 5종×3단계는 404로
