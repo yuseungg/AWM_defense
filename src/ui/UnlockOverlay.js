@@ -26,14 +26,27 @@
  * 시스템 UI 문구라 기존 FONT.ui(Pretendard)를 그대로 쓴다. 이중 FOUT 방지: ①이 화면이 열리는
  * 시점에 이미 로드돼 있으면(브라우저가 areFontsReady()로 확인) 첫 렌더부터 바로 올바르게
  * 그려지고, ②설령 아직 로드 전이라 폴백으로 그려졌더라도 refreshOnReady()가 로드 완료 시점에
- * 살아있는 텍스트만 같은 fontFamily로 재적용해 강제로 다시 그린다.
+ * 살아있는 텍스트만 같은 fontFamily로 재적용해 강제로 다시 그린다. 스탯 라벨·값은 폭이 서로
+ * 맞물려 있어서(값이 라벨 바로 뒤에 붙음) refreshOnReady 단일 텍스트용 API로는 부족하다 —
+ * loadCustomFonts()를 직접 걸어 라벨 폭이 로드 후 바뀌면 값 위치·줄바꿈 폭까지 같이 재계산한다.
+ *
+ * ── 카드 틀(assets/ui/card_frame.png) ──────────────────────────────
+ * 원본 1024×1536(세로 2:3) — 폭이 아니라 "높이"를 먼저 정하고 실제 폭은 fitSpriteHeight()가
+ * 로드된 텍스처에서 그 자리에 계산한다(비율 하드코딩 없음, SpriteScale.js 참고). 텍스처가 없으면
+ * (로드 실패 등) 카드 이미지를 안 그리고 기존 컬럼 폭(colW)을 레이아웃 폭으로 대신 쓴다 — 이때도
+ * 새 비율을 지어내지 않는다.
+ *
+ * 이중선 테두리·모서리 문양을 안 침범하게 UNLOCK.cardInset만큼 안쪽을 "안전영역"으로 두고,
+ * 제목·스프라이트·스탯을 전부 그 안에서 카드의 실제 좌상단 좌표 기준으로 배치한다(카드가
+ * 없을 때의 폴백 폭도 이 계산에 그대로 반영됨). 스탯 라벨·값에는 안전영역을 넘는 극단적으로
+ * 긴 텍스트에 대비해 wordWrap 안전망을 건다(정상적인 경우엔 한 줄에 들어간다).
  */
 
 import Phaser from 'phaser';
 import { COLOR, UNLOCK, STATUS_FX, FONT } from './UITheme.js';
 import { drawPanel } from './Panel.js';
-import { fitSpriteWidth } from '../fx/SpriteScale.js';
-import { refreshOnReady } from './FontLoader.js';
+import { fitSpriteWidth, fitSpriteHeight } from '../fx/SpriteScale.js';
+import { refreshOnReady, loadCustomFonts } from './FontLoader.js';
 import towersData from '../../data/towers.json';
 
 const W = 1280, H = 720;
@@ -165,9 +178,10 @@ export function buildUnlockScreen(scene, towerId, onDismiss) {
   const flavor = FLAVOR[towerId] ?? '';
   const visuals = [];
 
-  // 내용이 고정 레이아웃이라 원래도 넘칠 일은 없지만, 패널 좌표는 방어적으로 화면 안에 clamp한다.
+  // 내용이 고정 레이아웃이라 원래도 넘칠 일은 없지만, 패널·카드 좌표는 방어적으로 화면 안에 clamp한다.
   const panelX = Phaser.Math.Clamp(UNLOCK.panelX, 0, W - UNLOCK.panelW);
   const panelY = Phaser.Math.Clamp(UNLOCK.panelY, 0, H - UNLOCK.panelH);
+  const cardTopY = Phaser.Math.Clamp(UNLOCK.cardTopY, 0, H - UNLOCK.cardHeight);
 
   const dim = scene.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6).setInteractive().setDepth(OVERLAY_DEPTH);
   dim.on('pointerdown', () => onDismiss());
@@ -188,42 +202,63 @@ export function buildUnlockScreen(scene, towerId, onDismiss) {
   const leftCenterX = panelX + UNLOCK.panelPadding + colW / 2;
   const rightCenterX = panelX + UNLOCK.panelPadding + colW + UNLOCK.colGap + colW / 2;
 
-  const title = scene.add.text(leftCenterX, panelY + (UNLOCK.titleY - UNLOCK.panelY), def ? def.name : towerId, {
+  // 카드 틀 — 높이 기준으로 맞추고 실제 폭은 로드된 텍스처에서 계산한다(비율 하드코딩 없음).
+  // 텍스처가 없으면(로드 실패 등) 이미지 없이 기존 컬럼 폭(colW)을 레이아웃 폭으로 대신 쓴다.
+  let cardWidth = colW;
+  if (scene.textures.exists('card_frame')) {
+    const cardImage = scene.add.image(leftCenterX, cardTopY, 'card_frame').setDepth(OVERLAY_DEPTH + 1);
+    const cardScale = fitSpriteHeight(cardImage, UNLOCK.cardHeight, 0.5, 0);
+    cardWidth = cardImage.width * cardScale;
+    visuals.push(cardImage);
+  }
+
+  // 이중선 테두리·모서리 문양을 안 침범하는 안전영역(카드의 실제 좌상단 기준)
+  const safeLeft = leftCenterX - cardWidth / 2 + UNLOCK.cardInset;
+  const safeRight = leftCenterX + cardWidth / 2 - UNLOCK.cardInset;
+
+  const title = scene.add.text(leftCenterX, cardTopY + UNLOCK.cardTitleOffsetY, def ? def.name : towerId, {
     fontFamily: FONT.unlockTitle, fontSize: `${UNLOCK.titleFontSize}px`, color: UNLOCK.titleColor, fontStyle: 'bold',
-  }).setOrigin(0.5).setDepth(OVERLAY_DEPTH + 1);
+  }).setOrigin(0.5).setDepth(OVERLAY_DEPTH + 2);
   refreshOnReady(title);
   visuals.push(title);
 
   const spriteKey = `tower_${towerId}`;
   if (scene.textures.exists(spriteKey)) {
-    const sprite = scene.add.image(leftCenterX, panelY + (UNLOCK.spriteY - UNLOCK.panelY), spriteKey)
-      .setDepth(OVERLAY_DEPTH + 1);
+    const sprite = scene.add.image(leftCenterX, cardTopY + UNLOCK.cardSpriteOffsetY, spriteKey)
+      .setDepth(OVERLAY_DEPTH + 2);
     fitSpriteWidth(sprite, UNLOCK.spriteWidth, 0.5, 0.5);
     visuals.push(sprite);
   }
 
-  let statY = panelY + (UNLOCK.statStartY - UNLOCK.panelY);
-  const iconX = leftCenterX - colW / 2 + UNLOCK.iconSize;
+  let statY = cardTopY + UNLOCK.cardStatStartOffsetY;
+  const iconX = safeLeft + UNLOCK.iconSize;
   stats.forEach(stat => {
-    const g = scene.add.graphics().setDepth(OVERLAY_DEPTH + 1);
+    const g = scene.add.graphics().setDepth(OVERLAY_DEPTH + 2);
     (ICON_DRAWERS[stat.icon] ?? drawAttackIcon)(g, iconX, statY, UNLOCK.iconSize, stat.iconColor ?? COLOR.accent);
     visuals.push(g);
 
-    const label = scene.add.text(iconX + UNLOCK.iconSize + UNLOCK.iconGap, statY, `${stat.label}  `, {
+    const labelX = iconX + UNLOCK.iconSize + UNLOCK.iconGap;
+    const label = scene.add.text(labelX, statY, `${stat.label}  `, {
       fontFamily: FONT.unlockStat, fontSize: `${UNLOCK.statFontSize}px`, color: UNLOCK.statLabelColor,
-    }).setOrigin(0, 0.5).setDepth(OVERLAY_DEPTH + 1);
-    refreshOnReady(label);
+      wordWrap: { width: Math.max(60, safeRight - labelX) }, // 안전영역을 넘는 극단적으로 긴 라벨 방어망
+    }).setOrigin(0, 0.5).setDepth(OVERLAY_DEPTH + 2);
     visuals.push(label);
 
-    // label.width 기준으로 한 번만 배치한다 — refreshOnReady가 나중에 label의 폭을 바꿔도
-    // (폴백↔커스텀 폰트 글자폭 차이) value가 같이 안 움직인다. 실제로는 로드가 이 화면이 뜨기
-    // 전에 이미 끝나 있을 가능성이 높아(로컬 폰트) 체감 오차는 미미하다고 판단해 이번 범위에선
-    // 감수한다 — 거슬리면 다음 단계(카드 배치)에서 같이 손본다.
     const value = scene.add.text(label.x + label.width, statY, stat.value(def), {
       fontFamily: FONT.unlockStat, fontSize: `${UNLOCK.statFontSize}px`, color: UNLOCK.statValueColor, fontStyle: 'bold',
-    }).setOrigin(0, 0.5).setDepth(OVERLAY_DEPTH + 1);
-    refreshOnReady(value);
+      wordWrap: { width: Math.max(60, safeRight - (label.x + label.width)) },
+    }).setOrigin(0, 0.5).setDepth(OVERLAY_DEPTH + 2);
     visuals.push(value);
+
+    // 라벨·값은 폭이 서로 맞물려 있어서(값이 라벨 바로 뒤에 붙음) refreshOnReady 단일 텍스트용
+    // API로는 부족하다 — 로드 완료 후 라벨 폭이 바뀌면 값 위치·줄바꿈 폭까지 같이 재계산한다.
+    loadCustomFonts().then(() => {
+      if (!label.active || !value.active) return;
+      label.setFontFamily(FONT.unlockStat);
+      value.setFontFamily(FONT.unlockStat);
+      value.setX(label.x + label.width);
+      value.setWordWrapWidth(Math.max(60, safeRight - value.x), true);
+    });
 
     statY += UNLOCK.statLineHeight;
   });

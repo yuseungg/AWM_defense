@@ -23,3 +23,22 @@ export function fitSpriteWidth(image, targetWidth, originX = 0.5, originY = 0.5)
   image.setScale(scale);
   return scale;
 }
+
+/**
+ * fitSpriteWidth의 높이 기준 버전 — 세로로 긴 에셋(해금 화면 카드 틀 등)을 화면 높이 안에
+ * 맞출 때는 폭이 아니라 높이를 먼저 정해야 한다(UnlockOverlay.js: 카드 원본이 2:3 세로라
+ * 폭 기준으로 맞추면 720px 화면을 넘긴다). 비율은 여기서도 하드코딩하지 않고 image.height를
+ * 그 자리에서 읽는다.
+ *
+ * @param {Phaser.GameObjects.Image} image
+ * @param {number} targetHeight
+ * @param {number} originX
+ * @param {number} originY
+ * @returns {number} 적용된 scale 값
+ */
+export function fitSpriteHeight(image, targetHeight, originX = 0.5, originY = 0.5) {
+  image.setOrigin(originX, originY);
+  const scale = targetHeight / image.height;
+  image.setScale(scale);
+  return scale;
+}

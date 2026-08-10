@@ -201,24 +201,32 @@ export const UNLOCK = {
   bannerFontSize: 36,
   bannerColor: '#3fa7d6',
 
-  panelX: 140, panelY: 130, panelW: 1000, panelH: 500, // 140+1000=1140<1280, 130+500=630<720
+  panelX: 140, panelY: 110, panelW: 1000, panelH: 560, // 140+1000=1140<1280, 110+560=670<720
   panelPadding: 40,
   colGap: 40,
 
-  spriteWidth: 180,
-  spriteY: 340,      // 패널 안 절대 y(스프라이트 중심)
+  // 카드 틀(assets/ui/card_frame.png, 원본 1024×1536 세로 2:3) — 폭이 아니라 "높이"를 먼저
+  // 정한다. 세로로 긴 카드를 폭 기준으로 맞추면 계산상 높이가 720px 화면을 넘긴다(예: 폭
+  // 440으로 맞추면 비율상 높이 660). 실제 렌더 폭은 fitSpriteHeight()가 로드된 텍스처에서
+  // 그 자리에 계산한다(비율 하드코딩 없음) — UnlockOverlay.js가 사용.
+  cardTopY: 120,    // 배너(70) 아래 여유. cardTopY+cardHeight=600 < panelY+panelH(670)
+  cardHeight: 480,
+  cardInset: 32,    // 이중선 테두리·모서리 문양을 안 침범하는 안전영역 여백(카드 실제 폭 기준)
 
-  titleY: 175,
-  titleFontSize: 28,
+  cardTitleOffsetY: 50,   // 카드 top 기준 — 제목(각석체) y
+  titleFontSize: 26,
   titleColor: '#f2f4f8',
 
-  statStartY: 450,
-  statLineHeight: 32,
-  statFontSize: 18,   // ↑ CARD.fontSize(18)와 동급이지만 화면이 커서 체감 크기는 더 크다
+  spriteWidth: 130,        // 카드가 좁아진 만큼(구 180 → 130) 축소
+  cardSpriteOffsetY: 160,  // 카드 top 기준 — 스프라이트 중심 y
+
+  cardStatStartOffsetY: 300, // 카드 top 기준 — 첫 스탯 줄 y. 4줄까지 안전영역 안에 들어감(계산 확인)
+  statLineHeight: 26,
+  statFontSize: 16,   // 카드가 좁아져서 구 18에서 축소(가로 폭 여유 확보, 산스라 이 크기도 충분히 읽힘)
   statLabelColor: '#f2f4f8',
   statValueColor: '#ffd54f',
-  iconSize: 9,
-  iconGap: 14,        // 아이콘과 라벨 텍스트 사이 간격
+  iconSize: 8,
+  iconGap: 10,        // 아이콘과 라벨 텍스트 사이 간격
 
   flavorFontSize: 26,
   flavorColor: '#f2f4f8',

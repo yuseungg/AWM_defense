@@ -72,6 +72,7 @@ export class GameScene extends Phaser.Scene {
     // 배경 사진(낮/밤) — 없으면 loaderror만 나고 mapView.js가 COLOR.bg 단색으로 조용히 폴백한다.
     this.load.image('bg_day', 'bg/day.jpg');
     this.load.image('bg_night', 'bg/night.jpg');
+    this.load.image('card_frame', 'ui/card_frame.png'); // 해금 화면(UnlockOverlay.js) 카드 틀
     Object.keys(towersData).forEach(id => {
       this.load.image(`tower_${id}`, `towers/${id}.png`);
       // 레벨별 이미지(지금은 nseoulTower_1/_2/_3만 실제로 있음) — 나머지 5종×3단계는 404로
