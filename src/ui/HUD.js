@@ -18,7 +18,11 @@ export class HUD {
   constructor(scene) {
     this.scene = scene;
     const p = HUDT.padding;
-    const wx = HUDT.dividerX + 16;
+    // 구분선(dividerX) 오른쪽 열은 전부 이 x에서 시작한다 — 웨이브 텍스트(wx)뿐 아니라
+    // XP 바·"LV n" 라벨도 여기서 계산해야 구분선을 안 침범한다(HUDT.columnMargin, UITheme.js).
+    // renderXp()에서도 다시 써야 해서 인스턴스에 저장해둔다.
+    const wx = HUDT.dividerX + HUDT.columnMargin;
+    this.rightColX = wx;
 
     this.panel = drawPanel(scene, HUDT.x, HUDT.y, HUDT.width, HUDT.height, { corners: ['br'] });
 
@@ -42,7 +46,9 @@ export class HUD {
       letterSpacing: FONT.labelLetterSpacingEm * FONT.labelSize,
     });
 
-    this.levelText = scene.add.text(p, HUDT.rowXpY, '', {
+    // "LV n" + XP 세그먼트 바는 구분선 오른쪽(wx)에서 시작한다 — 예전엔 왼쪽 padding(p)에서
+    // 시작해 바 길이(8칸)가 구분선을 넘어 침범했다.
+    this.levelText = scene.add.text(wx, HUDT.rowXpY, '', {
       fontFamily: FONT.label, fontSize: `${FONT.labelSize}px`, color: FONT.labelColor,
       letterSpacing: FONT.labelLetterSpacingEm * FONT.labelSize,
     });
@@ -95,9 +101,12 @@ export class HUD {
     const ratio = this.xpToNext > 0 ? Phaser.Math.Clamp(this.xp / this.xpToNext, 0, 1) : 0;
     const filled = Math.round(ratio * HUDT.xpSegCount);
 
+    // xpSegWidth(HUDT)로 세그먼트 폭을 줄인다 — 다른 세그먼트 바(PANEL.segWidth=18)와 다르게
+    // 여기만 좁혀야 구분선 오른쪽(this.rightColX)에서 시작해도 8칸이 패널 오른쪽 밖으로 안 넘친다.
     this.xpSegs?.destroy();
     this.xpSegs = drawSegmentBar(
-      this.scene, HUDT.padding + HUDT.xpSegX, HUDT.rowXpY, HUDT.xpSegCount, filled, {},
+      this.scene, this.rightColX + HUDT.xpSegX, HUDT.rowXpY, HUDT.xpSegCount, filled,
+      { segWidth: HUDT.xpSegWidth },
     );
   }
 

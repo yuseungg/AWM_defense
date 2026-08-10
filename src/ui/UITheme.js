@@ -437,13 +437,22 @@ export const HUD = {
 
   dividerX:     100,   // 골드 열과 웨이브 열 사이 세로 구분선(패널 기준 x)
   dividerAlpha: 0.25,
+  // 구분선 오른쪽 열(웨이브 텍스트·XP 바)이 시작하는 여백 — dividerX에 이만큼 더한 지점부터
+  // 그린다. ★ XP 바가 구분선을 침범하던 버그(2026-08-12)의 수정 지점 — "LV n"·세그먼트 바
+  // 둘 다 이 여백을 기준으로 계산해야 한다(하드코딩 금지, 웨이브 열도 이걸 재사용한다).
+  columnMargin: 16,
 
   rowGoldY:  12,   // 골드 숫자 / 웨이브 텍스트 y
   rowLabelY: 36,   // "골드" / "진행" 라벨 y
   rowXpY:    58,   // "LV n" + 세그먼트 바 y
 
   xpSegCount: 8,
-  xpSegX:     44,   // "LV n" 라벨 옆 세그먼트 바 시작 x(padding 기준 상대값)
+  // "LV n" 라벨 옆 세그먼트 바 시작 x — 이제 padding이 아니라 (dividerX + columnMargin) 기준
+  // 상대값이다. xpSegWidth도 같이 줄여야 8칸이 패널 오른쪽(300px) 밖으로 안 넘친다 — 폭만
+  // 줄이면 라벨 자리를 그대로 잡아먹어서, 둘 다 같이 조정한 값(계산: 116(시작 x) + 34(이 값) +
+  // 8*12 + 7*2(세그먼트 8칸, xpSegWidth 기준) = 260 < 300).
+  xpSegX:      34,
+  xpSegWidth:  12,   // ↑ PANEL.segWidth(18)보다 좁다 — HUD XP 바 전용(다른 세그먼트 바는 그대로 18)
 };
 
 /**
@@ -648,6 +657,14 @@ export const UPGRADE = {
 
 /** 타이틀 화면 — 심사자가 보는 첫 화면. 3초 안에 시작 가능해야 한다(멋 부리지 않는다). */
 export const TITLE = {
+  // Phaser 캔버스 텍스트는 폰트에 따라 위아래 여백을 충분히 안 잡아서 획 상단이 잘리는
+  // 경우가 있다(한글 + 큰 폰트에서 특히) — 텍스트마다 이 여백을 캔버스에 미리 얹어서 피한다.
+  // ★ x/y 둘 다 대칭(좌우 동일 x, 상하 동일 top=bottom=y)이라 setOrigin(0.5) 기준 시각적
+  // 중심은 안 밀린다 — 패딩이 캔버스만 키우고 글자를 그 한가운데 그대로 그리기 때문. 그래도
+  // 폰트가 바뀌면 깨질 수 있으니 스크린샷으로 y 위치가 실제로 안 밀렸는지 확인할 것.
+  textPaddingX: 8,
+  textPaddingY: 12,
+
   titleFontSize: 56,
   titleY:        180,
   dateFontSize:  20,

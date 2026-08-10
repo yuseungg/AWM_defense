@@ -21,35 +21,40 @@ export class TitleScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor(COLOR.bg);
 
+    // 전부 padding: {x,y}를 준다 — 큰 폰트(제목)일수록 위아래 획이 잘리기 쉽지만, 작은
+    // 텍스트도 폰트가 바뀌면 똑같이 잘릴 수 있어서 화면의 모든 텍스트에 동일하게 건다
+    // (TITLE.textPaddingX/Y, UITheme.js — 대칭이라 setOrigin(0.5) 위치는 안 밀린다).
+    const pad = { x: TITLE.textPaddingX, y: TITLE.textPaddingY };
+
     this.add.text(W / 2, TITLE.titleY, '서울 디펜스', {
-      fontSize: `${TITLE.titleFontSize}px`, color: '#f2f4f8', fontStyle: 'bold',
+      fontSize: `${TITLE.titleFontSize}px`, color: '#f2f4f8', fontStyle: 'bold', padding: pad,
     }).setOrigin(0.5);
 
     const today = new Date();
-    const pad = n => String(n).padStart(2, '0');
-    const dateStr = `${today.getFullYear()}.${pad(today.getMonth() + 1)}.${pad(today.getDate())}`;
+    const pad2 = n => String(n).padStart(2, '0');
+    const dateStr = `${today.getFullYear()}.${pad2(today.getMonth() + 1)}.${pad2(today.getDate())}`;
     this.add.text(W / 2, TITLE.dateY, `${dateStr} 서울 — 오늘의 방어`, {
-      fontSize: `${TITLE.dateFontSize}px`, color: '#f2f4f8',
+      fontSize: `${TITLE.dateFontSize}px`, color: '#f2f4f8', padding: pad,
     }).setOrigin(0.5);
 
     this.add.text(W / 2, TITLE.descY, '서울의 랜드마크로 도시 문제를 막아라', {
-      fontSize: `${TITLE.descFontSize}px`, color: TITLE.descColor,
+      fontSize: `${TITLE.descFontSize}px`, color: TITLE.descColor, padding: pad,
     }).setOrigin(0.5);
 
     const bestWave = Number(localStorage.getItem('bestWave') || 0);
     const bestText = bestWave > 0 ? `최고 기록: 웨이브 ${bestWave}` : '첫 도전';
     this.add.text(W / 2, TITLE.bestY, bestText, {
-      fontSize: `${TITLE.bestFontSize}px`, color: TITLE.bestColor,
+      fontSize: `${TITLE.bestFontSize}px`, color: TITLE.bestColor, padding: pad,
     }).setOrigin(0.5);
 
     const btn = this.add.rectangle(W / 2, TITLE.buttonY, TITLE.buttonWidth, TITLE.buttonHeight, COLOR.accent)
       .setInteractive({ useHandCursor: true });
     this.add.text(W / 2, TITLE.buttonY, '시작', {
-      fontSize: `${TITLE.buttonFontSize}px`, color: '#11141a', fontStyle: 'bold',
+      fontSize: `${TITLE.buttonFontSize}px`, color: '#11141a', fontStyle: 'bold', padding: pad,
     }).setOrigin(0.5);
 
     this.add.text(W / 2, TITLE.hintY, 'Enter / Space로도 시작', {
-      fontSize: `${TITLE.hintFontSize}px`, color: TITLE.hintColor,
+      fontSize: `${TITLE.hintFontSize}px`, color: TITLE.hintColor, padding: pad,
     }).setOrigin(0.5);
 
     const start = () => {
