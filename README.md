@@ -22,9 +22,6 @@
 |---|---|
 | `CLAUDE.md` | **프로젝트 계약서.** 코드 쓰기 전에 반드시 읽는다 |
 | `GAME_DESIGN.md` | 기획 원본 (읽기 전용) |
-| `TASKS_A.md` | A 담당 — 게임 코어 `/src/game/` |
-| `TASKS_B.md` | B 담당 — UI·연출 `/src/ui/`, `/src/fx/`, `/assets/` |
-| `SYNC.md` | 비동기 작업 싱크. 세션 시작 때 읽고 종료 때 쓴다 |
 | `SETUP.md` | 저장소·배포 셋업 절차 |
 
 ---
