@@ -63,7 +63,7 @@
  */
 
 import Phaser from 'phaser';
-import { COLOR, UNLOCK, STATUS_FX, FONT } from './UITheme.js';
+import { COLOR, UNLOCK, STATUS_FX, FONT, DEPTH } from './UITheme.js';
 import { drawPanel } from './Panel.js';
 import { fitSpriteWidth, fitSpriteHeight } from '../fx/SpriteScale.js';
 import { refreshOnReady, loadCustomFonts } from './FontLoader.js';
@@ -71,7 +71,10 @@ import { bgKeyForWave } from './mapView.js';
 import towersData from '../../data/towers.json';
 
 const W = 1280, H = 720;
-const OVERLAY_DEPTH = 500;
+// UITheme.js DEPTH.overlay(4000) 기준 — DraftOverlay.js와 동일한 이유(★ 2026-08-12 수정).
+// 옛 값(500)은 TowerView가 DEPTH.objects + y(최대 ~820)로 그리기 시작한 뒤로, 화면 아래쪽에
+// 지어둔 실제 타워가 이 화면보다 위에 그려져 카드 밖으로 삐져나온 것처럼 보였다.
+const OVERLAY_DEPTH = DEPTH.overlay;
 
 const DDP_BLAST_COLOR = 0xff5722;        // ProjectileFx.js PROJECTILE_CONFIG.ddp.impactColor와 동일
 const SEOULFOREST_AURA_COLOR = 0x5fa04a; // AuraFx.js AURA_CONFIG.seoulForest.color와 동일
@@ -251,12 +254,23 @@ export function buildUnlockScreen(scene, towerId, onDismiss, wave) {
   // 카드 틀 — 높이 기준으로 맞추고 실제 폭은 로드된 텍스처에서 계산한다(비율 하드코딩 없음).
   // 텍스처가 없으면(로드 실패 등) 이미지 없이 기존 컬럼 폭(colW)을 레이아웃 폭으로 대신 쓴다.
   let cardWidth = colW;
+  let cardImage = null;
   if (scene.textures.exists('card_frame')) {
-    const cardImage = scene.add.image(leftCenterX, cardTopY, 'card_frame').setDepth(OVERLAY_DEPTH + 1);
+    cardImage = scene.add.image(leftCenterX, cardTopY, 'card_frame').setDepth(OVERLAY_DEPTH + 1);
     const cardScale = fitSpriteHeight(cardImage, UNLOCK.cardHeight, 0.5, 0);
     cardWidth = cardImage.width * cardScale;
     visuals.push(cardImage);
   }
+
+  // 안전판 — depth 역전(파일 상단 OVERLAY_DEPTH 주석) 같은 원인을 몰라도 카드 영역 밖으로는
+  // 아무것도 안 그려지게 마스크를 건다. 원인을 고친 뒤에도 남겨둔다(재발 방지용 방어선).
+  // 카드 틀(card_frame) 유무와 무관하게 "카드가 논리적으로 차지하는 영역"(leftCenterX 기준
+  // cardWidth×cardHeight)을 그대로 쓴다 — 텍스처가 없어도 카드 콘텐츠는 이 영역 안에 있어야 한다.
+  const cardMaskGfx = scene.make.graphics(undefined, false)
+    .fillRect(leftCenterX - cardWidth / 2, cardTopY, cardWidth, UNLOCK.cardHeight);
+  const cardMask = cardMaskGfx.createGeometryMask();
+  visuals.push(cardMaskGfx);
+  if (cardImage) cardImage.setMask(cardMask);
 
   // 이중선 테두리·모서리 문양을 안 침범하는 안전영역(카드의 실제 좌상단 기준)
   const safeLeft = leftCenterX - cardWidth / 2 + UNLOCK.cardInset;
@@ -264,14 +278,14 @@ export function buildUnlockScreen(scene, towerId, onDismiss, wave) {
 
   const title = scene.add.text(leftCenterX, cardTopY + UNLOCK.cardTitleOffsetY, def ? def.name : towerId, {
     fontFamily: FONT.unlockTitle, fontSize: `${UNLOCK.titleFontSize}px`, color: UNLOCK.titleColor, fontStyle: 'bold',
-  }).setOrigin(0.5).setDepth(OVERLAY_DEPTH + 2);
+  }).setOrigin(0.5).setDepth(OVERLAY_DEPTH + 2).setMask(cardMask);
   refreshOnReady(title);
   visuals.push(title);
 
   const spriteKey = `tower_${towerId}`;
   if (scene.textures.exists(spriteKey)) {
     const sprite = scene.add.image(leftCenterX, cardTopY + UNLOCK.cardSpriteOffsetY, spriteKey)
-      .setDepth(OVERLAY_DEPTH + 2);
+      .setDepth(OVERLAY_DEPTH + 2).setMask(cardMask);
     fitSpriteWidth(sprite, UNLOCK.spriteWidth, 0.5, 0.5);
     visuals.push(sprite);
   }
@@ -279,7 +293,7 @@ export function buildUnlockScreen(scene, towerId, onDismiss, wave) {
   let statY = cardTopY + UNLOCK.cardStatStartOffsetY;
   const iconX = safeLeft + UNLOCK.iconSize;
   stats.forEach(stat => {
-    const g = scene.add.graphics().setDepth(OVERLAY_DEPTH + 2);
+    const g = scene.add.graphics().setDepth(OVERLAY_DEPTH + 2).setMask(cardMask);
     (ICON_DRAWERS[stat.icon] ?? drawAttackIcon)(g, iconX, statY, UNLOCK.iconSize, stat.iconColor ?? COLOR.accent);
     visuals.push(g);
 
@@ -287,13 +301,13 @@ export function buildUnlockScreen(scene, towerId, onDismiss, wave) {
     const label = scene.add.text(labelX, statY, `${stat.label}  `, {
       fontFamily: FONT.unlockStat, fontSize: `${UNLOCK.statFontSize}px`, color: UNLOCK.statLabelColor,
       wordWrap: { width: Math.max(60, safeRight - labelX) }, // 안전영역을 넘는 극단적으로 긴 라벨 방어망
-    }).setOrigin(0, 0.5).setDepth(OVERLAY_DEPTH + 2);
+    }).setOrigin(0, 0.5).setDepth(OVERLAY_DEPTH + 2).setMask(cardMask);
     visuals.push(label);
 
     const value = scene.add.text(label.x + label.width, statY, stat.value(def), {
       fontFamily: FONT.unlockStat, fontSize: `${UNLOCK.statFontSize}px`, color: UNLOCK.statValueColor, fontStyle: 'bold',
       wordWrap: { width: Math.max(60, safeRight - (label.x + label.width)) },
-    }).setOrigin(0, 0.5).setDepth(OVERLAY_DEPTH + 2);
+    }).setOrigin(0, 0.5).setDepth(OVERLAY_DEPTH + 2).setMask(cardMask);
     visuals.push(value);
 
     // 라벨·값은 폭이 서로 맞물려 있어서(값이 라벨 바로 뒤에 붙음) refreshOnReady 단일 텍스트용

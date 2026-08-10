@@ -30,16 +30,20 @@
 
 import Phaser from 'phaser';
 import { EventBus, EV } from '../EventBus.js';
-import { COLOR, CARD, FONT } from './UITheme.js';
+import { COLOR, CARD, FONT, DEPTH } from './UITheme.js';
 import { OverlayQueue } from './OverlayQueue.js';
 import { buildUnlockScreen } from './UnlockOverlay.js';
 
 const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
 const W = 1280, H = 720;
-// BuildUI/UpgradeUI의 사거리·오라 원(depth 45~62)보다 항상 위에 뜨게 한다 — 세운상가 오라 원이
-// 카드 위로 비쳐 보이던 문제(depth 미지정 시 기본값 0이라 오라 레이어보다 아래에 깔림).
+// UITheme.js DEPTH.overlay(4000) 기준 — BuildUI/UpgradeUI의 사거리·오라 원(depth 45~62)보다
+// 항상 위에 뜨게 한다(세운상가 오라 원이 카드 위로 비쳐 보이던 문제). ★ 2026-08-12: 옛 값(500)은
+// TowerView가 DEPTH.objects + y(최대 ~820)로 그리기 시작한 뒤로 화면 아래쪽에 지어둔 실제
+// 타워가 이 오버레이보다 위에 그려지는 버그가 났다 — 카드 밖으로 "엉뚱한 타워"가 삐져나온
+// 것처럼 보였던 원인이 이거였다(destroy 누락이 아니라 depth 역전). DEPTH.overlay는
+// DEPTH.objects/fx/hud/panel(최대 3000) 전부보다 위라 이 문제가 구조적으로 재발하지 않는다.
 // BossAlert(9000대)·GameOverScene(9999)보다는 아래로 남겨서 그쪽이 항상 최우선이 되게 한다.
-const OVERLAY_DEPTH = 500;
+const OVERLAY_DEPTH = DEPTH.overlay;
 
 // card.kind(§6-1 MockGameCore/DraftSystem 공용 스펙) → 카드 상단 타입 뱃지 한글 라벨
 const TYPE_LABEL = { perk: '퍼크', support: '서포터', obstacle: '장애물', policy: '정책' };
@@ -206,7 +210,14 @@ export class DraftOverlay {
     });
     bg.on('pointerdown', () => this.pick(card, type));
 
-    return group;
+    // 안전판 — depth 역전(위 OVERLAY_DEPTH 주석) 같은 원인을 몰라도 카드 영역 밖으로는 아무것도
+    // 안 그려지게 마스크를 건다. 원인을 고친 뒤에도 남겨둔다(재발 방지용 방어선).
+    const maskGfx = this.scene.make.graphics(undefined, false)
+      .fillRect(x - CARD.width / 2, y, CARD.width, CARD.height);
+    const mask = maskGfx.createGeometryMask();
+    group.forEach(o => o.setMask(mask));
+
+    return [...group, maskGfx];
   }
 
   pick(card, type) {
