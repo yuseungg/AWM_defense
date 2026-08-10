@@ -116,9 +116,13 @@ export class DraftOverlay {
     else this.render(type, payload, cards);
   }
 
-  /** 타워 해금 — 카드+스프라이트+스탯+플레이버 그리기는 전부 UnlockOverlay.js 몫이다. */
+  /**
+   * 타워 해금 — 카드+스프라이트+스탯+플레이버+배경 그리기는 전부 UnlockOverlay.js 몫이다.
+   * 배경(낮/밤)은 현재 웨이브 기준이라 core.getState()로 1회 조회해서 넘긴다(D18 예외, 매 프레임 아님).
+   */
   renderUnlock({ unlockedTower }) {
-    this.visuals.push(...buildUnlockScreen(this.scene, unlockedTower, () => this.dismissUnlock()));
+    const { wave } = this.core.getState();
+    this.visuals.push(...buildUnlockScreen(this.scene, unlockedTower, () => this.dismissUnlock(), wave));
   }
 
   dismissUnlock() {

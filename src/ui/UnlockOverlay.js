@@ -40,6 +40,26 @@
  * 제목·스프라이트·스탯을 전부 그 안에서 카드의 실제 좌상단 좌표 기준으로 배치한다(카드가
  * 없을 때의 폴백 폭도 이 계산에 그대로 반영됨). 스탯 라벨·값에는 안전영역을 넘는 극단적으로
  * 긴 텍스트에 대비해 wordWrap 안전망을 건다(정상적인 경우엔 한 줄에 들어간다).
+ *
+ * ── 배너 틀(assets/ui/banner_frame.png) ─────────────────────────────
+ * 원본 2149×732, 완전 투명 배경의 가로 프레임. fitSpriteWidth로 폭 기준 배치하고, 텍스트 Y는
+ * 이미지 전체 중심이 아니라 픽셀 스캔으로 실측한 "프레임 사각형 안쪽 중심" 비율(약 44%,
+ * 위쪽에 치우쳐 있음)로 계산한다. 텍스처 없으면(로드 실패 등) 프레임 없이 UNLOCK.bannerY
+ * 고정 위치로 폴백한다.
+ *
+ * ── 플레이버 장식(assets/ui/flavor_divider_top/bottom.png) ───────────
+ * 원본은 위/아래 장식이 한 이미지에 같이 있었는데, 문구 줄 수(1~2줄)에 따라 위/아래를
+ * 독립적으로 배치해야 자연스럽게 감싸져서 픽셀 밝기 스캔으로 정확히 잘라 두 파일로
+ * 미리 나눴다(Phaser 런타임 setCrop은 크기 계산이 원본 프레임 기준으로 남는 경우가 있어
+ * 피함). 문구 텍스트를 만든 직후 실제 렌더 높이(flavorText.height, wordWrap으로 줄 수가
+ * 바뀌면 같이 바뀜)를 읽어서 그 위/아래에 배치한다 — 항상 문구를 감싼다.
+ *
+ * ── 배경(낮/밤 재사용) ────────────────────────────────────────────────
+ * 별도 이미지 없이 mapView.js가 배경 사진 전환에 쓰는 bgKeyForWave()를 그대로 가져다 현재
+ * 웨이브의 낮/밤을 판정하고, 이미 로드된 bg_day/bg_night를 mapView.js와 동일한 "cover" 방식
+ * (원본 비율 유지, 화면을 꽉 채우게 넘치는 쪽을 잘라냄)으로 화면 전체에 깐다. 그 위에 기존
+ * 딤(60% 검정)을 그대로 얹어 뒤 게임 화면이 비쳐 산만해지지 않게 한다. 텍스처 없으면 배경
+ * 이미지 없이 딤만(기존과 동일) — 조용히 스킵.
  */
 
 import Phaser from 'phaser';
@@ -47,6 +67,7 @@ import { COLOR, UNLOCK, STATUS_FX, FONT } from './UITheme.js';
 import { drawPanel } from './Panel.js';
 import { fitSpriteWidth, fitSpriteHeight } from '../fx/SpriteScale.js';
 import { refreshOnReady, loadCustomFonts } from './FontLoader.js';
+import { bgKeyForWave } from './mapView.js';
 import towersData from '../../data/towers.json';
 
 const W = 1280, H = 720;
@@ -171,25 +192,50 @@ const ICON_DRAWERS = {
 /**
  * towerId 해금 화면을 그려서 생성된 GameObject 배열을 돌려준다(destroy()는 호출부 책임 —
  * DraftOverlay.visuals와 동일 계약). onDismiss는 화면을 클릭해서 넘길 때 부르는 콜백이다.
+ * wave는 배경 낮/밤 판정용(bgKeyForWave) — DraftOverlay가 core.getState()로 1회 조회해 넘긴다.
  */
-export function buildUnlockScreen(scene, towerId, onDismiss) {
+export function buildUnlockScreen(scene, towerId, onDismiss, wave) {
   const def = towersData[towerId];
   const stats = STAT_LAYOUT[towerId] ?? [];
   const flavor = FLAVOR[towerId] ?? '';
   const visuals = [];
 
-  // 내용이 고정 레이아웃이라 원래도 넘칠 일은 없지만, 패널·카드 좌표는 방어적으로 화면 안에 clamp한다.
+  // 내용이 고정 레이아웃이라 원래도 넘칠 일은 없지만, 패널·카드·배너 좌표는 방어적으로
+  // 화면 안에 clamp한다.
   const panelX = Phaser.Math.Clamp(UNLOCK.panelX, 0, W - UNLOCK.panelW);
   const panelY = Phaser.Math.Clamp(UNLOCK.panelY, 0, H - UNLOCK.panelH);
   const cardTopY = Phaser.Math.Clamp(UNLOCK.cardTopY, 0, H - UNLOCK.cardHeight);
+  const bannerFrameTopY = Phaser.Math.Clamp(UNLOCK.bannerFrameTopY, 0, H);
 
-  const dim = scene.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6).setInteractive().setDepth(OVERLAY_DEPTH);
+  // 배경 — 현재 웨이브의 낮/밤(mapView.js와 동일 판정)을 딤보다 먼저 깐다. mapView.js와 같은
+  // "cover" 스케일(원본 비율 유지, 화면을 꽉 채우게 넘치는 쪽을 잘라냄).
+  const bgKey = `bg_${bgKeyForWave(wave ?? 0)}`;
+  if (scene.textures.exists(bgKey)) {
+    const src = scene.textures.get(bgKey).getSourceImage();
+    const bgScale = Math.max(W / src.width, H / src.height);
+    const bg = scene.add.image(W / 2, H / 2, bgKey).setScale(bgScale).setDepth(OVERLAY_DEPTH - 1);
+    visuals.push(bg);
+  }
+
+  const dim = scene.add.rectangle(W / 2, H / 2, W, H, UNLOCK.dimColor, UNLOCK.dimAlpha)
+    .setInteractive().setDepth(OVERLAY_DEPTH);
   dim.on('pointerdown', () => onDismiss());
   visuals.push(dim);
 
-  const banner = scene.add.text(W / 2, UNLOCK.bannerY, `${def ? def.name : towerId} 해금!`, {
+  // 배너 틀 — 폭 기준 배치, 텍스트 Y는 실측한 프레임 안쪽 중심 비율로 계산한다. 텍스처 없으면
+  // 프레임 없이 UNLOCK.bannerY 고정 위치로 폴백한다.
+  let bannerTextY = UNLOCK.bannerY;
+  if (scene.textures.exists('banner_frame')) {
+    const bannerFrame = scene.add.image(W / 2, bannerFrameTopY, 'banner_frame').setDepth(OVERLAY_DEPTH);
+    const frameScale = fitSpriteWidth(bannerFrame, UNLOCK.bannerFrameWidth, 0.5, 0);
+    const frameHeight = bannerFrame.height * frameScale;
+    bannerTextY = bannerFrameTopY + frameHeight * UNLOCK.bannerFrameTextCenterYRatio;
+    visuals.push(bannerFrame);
+  }
+
+  const banner = scene.add.text(W / 2, bannerTextY, `${def ? def.name : towerId} 해금!`, {
     fontFamily: FONT.unlockTitle, fontSize: `${UNLOCK.bannerFontSize}px`, color: UNLOCK.bannerColor, fontStyle: 'bold',
-  }).setOrigin(0.5).setDepth(OVERLAY_DEPTH);
+  }).setOrigin(0.5).setDepth(OVERLAY_DEPTH + 1);
   refreshOnReady(banner);
   visuals.push(banner);
 
@@ -269,6 +315,19 @@ export function buildUnlockScreen(scene, towerId, onDismiss) {
   }).setOrigin(0.5).setDepth(OVERLAY_DEPTH + 1);
   refreshOnReady(flavorText);
   visuals.push(flavorText);
+
+  // 문구 위/아래 금색 장식 — 문구의 실제 렌더 높이(줄 수에 따라 다름)를 기준으로 배치해서
+  // 1줄이든 2줄이든 항상 자연스럽게 감싼다.
+  ['flavor_divider_top', 'flavor_divider_bottom'].forEach((key, i) => {
+    if (!scene.textures.exists(key)) return;
+    const divider = scene.add.image(rightCenterX, 0, key).setDepth(OVERLAY_DEPTH + 1);
+    fitSpriteWidth(divider, UNLOCK.dividerWidth, 0.5, i === 0 ? 1 : 0); // top=하단앵커, bottom=상단앵커
+    const y = i === 0
+      ? flavorText.y - flavorText.height / 2 - UNLOCK.dividerGap
+      : flavorText.y + flavorText.height / 2 + UNLOCK.dividerGap;
+    divider.setPosition(rightCenterX, y);
+    visuals.push(divider);
+  });
 
   // 힌트는 테마 텍스트가 아니라 시스템 UI 문구라 커스텀 폰트를 안 쓴다(기존 FONT.ui 그대로)
   const hint = scene.add.text(W / 2, UNLOCK.hintY, '클릭해서 계속', {

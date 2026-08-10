@@ -73,6 +73,9 @@ export class GameScene extends Phaser.Scene {
     this.load.image('bg_day', 'bg/day.jpg');
     this.load.image('bg_night', 'bg/night.jpg');
     this.load.image('card_frame', 'ui/card_frame.png'); // 해금 화면(UnlockOverlay.js) 카드 틀
+    this.load.image('banner_frame', 'ui/banner_frame.png'); // 해금 화면 상단 배너 틀
+    this.load.image('flavor_divider_top', 'ui/flavor_divider_top.png'); // 플레이버 문구 위 금색 장식
+    this.load.image('flavor_divider_bottom', 'ui/flavor_divider_bottom.png'); // 플레이버 문구 아래 금색 장식
     Object.keys(towersData).forEach(id => {
       this.load.image(`tower_${id}`, `towers/${id}.png`);
       // 레벨별 이미지(지금은 nseoulTower_1/_2/_3만 실제로 있음) — 나머지 5종×3단계는 404로

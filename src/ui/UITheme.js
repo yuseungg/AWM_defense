@@ -197,9 +197,19 @@ export const CARD = {
  * 와 같은 방식) — 별도 컬럼 폭 상수를 안 둔다.
  */
 export const UNLOCK = {
-  bannerY: 70,
+  // 배경 딤 — 낮/밤 배경(bg_day/night, mapView.js와 동일 소스) 위에 그대로 유지한다.
+  dimColor: 0x000000,
+  dimAlpha: 0.6,
+
+  // 배너 틀(assets/ui/banner_frame.png, 원본 2149×732) — 폭 기준(가로 프레임이라 fitSpriteWidth).
+  // 텍스트 Y는 이미지 중심이 아니라 실측한 프레임 사각형의 안쪽 중심 비율이다(픽셀 스캔 확인 —
+  // 프레임이 이미지 전체 중심보다 위쪽에 있어 상하 여백이 비대칭: 위 20.2%, 아래 31.8%).
+  bannerY: 70,             // 텍스처 없을 때 폴백 위치(프레임 없이 텍스트만)
   bannerFontSize: 36,
   bannerColor: '#3fa7d6',
+  bannerFrameWidth: 420,
+  bannerFrameTopY: 15,               // 상단 HUD·화면 끝과 안 겹치게 위로 당김
+  bannerFrameTextCenterYRatio: 0.44, // 실측값(프레임 사각형 중심 / 이미지 전체 높이)
 
   panelX: 140, panelY: 110, panelW: 1000, panelH: 560, // 140+1000=1140<1280, 110+560=670<720
   panelPadding: 40,
@@ -209,8 +219,8 @@ export const UNLOCK = {
   // 정한다. 세로로 긴 카드를 폭 기준으로 맞추면 계산상 높이가 720px 화면을 넘긴다(예: 폭
   // 440으로 맞추면 비율상 높이 660). 실제 렌더 폭은 fitSpriteHeight()가 로드된 텍스처에서
   // 그 자리에 계산한다(비율 하드코딩 없음) — UnlockOverlay.js가 사용.
-  cardTopY: 120,    // 배너(70) 아래 여유. cardTopY+cardHeight=600 < panelY+panelH(670)
-  cardHeight: 480,
+  cardTopY: 173,    // 배너 틀(15~158) 아래 여유. cardTopY+cardHeight=643 < panelY+panelH(670)
+  cardHeight: 470,
   cardInset: 32,    // 이중선 테두리·모서리 문양을 안 침범하는 안전영역 여백(카드 실제 폭 기준)
 
   cardTitleOffsetY: 50,   // 카드 top 기준 — 제목(각석체) y
@@ -230,6 +240,12 @@ export const UNLOCK = {
 
   flavorFontSize: 26,
   flavorColor: '#f2f4f8',
+
+  // 플레이버 문구 위/아래 금색 장식(assets/ui/flavor_divider_top/bottom.png, 각 1536×300,
+  // 원본에서 픽셀 밝기 스캔으로 정확히 잘라낸 조각). 문구 실제 렌더 높이(줄 수에 따라 다름)를
+  // 만든 직후 읽어서 그 위/아래에 배치하므로 여기는 폭·간격만 상수화한다.
+  dividerWidth: 400,
+  dividerGap: 14,
 
   hintY: 660,
   hintFontSize: 15,
